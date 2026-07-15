@@ -368,7 +368,12 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 			if((attr & 2) && (m_screen->frame_number() & 0x10)) // FIXME: blink freq
 				tile_data = 0;
 
-			if(cursor_on && cursor_addr == addr+x) //TODO
+			// Cursor nur in den vom uPD7220 (CCHAR-Kommando) vorgegebenen
+			// Rasterzeilen invertieren -> ergibt Unterstrich statt Block,
+			// zusätzlich blinken lassen (gleicher Rhythmus wie Attribut-Blinken oben)
+			if(cursor_on && cursor_addr == addr+x
+				&& yi >= cursor_top && yi <= cursor_bot
+				&& (m_screen->frame_number() & 0x10))
 				tile_data^=0xff;
 
 			for( int xi = 0; xi < 8; xi++)
