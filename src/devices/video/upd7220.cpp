@@ -1800,6 +1800,31 @@ void upd7220_device::lpen_w(int state)
 
 
 //-------------------------------------------------
+//  cursor_blink_on / attr_blink_on -
+//-------------------------------------------------
+
+// BR = 0 is taken as 32, following the data sheet rule that an all-zero
+// parameter selects 2^n for vertical (frame counted) parameters (assumption)
+static inline u64 upd7220_blink_frames(int br)
+{
+	return 2 * u64(br ? br : 32);
+}
+
+bool upd7220_device::cursor_blink_on() const
+{
+	if (m_sc)
+		return true;
+
+	return ((screen().frame_number() / upd7220_blink_frames(m_br)) & 1) == 0;
+}
+
+bool upd7220_device::attr_blink_on() const
+{
+	return ((screen().frame_number() / upd7220_blink_frames(m_br)) & 3) != 3;
+}
+
+
+//-------------------------------------------------
 //  update_text -
 //-------------------------------------------------
 
