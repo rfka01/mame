@@ -92,6 +92,14 @@ public:
 
 	std::tuple<u32, u16, u8> get_area_partition_props(int line);
 
+	// Blink timing as output by the GDC in character and mixed mode, derived from
+	// the CCHAR SC and BR parameters (uPD7220 data sheet, CCHAR):
+	// - cursor: blink-on time = blink-off time = 2 x BR frames, steady if SC = 1
+	// - attributes (A16): half the cursor rate, 3/4 on and 1/4 off
+	// Drivers may use these instead of their own frame counter based blinking.
+	bool cursor_blink_on() const;
+	bool attr_blink_on() const;
+
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:
