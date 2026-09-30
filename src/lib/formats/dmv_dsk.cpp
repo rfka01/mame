@@ -47,6 +47,24 @@ const dmv_format::format dmv_format::formats[] = {
 		1, {},
 		80, 50, 22, 80
 	},
+	{
+		/*  720K: 80 tracks, 9 sectors of 512 bytes (DMV with QD drives) */
+		floppy_image::FF_525, floppy_image::DSQD, floppy_image::MFM,
+		2000,
+		9, 80, 2,
+		512, {},
+		1, {},
+		80, 50, 22, 80
+	},
+	{
+		/*  800K: 80 tracks, 5 sectors of 1024 bytes (DMV QD format) */
+		floppy_image::FF_525, floppy_image::DSQD, floppy_image::MFM,
+		2000,
+		5, 80, 2,
+		1024, {},
+		1, {},
+		80, 50, 22, 44
+	},
 	{}
 };
 
