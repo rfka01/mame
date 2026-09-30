@@ -8,6 +8,7 @@
 
 #include "dmvbus.h"
 #include "cpu/i86/i86.h"
+#include "machine/i8087.h"
 
 // K234
 #include "cpu/m68000/m68008.h"
@@ -41,6 +42,7 @@ protected:
 	// optional information overrides
 	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 	// dmvcart_interface overrides
 	virtual void hold_w(int state) override;
@@ -51,6 +53,8 @@ protected:
 	void k230_mem(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
+	optional_device<i8087_device> m_fpu;
+	optional_ioport             m_config;
 	optional_memory_region      m_rom;
 	int                         m_switch16;
 	int                         m_hold;
@@ -59,6 +63,12 @@ protected:
 	uint8_t program_r(offs_t offset);
 	void io_w(offs_t offset, uint8_t data);
 	void program_w(offs_t offset, uint8_t data);
+
+	// 8087 socket (empty on K230/K231 by default, fitted on K235)
+	void fpu_config(machine_config &config);
+	bool fpu_present() { return m_fpu && m_config && (m_config->read() & 0x80); }
+	void esc_opcode_w(uint32_t data) { if (fpu_present()) m_fpu->insn_w(data); }
+	void esc_data_w(uint32_t data)   { if (fpu_present()) m_fpu->addr_w(data); }
 
 private:
 	uint8_t rom_r(offs_t offset);
@@ -92,6 +102,7 @@ protected:
 	// optional information overrides
 	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD { return nullptr; }
 
 	// device-level overrides
 	virtual void device_start() override ATTR_COLD;
@@ -130,16 +141,15 @@ protected:
 	void keyint_w(int state) override  { m_pic->ir1_w(state); }
 	void busint_w(int state) override  { m_pic->ir2_w(state); }
 	void flexint_w(int state) override { m_pic->ir6_w(state); }
-	void irq2a_w(int state) override   { if (!(m_dsw->read() & 0x02))  m_pic->ir5_w(state); }
-	void irq2_w(int state) override    { if ( (m_dsw->read() & 0x02))  m_pic->ir5_w(state); }
+	void irq2a_w(int state) override   { if (!(m_config->read() & 0x02))  m_pic->ir5_w(state); }
+	void irq2_w(int state) override    { if ( (m_config->read() & 0x02))  m_pic->ir5_w(state); }
 	void irq3_w(int state) override    { m_pic->ir3_w(state); }
 	void irq4_w(int state) override    { m_pic->ir4_w(state); }
-	void irq5_w(int state) override    { if (!(m_dsw->read() & 0x01))  m_pic->ir7_w(state); }
-	void irq6_w(int state) override    { if ( (m_dsw->read() & 0x01))  m_pic->ir7_w(state); }
+	void irq5_w(int state) override    { if (!(m_config->read() & 0x01))  m_pic->ir7_w(state); }
+	void irq6_w(int state) override    { if ( (m_config->read() & 0x01))  m_pic->ir7_w(state); }
 
 private:
 	required_device<pic8259_device> m_pic;
-	required_ioport m_dsw;
 
 	void k235_io(address_map &map) ATTR_COLD;
 };

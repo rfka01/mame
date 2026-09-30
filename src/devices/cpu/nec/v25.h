@@ -101,6 +101,10 @@ private:
 	address_space_config m_data_config;
 	address_space_config m_io_config;
 
+	// ESC hooks referenced by the shared i_fpo handler (not bound on V25/V35)
+	devcb_write32 m_esc_opcode_handler;
+	devcb_write32 m_esc_data_handler;
+
 	memory_access<20, 0, 0, ENDIANNESS_LITTLE>::cache m_cache8;
 	memory_access<20, 1, 0, ENDIANNESS_LITTLE>::cache m_cache16;
 
