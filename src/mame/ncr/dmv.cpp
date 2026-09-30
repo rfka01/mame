@@ -148,6 +148,13 @@ private:
 	void ifsel3_w(offs_t offset, uint8_t data) { ifsel_w(3, offset, data); }
 	void ifsel4_w(offs_t offset, uint8_t data) { ifsel_w(4, offset, data); }
 
+	// green monochrome monitor: off, half intensity, full intensity
+	// (half intensity halves the video signal, so it is modelled as half of the
+	// full level; the brightness/contrast knobs are left to the MAME sliders)
+	static constexpr rgb_t MONO_OFF  = rgb_t(0x00, 0x00, 0x00);
+	static constexpr rgb_t MONO_HALF = rgb_t(0x00, 0x80, 0x00);
+	static constexpr rgb_t MONO_FULL = rgb_t(0x00, 0xff, 0x00);
+
 	UPD7220_DISPLAY_PIXELS_MEMBER( hgdc_display_pixels );
 	UPD7220_DRAW_TEXT_LINE_MEMBER( hgdc_draw_text );
 
@@ -328,15 +335,13 @@ UPD7220_DISPLAY_PIXELS_MEMBER( dmv_state::hgdc_display_pixels )
 	}
 	else
 	{
-		rgb_t const *const palette = m_palette->palette()->entry_list_raw();
-
-		// 32KB videoram
+		// 32KB videoram, no attributes in graphics area
 		uint16_t gfx = m_video_ram[(address & 0x3fff)];
 
 		for(int xi=0;xi<16;xi++)
 		{
 			if (bitmap.cliprect().contains(x + xi, y))
-				bitmap.pix(y, x + xi) = ((gfx >> xi) & 1) ? palette[2] : palette[0];
+				bitmap.pix(y, x + xi) = BIT(gfx, xi) ? MONO_FULL : MONO_OFF;
 		}
 	}
 }
@@ -356,19 +361,33 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 		}
 		else
 		{
-			const rgb_t *palette = m_palette->palette()->entry_list_raw();
-			bg = palette[(attr & 1) ? 2 : 0];
-			fg = palette[(attr & 1) ? 0 : 2];
+			// Monochrome board attributes (NCR DMV System Information, Graphics Controller Board):
+			//   bit 0 (VRAM bit 8)  inverse
+			//   bit 1 (VRAM bit 9)  blink enable
+			//   bit 2 (VRAM bit 10) half intensity
+			//   bits 3-7            not used (firmware writes E8h, i.e. full intensity)
+			// Half intensity is applied to whatever is lit in the cell, so an inverse
+			// half-intensity cell shows dark characters on a dimmed background.
+			rgb_t const lit = BIT(attr, 2) ? MONO_HALF : MONO_FULL;
+			bg = BIT(attr, 0) ? lit : MONO_OFF;
+			fg = BIT(attr, 0) ? MONO_OFF : lit;
 		}
 
 		for( int yi = 0; yi < lr; yi++)
 		{
 			uint8_t tile_data = m_chargen->base()[(tile*16+yi) & 0x7ff];
 
-			if((attr & 2) && (m_screen->frame_number() & 0x10)) // FIXME: blink freq
+			// blink attribute, timed by the GDC attribute blink output (A16)
+			if((attr & 2) && !m_hgdc->attr_blink_on())
 				tile_data = 0;
 
-			if(cursor_on && cursor_addr == addr+x) //TODO
+			// Cursor: the GDC only asserts its cursor output (A17) on the raster
+			// lines CTOP..CBOT set with CCHAR, blinking according to SC and BR.
+			// Both mainboard firmwares program CTOP = CBOT = 14 with blinking
+			// enabled (CCHAR 8F CE 72), i.e. a one line blinking underline.
+			// Note that upd7220_device passes CTOP in cursor_bot and CBOT in
+			// cursor_top.
+			if(cursor_on && cursor_addr == addr+x && yi >= cursor_bot && yi <= cursor_top && m_hgdc->cursor_blink_on())
 				tile_data^=0xff;
 
 			for( int xi = 0; xi < 8; xi++)
@@ -827,6 +846,55 @@ void dmv_state::dmv(machine_config &config)
 	DMV_KEYBOARD(config, m_keyboard);
 
 	/* video hardware */
+	// Video timing
+	// ------------
+	// The upd7220 recomputes the screen geometry and refresh rate from the RESET
+	// parameters as soon as the firmware programs it as VSYNC master (VSYNC 6F),
+	// so the 50 Hz below only applies until the mainboard firmware has run.
+	//
+	// The firmware sends RESET (00) with the 8 parameter bytes stored at 04D0h
+	// in the mainboard ROM. The mono ROM 33609 (M.07.00) and the color ROM 33610
+	// (C.07.00) are identical except for the version letter at 0FF9h, the
+	// checksum at 1FFFh and these parameters:
+	//
+	//                      mono (33609)                color (33610)
+	//   RESET params       14 4E 82 09 12 06 90 19     14 4E 06 15 09 0A 90 3D
+	//   mode               14h: mixed mode, DRAM refresh, drawing in retrace only
+	//   AW / HS/HFP/HBP    80 / 3/3/19 = 105 chars     80 / 7/6/10 = 103 chars
+	//   AL / VS/VFP/VBP    400 / 12/6/6 = 424 lines    400 / 8/10/15 = 433 lines
+	//   board crystal      20.000 MHz                  24.000 MHz
+	//
+	// Text characters are 8 pixels wide and the board crystal is taken as the
+	// pixel clock. upd7220_device counts one 8 pixel character per input clock
+	// in mixed mode (refresh = pixel total / (clock * 8)), so the device is
+	// clocked at pixel clock / 8 here. This is an emulation convention: the
+	// real 2xWCLK needs two clocks per display cycle (NEC uPD7220 GDC Design
+	// Manual, 2.2). In mixed mode a display cycle shows one 8 pixel character
+	// (PRAM WD = 0), and in graphics areas the address only advances every
+	// other display cycle (data sheet, PRAM IM bit), so 8 pixels per display
+	// cycle throughout and 2xWCLK = pixel clock / 4 on the board. Only the
+	// resulting video timing is modelled, and it does not depend on this.
+	// Both boards carry a D7220D-1, specified for 2xWCLK up to 5 MHz
+	// (tCLK >= 200 ns).
+	// Mono: 20 MHz pixel clock (2xWCLK 5 MHz), 840 x 424 pixels total,
+	// 23.81 kHz horizontal, 56.15 Hz vertical.
+	// Color: with the mono clock used here the color timing results in
+	// 824 x 433, 24.27 kHz, 56.06 Hz. Using the 24 MHz crystal directly as
+	// pixel clock would need 2xWCLK = 6 MHz, beyond the D7220D-1 rating, so
+	// the color board must derive its clocks differently. This is unverified
+	// (needs a measurement of HSYNC, P113 pin 8c), so the color board still
+	// uses the mono clock.
+	//
+	// CCHAR (4B) is programmed with 8F CE 72 by both firmwares: 16 raster lines
+	// per character row, cursor displayed, blinking, blink rate BR = 11, cursor
+	// on line 14 only. At 56.15 Hz this gives a cursor blinking 22 frames on,
+	// 22 frames off (0.78 s period) and an attribute blink of 66 frames on,
+	// 22 frames off (1.57 s period). In mixed mode the GDC outputs the cursor
+	// indication on A17 and the attribute blink timing on A16 during active
+	// display (Design Manual 2.4.2, data sheet pin utilization). That the DMV
+	// boards use A16 for the blink attribute is assumed, not verified.
+	// PRAM (70) is programmed with 00 00 F0 3F: one character area (IM = 0,
+	// WD = 0) starting at address 0.
 	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(50);
 	m_screen->set_screen_update("upd7220", FUNC(upd7220_device::screen_update));
@@ -838,7 +906,7 @@ void dmv_state::dmv(machine_config &config)
 	config.set_default_layout(layout_dmv);
 
 	// devices
-	UPD7220(config, m_hgdc, XTAL(5'000'000)/2); // unk clock
+	UPD7220(config, m_hgdc, XTAL(20'000'000)/8); // mono board: 20 MHz pixel clock / 8 (MAME convention, see video timing above)
 	m_hgdc->set_addrmap(0, &dmv_state::upd7220_map);
 	m_hgdc->set_display_pixels(FUNC(dmv_state::hgdc_display_pixels));
 	m_hgdc->set_draw_text(FUNC(dmv_state::hgdc_draw_text));
