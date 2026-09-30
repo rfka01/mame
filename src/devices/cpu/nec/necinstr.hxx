@@ -713,7 +713,23 @@ OP( 0xd4, i_aam    ) { fetch(); Breg(AH) = Breg(AL) / 10; Breg(AL) %= 10; SetSZP
 OP( 0xd5, i_aad    ) { fetch(); Breg(AL) = Breg(AH) * 10 + Breg(AL); Breg(AH) = 0; SetSZPF_Byte(Breg(AL)); CLKS(7,7,8,20); }
 OP( 0xd6, i_setalc ) { Breg(AL) = (CF)?0xff:0x00; CLK(3); logerror("%06x: Undefined opcode (SETALC)\n",PC()); }
 OP( 0xd7, i_trans  ) { uint32_t dest = (Wreg(BW)+Breg(AL))&0xffff; Breg(AL) = GetMemB(DS0, dest); CLKS(9,9,5,10); }
-OP( 0xd8, i_fpo    ) { GetModRM; GetRMByte(ModRM); CLK(2);  logerror("%06x: Unimplemented floating point control %04x\n",PC(),ModRM); }
+OP( 0xd8, i_fpo    ) {
+	if (m_esc_opcode_handler.isunset())
+	{
+		GetModRM; GetRMByte(ModRM); CLK(2);
+		logerror("%06x: Unimplemented floating point control %04x\n",PC(),ModRM);
+		return;
+	}
+	// ESC: hand the physical address of the opcode byte (after any prefix) to the
+	// coprocessor, then the effective address of the memory operand (0 for register forms).
+	m_esc_opcode_handler((Sreg(PS) << 4) + ((m_ip - 1) & 0xffff));
+	GetModRM;
+	if (ModRM >= 0xc0)
+		m_esc_data_handler(0);
+	else
+		m_esc_data_handler((this->*s_GetEA[ModRM])());
+	CLK(2);
+}
 
 OP( 0xe0, i_loopne ) { int8_t disp = (int8_t)fetch(); Wreg(CW)--; if (!ZF && Wreg(CW)) { m_ip = (WORD)(m_ip+disp); /*CHANGE_PC;*/ CLKS(14,14,6,17); } else CLKS(5,5,3,8); }
 OP( 0xe1, i_loope  ) { int8_t disp = (int8_t)fetch(); Wreg(CW)--; if ( ZF && Wreg(CW)) { m_ip = (WORD)(m_ip+disp); /*CHANGE_PC;*/ CLKS(14,14,6,17); } else CLKS(5,5,3,8); }

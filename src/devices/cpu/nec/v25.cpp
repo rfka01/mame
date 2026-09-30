@@ -67,6 +67,8 @@ v25_common_device::v25_common_device(const machine_config &mconfig, device_type 
 	, m_program_config("program", ENDIANNESS_LITTLE, is_16bit ? 16 : 8, 20, 0)
 	, m_data_config("data", ENDIANNESS_LITTLE, 16, 9, 0, address_map_constructor(FUNC(v25_common_device::ida_sfr_map), this))
 	, m_io_config("io", ENDIANNESS_LITTLE, is_16bit ? 16 : 8, 16, 0)
+	, m_esc_opcode_handler(*this)
+	, m_esc_data_handler(*this)
 	, m_internal_ram(*this, "internal_ram")
 	, m_PCK(8)
 	, m_pt_in(*this, 0xff)

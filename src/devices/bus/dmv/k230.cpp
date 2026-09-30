@@ -62,6 +62,13 @@ void dmv_k235_device::k235_io(address_map &map)
 	map(0x90, 0x91).rw(m_pic, FUNC(pic8259_device::read), FUNC(pic8259_device::write));
 }
 
+static INPUT_PORTS_START( dmv_k230 )
+	PORT_START("DSW")
+	PORT_CONFNAME( 0x80, 0x00, "8087 Coprocessor" )
+	PORT_CONFSETTING( 0x00, "Not installed" )
+	PORT_CONFSETTING( 0x80, "Installed" )
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( dmv_k235 )
 	PORT_START("DSW")
 	PORT_DIPNAME( 0x01, 0x00, "K235 INT7" )  PORT_DIPLOCATION("S:1")
@@ -70,6 +77,9 @@ static INPUT_PORTS_START( dmv_k235 )
 	PORT_DIPNAME( 0x02, 0x00, "K235 INT5" )  PORT_DIPLOCATION("S:2")
 	PORT_DIPSETTING( 0x00, "Slot 2a" )
 	PORT_DIPSETTING( 0x02, "Slot 2" )
+	PORT_CONFNAME( 0x80, 0x80, "8087 Coprocessor" )
+	PORT_CONFSETTING( 0x00, "Not installed" )
+	PORT_CONFSETTING( 0x80, "Installed" )
 INPUT_PORTS_END
 
 
@@ -99,6 +109,8 @@ dmv_k230_device::dmv_k230_device(const machine_config &mconfig, device_type type
 	: device_t(mconfig, type, tag, owner, clock)
 	, device_dmvslot_interface(mconfig, *this)
 	, m_maincpu(*this, "maincpu")
+	, m_fpu(*this, "i8087")
+	, m_config(*this, "DSW")
 	, m_rom(*this, "rom")
 	, m_switch16(0)
 	, m_hold(0)
@@ -128,7 +140,7 @@ dmv_k234_device::dmv_k234_device(const machine_config &mconfig, const char *tag,
 //-------------------------------------------------
 
 dmv_k235_device::dmv_k235_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: dmv_k230_device(mconfig, DMV_K235, tag, owner, clock), m_pic(*this, "pic8259"), m_dsw(*this, "DSW")
+	: dmv_k230_device(mconfig, DMV_K235, tag, owner, clock), m_pic(*this, "pic8259")
 {
 }
 
@@ -173,11 +185,29 @@ void dmv_k234_device::device_reset()
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
+void dmv_k230_device::fpu_config(machine_config &config)
+{
+	// 8087 socket B1 next to the CPU (K235 schematic 017-0033502, sheet 1):
+	// - CLK/READY/RESET shared with the CPU (8284A, 15 MHz / 3)
+	// - BUSY (pin 23) -> CPU TEST/ (pin 23), used by FWAIT (V20: /POLL)
+	// - INT (pin 32) -> CPU NMI (pin 17); 0 ohm jumper R5 ties NMI to GND
+	//   when B1 is not populated
+	// - RQ/GT0 -> CPU RQ/GT1, QS0/QS1 in parallel (not needed for emulation)
+	I8087(config, m_fpu, XTAL(15'000'000) / 3);
+	m_fpu->set_space_88(m_maincpu, AS_PROGRAM);
+	m_fpu->busy().set_inputline(m_maincpu, INPUT_LINE_TEST);
+	m_fpu->irq().set([this] (int state) { if (fpu_present()) m_maincpu->set_input_line(INPUT_LINE_NMI, state); });
+}
+
 void dmv_k230_device::device_add_mconfig(machine_config &config)
 {
-	I8088(config, m_maincpu, XTAL(15'000'000) / 3);
-	m_maincpu->set_addrmap(AS_PROGRAM, &dmv_k230_device::k230_mem);
-	m_maincpu->set_addrmap(AS_IO, &dmv_k230_device::k230_io);
+	i8088_cpu_device &maincpu(I8088(config, m_maincpu, XTAL(15'000'000) / 3));
+	maincpu.set_addrmap(AS_PROGRAM, &dmv_k230_device::k230_mem);
+	maincpu.set_addrmap(AS_IO, &dmv_k230_device::k230_io);
+	maincpu.esc_opcode_handler().set(FUNC(dmv_k230_device::esc_opcode_w));
+	maincpu.esc_data_handler().set(FUNC(dmv_k230_device::esc_data_w));
+
+	fpu_config(config);
 }
 
 void dmv_k234_device::device_add_mconfig(machine_config &config)
@@ -188,13 +218,18 @@ void dmv_k234_device::device_add_mconfig(machine_config &config)
 
 void dmv_k235_device::device_add_mconfig(machine_config &config)
 {
-	V20(config, m_maincpu, XTAL(15'000'000) / 3);
-	m_maincpu->set_addrmap(AS_PROGRAM, &dmv_k235_device::k230_mem);
-	m_maincpu->set_addrmap(AS_IO, &dmv_k235_device::k235_io);
-	m_maincpu->set_irq_acknowledge_callback("pic8259", FUNC(pic8259_device::inta_cb));
+	v20_device &maincpu(V20(config, m_maincpu, XTAL(15'000'000) / 3));
+	maincpu.set_addrmap(AS_PROGRAM, &dmv_k235_device::k230_mem);
+	maincpu.set_addrmap(AS_IO, &dmv_k235_device::k235_io);
+	maincpu.set_irq_acknowledge_callback("pic8259", FUNC(pic8259_device::inta_cb));
+	maincpu.esc_opcode_handler().set(FUNC(dmv_k235_device::esc_opcode_w));
+	maincpu.esc_data_handler().set(FUNC(dmv_k235_device::esc_data_w));
 
 	PIC8259(config, m_pic);
 	m_pic->out_int_callback().set_inputline(m_maincpu, 0);
+
+	// C8087-1 fitted on the K235 board (V20 /POLL = NEC_INPUT_LINE_POLL = INPUT_LINE_TEST)
+	fpu_config(config);
 }
 
 //-------------------------------------------------
@@ -224,6 +259,11 @@ const tiny_rom_entry *dmv_k235_device::device_rom_region() const
 //-------------------------------------------------
 //  input_ports - device-specific input ports
 //-------------------------------------------------
+
+ioport_constructor dmv_k230_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME( dmv_k230 );
+}
 
 ioport_constructor dmv_k235_device::device_input_ports() const
 {

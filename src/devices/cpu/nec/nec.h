@@ -26,6 +26,11 @@ class nec_common_device : public cpu_device, public nec_disassembler::config
 {
 	friend class device_v5x_interface;
 
+public:
+	// 8087 coprocessor hookup (same semantics as i8086_cpu_device)
+	auto esc_opcode_handler() { return m_esc_opcode_handler.bind(); }
+	auto esc_data_handler() { return m_esc_data_handler.bind(); }
+
 protected:
 	// construction/destruction
 	nec_common_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool is_16bit, uint8_t prefetch_size, uint8_t prefetch_cycles, uint32_t chip_type, bool has_div_quirk, address_map_constructor internal_port_map = address_map_constructor());
@@ -65,6 +70,9 @@ protected:
 
 	address_space_config m_program_config;
 	address_space_config m_io_config;
+
+	devcb_write32 m_esc_opcode_handler;
+	devcb_write32 m_esc_data_handler;
 
 private:
 	/* NEC registers */
