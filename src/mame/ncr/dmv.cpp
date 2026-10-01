@@ -62,7 +62,6 @@ public:
 		, m_floppy1(*this, "i8272:1")
 		, m_keyboard(*this, "keyboard")
 		, m_speaker(*this, "speaker")
-		, m_video_ram(*this, "video_ram")
 		, m_palette(*this, "palette")
 		, m_ram(*this, "ram")
 		, m_bootrom(*this, "boot")
@@ -85,6 +84,8 @@ private:
 	void update_halt_line();
 
 	void leds_w(uint8_t data);
+	uint8_t gdc_r(offs_t offset);
+	void gdc_w(offs_t offset, uint8_t data);
 	void dma_hrq_changed(int state);
 	void dmac_eop(int state);
 	void dmac_dack3(int state);
@@ -158,6 +159,9 @@ private:
 	UPD7220_DISPLAY_PIXELS_MEMBER( hgdc_display_pixels );
 	UPD7220_DRAW_TEXT_LINE_MEMBER( hgdc_draw_text );
 
+	uint16_t vram_r(offs_t offset);
+	void vram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+
 	void dmv_io(address_map &map) ATTR_COLD;
 	void dmv_mem(address_map &map) ATTR_COLD;
 	void upd7220_map(address_map &map) ATTR_COLD;
@@ -175,7 +179,12 @@ private:
 	required_device<floppy_connector> m_floppy1;
 	required_device<dmv_keyboard_device> m_keyboard;
 	required_device<speaker_sound_device> m_speaker;
-	required_shared_ptr<uint16_t> m_video_ram;
+	// Video RAM behind the uPD7220 (word addressed):
+	//   monochrome board: 16K words (32KB), green plane only
+	//   colour board:     48K words (96KB), green, red and blue plane
+	static constexpr offs_t VRAM_PLANE_WORDS = 0x4000;
+	static constexpr offs_t VRAM_WORDS = 3 * VRAM_PLANE_WORDS;
+	std::unique_ptr<uint16_t[]> m_video_ram;
 	required_device<palette_device> m_palette;
 	required_memory_region m_ram;
 	required_memory_region m_bootrom;
@@ -204,6 +213,7 @@ private:
 	int         m_floppy_motor;
 	int         m_busint[8];
 	int         m_irqs[8];
+	uint8_t     m_zoom_latch;   // horizontal display zoom latch on the graphics board (74LS175 B6)
 };
 
 void dmv_state::tc_set_w(uint8_t data)
@@ -314,34 +324,75 @@ uint8_t dmv_state::sys_status_r()
 	return data;
 }
 
+/*
+    Graphics board I/O and display zoom latch
+
+    The mainboard decodes BA4-BA7 into GDCSEL/ for the whole range A0h-AFh
+    (74LS154 F7, schematic 017-0032012 sheet 8) and passes GDCIOW/,
+    GDCIOR/, BA0 and BA1 to the graphics board (J113, sheet 7). On the
+    board (017-0032489, sheet 1) BA0 drives A0 of the uPD7220, so the GDC
+    shows up at every even/odd port pair of A0h-AFh.
+
+    Sheet 5 ("ZOOM") adds a horizontal display zoom: a 74LS175 (B6) is
+    clocked by GDCIOW/ gated with BA1 (74ALS00 B3) and latches D4-D7. Its
+    inverted outputs preset a 74LS161 (B5) that counts PIXCLK and reloads
+    on carry; carry or VSRLD1 give VSREN, the shift enable of the graphics
+    plane shift registers (sheets 2 and 3). The planes therefore shift one
+    pixel every (D7..D4) + 1 pixel clocks. The character shift register
+    (74ALS299 B11, sheet 5) runs from PIXCLK2* and VSRLD2 and is not stretched.
+    The latch has no reset.
+
+    A write to A2h (BA1 = 1, BA0 = 0) thus goes to the GDC as a parameter
+    and into the zoom latch at the same time. The mainboard firmware
+    C.07.00 (33610) uses exactly that: ZOOM command 46h to A1h, parameter
+    to A2h (Z80 code 0445h..049Fh). The upper nibble of the ZOOM parameter
+    is the display zoom factor minus one, which matches the latch.
+    Software that sends the parameter to A0h only gets the vertical zoom
+    of the GDC. The NCR "System Information" calls A2h "write display zoom
+    factor" and says display zooming needs change level > 35.
+*/
+uint8_t dmv_state::gdc_r(offs_t offset)
+{
+	return m_hgdc->read(offset & 1);
+}
+
+void dmv_state::gdc_w(offs_t offset, uint8_t data)
+{
+	m_hgdc->write(offset & 1, data);
+
+	if (BIT(offset, 1))
+		m_zoom_latch = data;
+}
+
 UPD7220_DISPLAY_PIXELS_MEMBER( dmv_state::hgdc_display_pixels )
 {
-	if (m_color_mode)
+	// The GDC passes the address of the word at x; in mixed mode a display line
+	// is 40 words, so the line starts x/16 words earlier. With a horizontal zoom
+	// factor z, screen pixel px shows memory pixel px/z of that line.
+	int const hzoom = (m_zoom_latch >> 4) + 1;
+	uint32_t const line = address - (x >> 4);
+
+	for (int xi = 0; xi < 16; xi++)
 	{
-		// 96KB videoram (32KB green + 32KB red + 32KB blue)
-		uint16_t green = m_video_ram[(0x00000 + (address & 0x3fff))];
-		uint16_t red   = m_video_ram[(0x04000 + (address & 0x3fff))];
-		uint16_t blue  = m_video_ram[(0x08000 + (address & 0x3fff))];
+		if (!bitmap.cliprect().contains(x + xi, y))
+			continue;
 
-		for(int xi=0; xi<16; xi++)
+		int const src = (x + xi) / hzoom;
+		uint32_t const word = (line + (src >> 4)) & (VRAM_PLANE_WORDS - 1);
+		int const bit = src & 15;
+
+		if (m_color_mode)
 		{
-			int r = BIT(red,   xi) ? 255 : 0;
-			int g = BIT(green, xi) ? 255 : 0;
-			int b = BIT(blue,  xi) ? 255 : 0;
-
-			if (bitmap.cliprect().contains(x + xi, y))
-				bitmap.pix(y, x + xi) = rgb_t(r, g, b);
+			// the display refresh fetches all three planes in parallel
+			int const g = BIT(m_video_ram[0 * VRAM_PLANE_WORDS + word], bit) ? 255 : 0;
+			int const r = BIT(m_video_ram[1 * VRAM_PLANE_WORDS + word], bit) ? 255 : 0;
+			int const b = BIT(m_video_ram[2 * VRAM_PLANE_WORDS + word], bit) ? 255 : 0;
+			bitmap.pix(y, x + xi) = rgb_t(r, g, b);
 		}
-	}
-	else
-	{
-		// 32KB videoram, no attributes in graphics area
-		uint16_t gfx = m_video_ram[(address & 0x3fff)];
-
-		for(int xi=0;xi<16;xi++)
+		else
 		{
-			if (bitmap.cliprect().contains(x + xi, y))
-				bitmap.pix(y, x + xi) = BIT(gfx, xi) ? MONO_FULL : MONO_OFF;
+			// 32KB videoram, no attributes in graphics area
+			bitmap.pix(y, x + xi) = BIT(m_video_ram[word], bit) ? MONO_FULL : MONO_OFF;
 		}
 	}
 }
@@ -350,12 +401,29 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 {
 	for( int x = 0; x < pitch; x++ )
 	{
-		uint8_t tile = m_video_ram[(((addr+x)*2) & 0x1ffff) >> 1] & 0xff;
-		uint8_t attr = m_video_ram[(((addr+x)*2) & 0x1ffff) >> 1] >> 8;
+		uint16_t const cell = vram_r((addr + x) & 0xffff);
+		uint8_t tile = cell & 0xff;
+		uint8_t attr = cell >> 8;
 
 		rgb_t bg, fg;
 		if (m_color_mode)
 		{
+			// Color board attributes (NCR DMV System Information, Graphics Controller Board):
+			//   bit 0 (VRAM bit 8)      half intensity (HI), no effect, see below
+			//   bit 1 (VRAM bit 9)      blink enable
+			//   bits 2-4 (VRAM 10-12)   foreground red, green, blue
+			//   bits 5-7 (VRAM 13-15)   background red, green, blue, negative logic
+			// The firmware default is E8h (green on black).
+			//
+			// Half intensity is prepared on the board but not fitted. Schematic
+			// 017-0032489: the attribute latch (74LS377 B16, sheet 5) outputs bit 8
+			// as HI, the character/graphics multiplexer (74LS257 A7, sheet 1)
+			// passes it in character mode to three 7407 drivers (A6, A4) that would
+			// pull VIDEO-RED/, VIDEO-GREEN/ and VIDEO-BLUE/ down through R8, R6 and
+			// R5 (470 ohm). Assembly note 3 (sheet 5, assembly 017-0032479-A) lists
+			// R1-R3 and R5-R9 as not mounted, so the HI drivers are left open and
+			// every colour is shown at full intensity. The System Technical Manual
+			// also only names eight colours and blinking for the colour text mode.
 			bg = rgb_t(attr & 0x20 ? 0 : 255, attr & 0x40 ? 0 : 255, attr & 0x80 ? 0 : 255);
 			fg = rgb_t(attr & 0x04 ? 255 : 0, attr & 0x08 ? 255 : 0, attr & 0x10 ? 255 : 0);
 		}
@@ -619,7 +687,7 @@ void dmv_state::dmv_io(address_map &map)
 	map(0x40, 0x41).rw("kb_ctrl_mcu", FUNC(upi41_cpu_device::upi41_master_r), FUNC(upi41_cpu_device::upi41_master_w));
 	map(0x50, 0x51).m(m_fdc, FUNC(i8272a_device::map));
 	map(0x80, 0x83).rw(m_pit, FUNC(pit8253_device::read), FUNC(pit8253_device::write));
-	map(0xa0, 0xa1).rw(m_hgdc, FUNC(upd7220_device::read), FUNC(upd7220_device::write));
+	map(0xa0, 0xaf).rw(FUNC(dmv_state::gdc_r), FUNC(dmv_state::gdc_w));   // GDC on BA0, zoom latch on BA1
 	map(0xd0, 0xd7).w(FUNC(dmv_state::switch16_w));
 	map(0xe0, 0xe7).w(FUNC(dmv_state::rambank_w));
 
@@ -648,10 +716,53 @@ void dmv_state::kb_mcu_port2_w(uint8_t data)
 	m_slot7->keyint_w(BIT(data, 4));
 }
 
+/*
+    Video RAM decoding
+
+    The CPU has no direct access to the video RAM; everything goes through
+    the uPD7220 (ports A0h/A1h) or DMA channel 2. The GDC sees a word
+    addressed space of 64K words.
+
+    Monochrome board: one 32KB plane (16K words). Only A0..A13 are decoded,
+    so the plane repeats every 4000h words. Software that probes for the
+    colour planes finds its own green data mirrored at 4000h and 8000h.
+
+    Colour board: three 32KB planes, selected by A14/A15 when the GDC
+    accesses memory for drawing or the CPU:
+        0000h-3FFFh  green
+        4000h-7FFFh  red
+        8000h-BFFFh  blue
+        C000h-FFFFh  no plane fitted, reads return FFFFh, writes are lost
+    For the display refresh all three planes are fetched in parallel
+    (see hgdc_display_pixels); character mode only uses the green plane.
+
+    TODO: the mono mirroring and the open bus value at C000h-FFFFh are
+    assumptions until verified against the graphics board schematics.
+*/
+
+uint16_t dmv_state::vram_r(offs_t offset)
+{
+	if (!m_color_mode)
+		return m_video_ram[offset & (VRAM_PLANE_WORDS - 1)];
+
+	if (offset < VRAM_WORDS)
+		return m_video_ram[offset];
+
+	return 0xffff;
+}
+
+void dmv_state::vram_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	if (!m_color_mode)
+		COMBINE_DATA(&m_video_ram[offset & (VRAM_PLANE_WORDS - 1)]);
+	else if (offset < VRAM_WORDS)
+		COMBINE_DATA(&m_video_ram[offset]);
+}
+
 void dmv_state::upd7220_map(address_map &map)
 {
 	map.global_mask(0xffff);
-	map(0x0000, 0xffff).ram().share("video_ram");
+	map(0x0000, 0xffff).rw(FUNC(dmv_state::vram_r), FUNC(dmv_state::vram_w));
 }
 
 /* Input ports */
@@ -664,6 +775,11 @@ INPUT_PORTS_END
 
 void dmv_state::machine_start()
 {
+	// the colour board's 96KB are always allocated; in monochrome mode
+	// only the first plane is used (see vram_r/vram_w)
+	m_video_ram = std::make_unique<uint16_t[]>(VRAM_WORDS);
+	std::fill_n(m_video_ram.get(), VRAM_WORDS, 0);
+
 	// register for state saving
 	save_item(NAME(m_ramoutdis));
 	save_item(NAME(m_switch16));
@@ -677,7 +793,9 @@ void dmv_state::machine_start()
 	save_item(NAME(m_floppy_motor));
 	save_item(NAME(m_busint));
 	save_item(NAME(m_irqs));
+	save_item(NAME(m_zoom_latch));
 	save_pointer(NAME(m_ram->base()), m_ram->bytes());
+	save_pointer(NAME(m_video_ram), VRAM_WORDS);
 }
 
 void dmv_state::machine_reset()
@@ -695,6 +813,7 @@ void dmv_state::machine_reset()
 	m_dma_hrq = 0;
 	memset(m_busint, 0, sizeof(m_busint));
 	memset(m_irqs, 0, sizeof(m_irqs));
+	m_zoom_latch = 0;   // not reset in hardware, the firmware writes 0 at boot
 
 	update_halt_line();
 }
