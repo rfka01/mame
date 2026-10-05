@@ -48,22 +48,30 @@ private:
 
 	required_device<upi41_cpu_device> m_mcu;
 	required_ioport m_jumpers;
+	required_ioport m_config;
 	required_ioport m_mouse_buttons;
 	required_ioport m_mouse_x;
 	required_ioport m_mouse_y;
 
-	struct
-	{
-		int phase;
-		int x;
-		int y;
-		int prev_x;
-		int prev_y;
-		int xa;
-		int xb;
-		int ya;
-		int yb;
-	} m_mouse;
+	void step_axis(int32_t &pending, uint8_t &phase);
+
+	// host mouse position at the last timer tick (12-bit counters)
+	uint16_t m_last_x;
+	uint16_t m_last_y;
+
+	// encoder edges still to be generated (signed, in firmware count direction)
+	int32_t m_pending_x;
+	int32_t m_pending_y;
+
+	// quadrature phase of each encoder (0..3, Gray sequence)
+	uint8_t m_phase_x;
+	uint8_t m_phase_y;
+
+	// axis that gets the next edge when both are moving
+	uint8_t m_next_axis;
+
+	// number of P1 reads by the 8741 since the last encoder edge
+	uint8_t m_p1_reads;
 };
 
 
