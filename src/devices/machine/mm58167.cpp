@@ -4,6 +4,19 @@
 
     mm58167.c - National Semiconductor MM58167 real-time clock emulation
 
+    The chip is designed for battery-backed operation (power down input,
+    4.5 uA typical at 3 V). Its 14 nibbles of RAM (registers 8-f) serve as
+    alarm compare latches or general storage and are kept by the battery
+    together with the counters, so they are saved as NVRAM by default.
+    Software relies on this, e.g. NCR's TIMDRIVE.SYS for the Decision
+    Mate V K803 keeps the year and a month marker there. Boards without a
+    battery can call nvram_enable_backup(false). The counters are taken
+    from the host clock on every start.
+
+    RAM layout (datasheet figure 2): register 8 holds only the high nibble
+    (milliseconds), register d only the low nibble (day of week); all
+    other RAM registers hold a full byte.
+
     TODO: standby interrupt
 
 **********************************************************************/
@@ -38,7 +51,7 @@ typedef enum
 	R_RAM_DAYOFWEEK,        // d = day of the week
 	R_RAM_DAYOFMONTH,       // e = day of the month
 	R_RAM_MONTH,            // f = month
-	R_CTL_IRQSTATUS,        // 10 = IRQ status (b7 = compare, b6 = 10th sec, b5 = sec, b4 = min, b3 = hour, b2 = day, b1 = week, b0 = month)
+	R_CTL_IRQSTATUS,        // 10 = IRQ status (b0 = compare, b1 = 10th sec, b2 = sec, b3 = min, b4 = hour, b5 = day, b6 = week, b7 = month)
 	R_CTL_IRQCONTROL,       // 11 = IRQ control (same bit layout as status, but write here to enable/disable/clear)
 	R_CTL_RESETCOUNTERS,    // 12 = reset counters
 	R_CTL_RESETRAM,         // 13 = reset RAM
@@ -55,6 +68,7 @@ typedef enum
 mm58167_device::mm58167_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, MM58167, tag, owner, clock),
 		device_rtc_interface(mconfig, *this),
+		device_nvram_interface(mconfig, *this),
 		m_irq_w(*this)
 {
 }
@@ -66,6 +80,10 @@ mm58167_device::mm58167_device(const machine_config &mconfig, const char *tag, d
 
 void mm58167_device::device_start()
 {
+	std::fill(std::begin(m_regs), std::end(m_regs), 0);
+	m_milliseconds = 0;
+	m_comparator_state = false;
+
 	// allocate timers
 	m_clock_timer = timer_alloc(FUNC(mm58167_device::clock_tick), this);
 	m_clock_timer->adjust(attotime::from_hz(clock() / 32.768f), 0, attotime::from_hz(clock() / 32.768f));
@@ -74,6 +92,40 @@ void mm58167_device::device_start()
 	save_item(NAME(m_regs));
 	save_item(NAME(m_milliseconds));
 	save_item(NAME(m_comparator_state));
+}
+
+
+//-------------------------------------------------
+//  nvram_default - RAM cleared
+//-------------------------------------------------
+
+void mm58167_device::nvram_default()
+{
+	std::fill_n(&m_regs[R_RAM_MILLISECONDS], 8, 0);
+}
+
+
+//-------------------------------------------------
+//  nvram_read - restore the battery-backed RAM
+//-------------------------------------------------
+
+bool mm58167_device::nvram_read(util::read_stream &file)
+{
+	auto const [err, actual] = util::read(file, &m_regs[R_RAM_MILLISECONDS], 8);
+	m_regs[R_RAM_MILLISECONDS] &= 0xf0;
+	m_regs[R_RAM_DAYOFWEEK] &= 0x0f;
+	return !err && (actual == 8);
+}
+
+
+//-------------------------------------------------
+//  nvram_write - save the battery-backed RAM
+//-------------------------------------------------
+
+bool mm58167_device::nvram_write(util::write_stream &file)
+{
+	auto const [err, actual] = util::write(file, &m_regs[R_RAM_MILLISECONDS], 8);
+	return !err;
 }
 
 
@@ -200,6 +252,11 @@ void mm58167_device::write(offs_t offset, uint8_t data)
 
 	if ((offset >= R_RAM_MILLISECONDS) && (offset != R_CTL_IRQSTATUS))
 	{
+		// only one nibble of RAM exists at these two addresses
+		if (offset == R_RAM_MILLISECONDS)
+			data &= 0xf0;
+		else if (offset == R_RAM_DAYOFWEEK)
+			data &= 0x0f;
 		m_regs[offset] = data;
 	}
 
