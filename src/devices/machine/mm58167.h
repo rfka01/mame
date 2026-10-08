@@ -12,6 +12,7 @@
 #pragma once
 
 #include "dirtc.h"
+#include "dinvram.h"
 
 
 //**************************************************************************
@@ -21,7 +22,8 @@
 // ======================> mm58167_device
 
 class mm58167_device :  public device_t,
-						public device_rtc_interface
+						public device_rtc_interface,
+						public device_nvram_interface
 {
 public:
 	// construction/destruction
@@ -39,6 +41,11 @@ protected:
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 
+	// device_nvram_interface overrides
+	virtual void nvram_default() override;
+	virtual bool nvram_read(util::read_stream &file) override;
+	virtual bool nvram_write(util::write_stream &file) override;
+
 	// device_rtc_interface overrides
 	virtual void rtc_clock_updated(int year, int month, int day, int day_of_week, int hour, int minute, int second) override;
 	virtual bool rtc_feature_leap_year() const override { return true; }
@@ -49,7 +56,7 @@ protected:
 	void update_rtc();
 
 private:
-	int m_regs[32];
+	u8 m_regs[32];
 	int m_milliseconds;
 	bool m_comparator_state;
 
