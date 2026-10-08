@@ -24,13 +24,18 @@
 
 static INPUT_PORTS_START( dmv_k801 )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x0f, 0x00, "K801 IFSEL" )  PORT_DIPLOCATION("S:!4,S:!3,S:!2,S:!1")
+	// Default 2B: the only interface half not assigned to another module
+	// in NCR's interface configuration (K210/K212/K213 0A, K211 1A,
+	// K215 1B, K806 2A, K804 3A, K600 3B, fixed disk 4A, K803 4B).
+	// The emulated K210 and K211/K212/K213 also decode the B half of
+	// their IFSEL, so 0B and 1B would collide with them.
+	PORT_DIPNAME( 0x0f, 0x05, "K801 IFSEL" )  PORT_DIPLOCATION("S:!4,S:!3,S:!2,S:!1")
 	PORT_DIPSETTING( 0x00, "0A" )
 	PORT_DIPSETTING( 0x01, "0B" )
 	PORT_DIPSETTING( 0x02, "1A" )
 	PORT_DIPSETTING( 0x03, "1B" )
 	PORT_DIPSETTING( 0x04, "2A" )
-	PORT_DIPSETTING( 0x05, "2B" )
+	PORT_DIPSETTING( 0x05, "2B" )   // default
 	PORT_DIPSETTING( 0x06, "3A" )
 	PORT_DIPSETTING( 0x07, "3B" )
 	PORT_DIPSETTING( 0x08, "4A" )
