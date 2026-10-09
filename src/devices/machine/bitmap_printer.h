@@ -14,6 +14,7 @@
  */
 
 #include "screen.h"
+#include "imagedev/pdfprinter.h"
 #include "machine/steppers.h"
 
 #ifndef MAME_MACHINE_BITMAP_PRINTER_H
@@ -40,6 +41,10 @@ public:
 	void setheadpos(int x, int y);
 
 	void write_snapshot_to_file();
+
+	// PDF output: dot appearance of the pages filed to the "printout" image
+	void set_dot_style(const printer_dot_style &style) { m_dot_style = style; m_dot_style_set = true; }
+	pdf_printer_device &pdf() { return *m_pdf; }
 
 	void draw_pixel(int x, int y, int pixelval);
 	int get_pixel(int x, int y);
@@ -79,6 +84,7 @@ protected:
 
 private:
 	required_device<screen_device> m_screen;
+	required_device<pdf_printer_device> m_pdf;
 	required_device<stepper_device> m_pf_stepper;
 	required_device<stepper_device> m_cr_stepper;
 
@@ -121,6 +127,10 @@ private:
 	int m_cr_stepper_ratio0;
 	int m_cr_stepper_ratio1;
 
+	printer_dot_style m_dot_style;
+	bool m_dot_style_set;
+
+	void flush_to_pdf();
 	void draw_printhead(bitmap_rgb32 &bitmap, int x, int y);
 	u32 dimcolor(u32 incolor, int factor);
 
