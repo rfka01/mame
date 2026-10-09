@@ -1026,6 +1026,7 @@ void dmv_state::dmv(machine_config &config)
 
 	// devices
 	UPD7220(config, m_hgdc, XTAL(20'000'000)/8); // mono board: 20 MHz pixel clock / 8 (MAME convention, see video timing above)
+	m_hgdc->set_screen(m_screen); // explicit, printers with paper screens may add more screens
 	m_hgdc->set_addrmap(0, &dmv_state::upd7220_map);
 	m_hgdc->set_display_pixels(FUNC(dmv_state::hgdc_display_pixels));
 	m_hgdc->set_draw_text(FUNC(dmv_state::hgdc_draw_text));

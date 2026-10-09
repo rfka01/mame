@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Star NL-10: paper and front panel
+-->
+<mamelayout version="2">
+	<element name="panel"><rect><color red="0.80" green="0.78" blue="0.72" /></rect></element>
+	<element name="led_green" defstate="0">
+		<disk state="0"><color red="0.10" green="0.25" blue="0.10" /></disk>
+		<disk state="1"><color red="0.20" green="1.00" blue="0.20" /></disk>
+	</element>
+	<element name="led_red" defstate="0">
+		<disk state="0"><color red="0.25" green="0.08" blue="0.08" /></disk>
+		<disk state="1"><color red="1.00" green="0.20" blue="0.20" /></disk>
+	</element>
+	<element name="key" defstate="0">
+		<rect state="0"><color red="0.30" green="0.30" blue="0.32" /></rect>
+		<rect state="1"><color red="0.55" green="0.55" blue="0.58" /></rect>
+	</element>
+	<element name="t_power"><text string="POWER"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_online"><text string="ON LINE"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_feed"><text string="PAPER FEED"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_tof"><text string="TOF"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_mode"><text string="MODE"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_bold"><text string="BOLD"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_draft"><text string="DRAFT 80"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_96"><text string="96"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_136"><text string="136"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_nlq"><text string="NLQ 80"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="power_on"><disk><color red="0.20" green="1.00" blue="0.20" /></disk></element>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="107" />
+		</screen>
+		<element ref="panel"><bounds x="0" y="107" width="1140" height="90" /></element>
+
+		<element ref="power_on"><bounds x="40" y="123" width="14" height="14" /></element>
+		<element ref="t_power"><bounds x="20" y="143" width="55" height="18" /></element>
+
+		<element name="nl10_bold_led" ref="led_green"><bounds x="140" y="123" width="14" height="14" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="120" y="141" width="55" height="30" /></element>
+		<element ref="t_bold"><bounds x="120" y="175" width="55" height="16" /></element>
+
+		<element name="nl10_mode_led0" ref="led_green"><bounds x="230" y="123" width="12" height="12" /></element>
+		<element ref="t_draft"><bounds x="246" y="121" width="70" height="16" /></element>
+		<element name="nl10_mode_led1" ref="led_green"><bounds x="230" y="140" width="12" height="12" /></element>
+		<element ref="t_96"><bounds x="246" y="138" width="70" height="16" /></element>
+		<element name="nl10_mode_led2" ref="led_green"><bounds x="230" y="157" width="12" height="12" /></element>
+		<element ref="t_136"><bounds x="246" y="155" width="70" height="16" /></element>
+		<element name="nl10_mode_led3" ref="led_green"><bounds x="230" y="174" width="12" height="12" /></element>
+		<element ref="t_nlq"><bounds x="246" y="172" width="70" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x08"><bounds x="330" y="141" width="55" height="30" /></element>
+		<element ref="t_mode"><bounds x="330" y="175" width="55" height="16" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x20"><bounds x="440" y="141" width="55" height="30" /></element>
+		<element ref="t_tof"><bounds x="440" y="175" width="55" height="16" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="540" y="141" width="55" height="30" /></element>
+		<element ref="t_feed"><bounds x="520" y="175" width="95" height="16" /></element>
+
+		<element name="nl10_online_led" ref="led_green"><bounds x="660" y="123" width="14" height="14" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="640" y="141" width="55" height="30" /></element>
+		<element ref="t_online"><bounds x="630" y="175" width="75" height="16" /></element>
+	</view>
+</mamelayout>
