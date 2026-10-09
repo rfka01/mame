@@ -65,6 +65,8 @@ files {
 	MAME_DIR .. "src/devices/imagedev/midiout.h",
 	MAME_DIR .. "src/devices/imagedev/papertape.cpp",
 	MAME_DIR .. "src/devices/imagedev/papertape.h",
+	MAME_DIR .. "src/devices/imagedev/pdfprinter.cpp",
+	MAME_DIR .. "src/devices/imagedev/pdfprinter.h",
 	MAME_DIR .. "src/devices/imagedev/picture.cpp",
 	MAME_DIR .. "src/devices/imagedev/picture.h",
 	MAME_DIR .. "src/devices/imagedev/printer.cpp",

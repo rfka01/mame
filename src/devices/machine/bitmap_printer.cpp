@@ -70,6 +70,9 @@ void bitmap_printer_device::device_add_mconfig(machine_config &config)
 	screen.set_visarea(0, m_paper_width - 1, 0, PAPER_SCREEN_HEIGHT - 1);
 	screen.set_screen_update(FUNC(bitmap_printer_device::screen_update_bitmap));
 
+	// paper output: PDF document, or PNG snapshots when no file is mounted
+	PDF_PRINTER(config, m_pdf);
+
 	STEPPER(config, m_pf_stepper, (uint8_t) 0xa);
 	STEPPER(config, m_cr_stepper, (uint8_t) 0xa);
 }
@@ -84,6 +87,7 @@ bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, devi
 	m_xpos(0),
 	m_ypos(0),
 	m_screen(*this, "screen"),
+	m_pdf(*this, "printout"),
 	m_pf_stepper(*this, "pf_stepper"),
 	m_cr_stepper(*this, "cr_stepper"),
 	m_top_margin_ioport(*this, "TOPMARGIN"),
@@ -114,7 +118,8 @@ bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, devi
 	m_pf_stepper_ratio0(1),
 	m_pf_stepper_ratio1(1),
 	m_cr_stepper_ratio0(1),
-	m_cr_stepper_ratio1(1)
+	m_cr_stepper_ratio1(1),
+	m_dot_style_set(false)
 {
 }
 
@@ -140,6 +145,9 @@ void bitmap_printer_device::device_start()
 {
 	m_page_bitmap.allocate(m_paper_width, m_paper_height);
 	m_page_bitmap.fill(paper_color);  // Start with a white piece of paper
+
+	// file the page in progress when the PDF is closed (unmounted or exit)
+	m_pdf->set_flush_handler([this] () { flush_to_pdf(); });
 
 	if (m_continuous_feed)
 	{
@@ -547,8 +555,46 @@ void bitmap_printer_device::write_snapshot_to_file()
 	write_bitmap_to_file(m_page_bitmap);
 }
 
+void bitmap_printer_device::flush_to_pdf()
+{
+	if (m_continuous_feed)
+	{
+		flush_roll();
+
+		int const live = m_feed_forward ? (m_feed_hi - m_paper_height + 1) : m_feed_lo;
+		for (int row = 0; row < m_paper_height; row++)
+		{
+			if (row_has_ink(m_page_bitmap, row))
+			{
+				write_roll_page(m_page_bitmap, live);
+				break;
+			}
+		}
+	}
+	else
+	{
+		for (int row = 0; row < m_paper_height; row++)
+		{
+			if (row_has_ink(m_page_bitmap, row))
+			{
+				write_snapshot_to_file();
+				break;
+			}
+		}
+	}
+
+	// the sheet has been torn off
+	m_page_bitmap.fill(paper_color);
+}
+
 void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 {
+	if (m_pdf->exists())
+	{
+		m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color);
+		return;
+	}
+
 	machine().popmessage("writing printer snapshot");
 
 	emu_file file(machine().options().snapshot_directory(), OPEN_FLAG_WRITE | OPEN_FLAG_CREATE | OPEN_FLAG_CREATE_PATHS);
