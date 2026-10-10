@@ -192,6 +192,15 @@ void printer_page_canvas::take(printer_page_canvas &dest)
 //  CONFIGURATION
 //**************************************************************************
 
+// PDF numbers always use a decimal point; printf-style %f follows the
+// C locale, which may use a decimal comma (e.g. German Windows)
+static std::string pdf_real(double v)
+{
+	long long const m = std::llround(v * 1000.0);
+	unsigned long long const a = (m < 0) ? -m : m;
+	return util::string_format("%s%u.%03u", (m < 0) ? "-" : "", unsigned(a / 1000), unsigned(a % 1000));
+}
+
 static INPUT_PORTS_START( pdf_printer )
 	PORT_START("CONFIG")
 	PORT_CONFNAME( 0x03, 0x00, "PDF image resolution" )
@@ -475,16 +484,13 @@ void pdf_printer_device::write_job(page_job &job)
 			page.width(), page.height(), page.is_color() ? "DeviceRGB" : "DeviceGray", page.channels(), page.width());
 	u32 const image = write_stream_object(dict, job.image);
 
-	double const pw = page.width_in() * 72.0, ph = page.height_in() * 72.0;
-	char content[128];
-	int const clen = std::snprintf(content, sizeof(content), "q %.3f 0 0 %.3f 0 0 cm /Im0 Do Q\n", pw, ph);
-	u32 const contents = write_stream_object("", std::vector<u8>(content, content + clen));
+	std::string const pw = pdf_real(page.width_in() * 72.0), ph = pdf_real(page.height_in() * 72.0);
+	std::string const content = util::string_format("q %s 0 0 %s 0 0 cm /Im0 Do Q\n", pw, ph);
+	u32 const contents = write_stream_object("", std::vector<u8>(content.begin(), content.end()));
 
-	char pagebuf[256];
-	std::snprintf(pagebuf, sizeof(pagebuf),
-			"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.3f %.3f] /Resources << /XObject << /Im0 %u 0 R >> >> /Contents %u 0 R >>",
-			pw, ph, image, contents);
-	m_page_objects.push_back(write_object(pagebuf));
+	m_page_objects.push_back(write_object(util::string_format(
+			"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %s %s] /Resources << /XObject << /Im0 %u 0 R >> >> /Contents %u 0 R >>",
+			pw, ph, image, contents)));
 }
 
 void pdf_printer_device::finish_document()
