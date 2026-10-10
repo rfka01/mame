@@ -35,6 +35,7 @@ enum
 #define UPD7810_INTF2       1
 #define UPD7810_INTF0       2
 #define UPD7810_INTFE1      4
+#define UPD7810_CI_LINE     5   // PC5/CI timer/event counter input
 
 
 class upd7810_device : public cpu_device
@@ -305,6 +306,8 @@ protected:
 	uint8_t   m_ti;
 	uint8_t   m_to;
 	uint8_t   m_ci;
+	uint8_t   m_an_msb;     /* AN4-AN7 digital levels, for the falling edge flags */
+	int32_t   m_an_sample;  /* cycles until AN4-AN7 are sampled again, < 0 = levels unknown */
 	uint8_t   m_lv0;    /* level flip flop for co0 */
 	uint8_t   m_lv1;    /* level flip flop for co1 */
 	uint8_t   m_co0;
