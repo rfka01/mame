@@ -129,8 +129,10 @@ private:
 
 	printer_dot_style m_dot_style;
 	bool m_dot_style_set;
+	bitmap_rgb32 m_dot_view; // paper screen scratch for drawing full-size dots
 
 	void flush_to_pdf();
+	void expand_dots(bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void draw_printhead(bitmap_rgb32 &bitmap, int x, int y);
 	u32 dimcolor(u32 incolor, int factor);
 

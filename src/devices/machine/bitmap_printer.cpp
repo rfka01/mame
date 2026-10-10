@@ -18,6 +18,7 @@
 #include "corestr.h"
 
 #include <algorithm>
+#include <cmath>
 
 /***************************************************************************
     DEVICE DECLARATION
@@ -354,6 +355,11 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 
 	copyscrollbitmap(bitmap, m_page_bitmap, 0, nullptr, 1, &scrolly, cliprect);
 
+	// printers that plot dot centers get their dots drawn at full size, so the
+	// paper looks like the printout rather than a sparse grid of single pixels
+	if (m_dot_style_set)
+		expand_dots(bitmap, cliprect);
+
 	// an endless roll has no page edges, and the buffer wrap isn't a seam
 	if (!m_continuous_feed)
 	{
@@ -370,6 +376,44 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 	draw_inch_marks(bitmap);
 
 	return 0;
+}
+
+void bitmap_printer_device::expand_dots(bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	int const rx = std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0);
+	int const ry = std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0);
+	if (!rx && !ry)
+		return;
+
+	if ((m_dot_view.width() != bitmap.width()) || (m_dot_view.height() != bitmap.height()))
+		m_dot_view.allocate(bitmap.width(), bitmap.height());
+	copybitmap(m_dot_view, bitmap, 0, 0, 0, 0, cliprect);
+	bitmap.fill(paper_color, cliprect);
+
+	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+	{
+		u32 const *const line = &m_dot_view.pix(y, 0);
+		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
+		{
+			u32 const color = line[x];
+			if ((color & 0xffffff) == paper_color)
+				continue;
+
+			// filled ellipse around the dot center
+			for (int dy = -ry; dy <= ry; dy++)
+			{
+				int const py = y + dy;
+				if ((py < cliprect.min_y) || (py > cliprect.max_y))
+					continue;
+				double const f = ry ? double(dy) / (ry + 0.5) : 0.0;
+				int const w = int((rx + 0.5) * std::sqrt(std::max(0.0, 1.0 - f * f)));
+				int const x0 = std::max(x - w, cliprect.min_x), x1 = std::min(x + w, cliprect.max_x);
+				u32 *const dst = &bitmap.pix(py, 0);
+				for (int px = x0; px <= x1; px++)
+					dst[px] = color;
+			}
+		}
+	}
 }
 
 //-------------------------------------------------
