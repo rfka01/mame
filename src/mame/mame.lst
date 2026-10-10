@@ -36770,6 +36770,9 @@ m240
 @source:olivetti/olivpc1.cpp
 olivpc1
 
+@source:olivetti/quaderno.cpp
+quaderno
+
 @source:olympia/dday.cpp
 dday
 ddayc

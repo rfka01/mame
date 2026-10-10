@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+authors:rfka01
+-->
+<mamelayout version="2">
+
+<!-- Olivetti Quaderno: main LCD plus the small status LCD below it.        -->
+<!-- Status LCD: "99:99: AA" (4 hex digits, two colons, 2 characters),     -->
+<!-- see INT 15h AX=44C6h/44C7h, plus mode indicators.                      -->
+
+	<element name="panel">
+		<rect><color red="0.10" green="0.10" blue="0.11" /></rect>
+	</element>
+	<element name="lcdbg">
+		<rect><color red="0.70" green="0.74" blue="0.62" /></rect>
+	</element>
+	<element name="seg" defstate="0">
+		<led7seg>
+			<color red="0.12" green="0.14" blue="0.16" />
+		</led7seg>
+	</element>
+	<element name="colon" defstate="0">
+		<disk state="1"><color red="0.12" green="0.14" blue="0.16" /></disk>
+		<disk state="0"><color red="0.66" green="0.70" blue="0.58" /></disk>
+	</element>
+	<element name="ind_caps" defstate="0">
+		<text string="CAPS" state="1"><color red="0.12" green="0.14" blue="0.16" /></text>
+		<text string="CAPS" state="0"><color red="0.66" green="0.70" blue="0.58" /></text>
+	</element>
+	<element name="ind_num" defstate="0">
+		<text string="NUM" state="1"><color red="0.12" green="0.14" blue="0.16" /></text>
+		<text string="NUM" state="0"><color red="0.66" green="0.70" blue="0.58" /></text>
+	</element>
+	<element name="ind_scrl" defstate="0">
+		<text string="SCRL" state="1"><color red="0.12" green="0.14" blue="0.16" /></text>
+		<text string="SCRL" state="0"><color red="0.66" green="0.70" blue="0.58" /></text>
+	</element>
+	<element name="ind_disk" defstate="0">
+		<text string="DISK" state="1"><color red="0.12" green="0.14" blue="0.16" /></text>
+		<text string="DISK" state="0"><color red="0.66" green="0.70" blue="0.58" /></text>
+	</element>
+	<element name="ind_batt" defstate="0">
+		<text string="BATT" state="1"><color red="0.12" green="0.14" blue="0.16" /></text>
+		<text string="BATT" state="0"><color red="0.66" green="0.70" blue="0.58" /></text>
+	</element>
+
+	<view name="Screen and status LCD">
+		<bounds left="0" right="640" top="0" bottom="470" />
+		<element ref="panel"><bounds left="0" right="640" top="400" bottom="470" /></element>
+		<screen tag="lcd:screen"><bounds left="0" top="0" right="640" bottom="400" /></screen>
+
+		<element ref="lcdbg"><bounds x="170" y="410" width="300" height="50" /></element>
+		<element name="lcd_digit0" ref="seg"><bounds x="180" y="415" width="22" height="34" /></element>
+		<element name="lcd_digit1" ref="seg"><bounds x="204" y="415" width="22" height="34" /></element>
+		<element name="lcd_colon1" ref="colon"><bounds x="229" y="422" width="5" height="5" /></element>
+		<element name="lcd_colon1" ref="colon"><bounds x="229" y="437" width="5" height="5" /></element>
+		<element name="lcd_digit2" ref="seg"><bounds x="237" y="415" width="22" height="34" /></element>
+		<element name="lcd_digit3" ref="seg"><bounds x="261" y="415" width="22" height="34" /></element>
+		<element name="lcd_colon0" ref="colon"><bounds x="286" y="422" width="5" height="5" /></element>
+		<element name="lcd_colon0" ref="colon"><bounds x="286" y="437" width="5" height="5" /></element>
+		<element name="lcd_alpha0" ref="seg"><bounds x="300" y="415" width="22" height="34" /></element>
+		<element name="lcd_alpha1" ref="seg"><bounds x="324" y="415" width="22" height="34" /></element>
+
+		<element name="lcd_caps" ref="ind_caps"><bounds x="356" y="414" width="50" height="10" /></element>
+		<element name="lcd_num"  ref="ind_num"><bounds x="356" y="426" width="50" height="10" /></element>
+		<element name="lcd_scrl" ref="ind_scrl"><bounds x="356" y="438" width="50" height="10" /></element>
+		<element name="lcd_disk" ref="ind_disk"><bounds x="410" y="414" width="50" height="10" /></element>
+		<element name="lcd_batt" ref="ind_batt"><bounds x="410" y="426" width="50" height="10" /></element>
+	</view>
+
+	<view name="Screen only">
+		<screen tag="lcd:screen"><bounds left="0" top="0" right="640" bottom="400" /></screen>
+	</view>
+
+</mamelayout>
