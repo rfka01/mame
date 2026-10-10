@@ -1585,6 +1585,20 @@ void upd7810_device::handle_timers(int cycles)
 		update_sio(cycles);
 	}
 
+	/**** AN4-AN7 falling edge flags (INTAN4-INTAN7) ****/
+	// the pins are also sampled digitally; a high to low transition sets the flag tested by SKIT ANn
+	bool const an_known = m_an_sample >= 0;
+	if (!an_known || (m_an_sample -= cycles) <= 0)
+	{
+		u8 msb = 0;
+		for (int i = 0; i < 4; i++)
+			msb |= BIT(m_an_func[4 + i](), 7) << i;
+		if (an_known)
+			ITF |= (m_an_msb & ~msb) & 0x0f;   // INTAN4..INTAN7 are ITF bits 0..3
+		m_an_msb = msb;
+		m_an_sample = 64;
+	}
+
 	/**** ADC ****/
 	m_adcnt += cycles;
 	if (PANM != ANM)
@@ -1755,6 +1769,8 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_ti));
 	save_item(NAME(m_to));
 	save_item(NAME(m_ci));
+	save_item(NAME(m_an_msb));
+	save_item(NAME(m_an_sample));
 	save_item(NAME(m_lv0));
 	save_item(NAME(m_lv1));
 	save_item(NAME(m_co0));
@@ -1995,6 +2011,8 @@ void upd7810_device::device_reset()
 	m_ti = 0;
 	m_to = 0;
 	m_ci = 0;
+	m_an_msb = 0;
+	m_an_sample = -1;
 	m_lv0 = 0;
 	m_lv1 = 0;
 	m_co0 = 0;
@@ -2200,6 +2218,18 @@ void upd7810_device::execute_set_input(int irqline, int state)
 			IRR |= INTF2;
 
 		m_int2 = !state;
+		break;
+	case UPD7810_CI_LINE:
+		/* CI is the physical level of PC5; ETMM can clear ECNT at its falling edge */
+		if (CI && !state)
+		{
+			if ((ETMM & 0x0c) == 0x08)
+			{
+				ECPT = ECNT;
+				ECNT = 0;
+			}
+		}
+		CI = state ? 1 : 0;
 		break;
 	default:
 		logerror("upd7810_set_irq_line invalid irq line #%d\n", irqline);
