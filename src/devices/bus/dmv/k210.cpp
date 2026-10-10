@@ -59,7 +59,9 @@ void dmv_k210_device::device_start()
 
 void dmv_k210_device::device_reset()
 {
+	// a reset in the middle of a strobe pulse must not leave /STROBE asserted
 	m_clk1_timer->adjust(attotime::never);
+	m_centronics->write_strobe(CLEAR_LINE);
 	m_portb = 0x00;
 	m_portc = 0x00;
 }

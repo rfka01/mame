@@ -96,6 +96,7 @@ private:
 	attotime m_cr_period;
 	int m_pf_phase;         // paper motor half-step phase, -1 = unknown
 	attotime m_power_on;    // time the printer was switched on
+	bool m_power_cycled;    // switched on with the power switch, not by a machine reset
 };
 
 
