@@ -71,7 +71,7 @@ const u8 pf_sequence[8] = { 0x0c, 0x0d, 0x09, 0x0b, 0x03, 0x07, 0x06, 0x0e };
 } // anonymous namespace
 
 
-DEFINE_DEVICE_TYPE(NIXDORF_MD16, nixdorf_md16_device, "nixdorf_md16", "Nixdorf MD 16")
+DEFINE_DEVICE_TYPE(NIXDORF_MD16, nixdorf_md16_device, "md16", "Nixdorf MD 16")
 
 
 //**************************************************************************
@@ -175,7 +175,8 @@ nixdorf_md16_device::nixdorf_md16_device(const machine_config &mconfig, const ch
 	m_cr_pos(CR_EDGE - 42),
 	m_cr_phase(-1),
 	m_cr_dir(1),
-	m_pf_phase(-1)
+	m_pf_phase(-1),
+	m_power_cycled(false)
 {
 }
 
@@ -226,6 +227,7 @@ void nixdorf_md16_device::device_start()
 	save_item(NAME(m_cr_period));
 	save_item(NAME(m_pf_phase));
 	save_item(NAME(m_power_on));
+	save_item(NAME(m_power_cycled));
 }
 
 void nixdorf_md16_device::device_reset()
@@ -234,6 +236,7 @@ void nixdorf_md16_device::device_reset()
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
 	m_power_on = machine().time();
+	m_power_cycled = false;
 	output_fault(1);
 	output_ack(1);
 	update_status();
@@ -247,6 +250,7 @@ INPUT_CHANGED_MEMBER(nixdorf_md16_device::power_switch)
 		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
 		m_busy = false;
 		m_power_on = machine().time();
+		m_power_cycled = true;
 		update_status();
 	}
 }
@@ -256,7 +260,8 @@ bool nixdorf_md16_device::keys_held(u8 mask) const
 	static u8 const held[4] = { 0x00, 0x04, 0x02, 0x01 };
 	if (m_keys->read() & mask)
 		return true;
-	return (machine().time() - m_power_on < attotime::from_seconds(3)) && (held[(m_config->read() >> 1) & 3] & mask);
+	// keys held while the printer is switched on with its power switch
+	return m_power_cycled && (machine().time() - m_power_on < attotime::from_seconds(3)) && (held[(m_config->read() >> 1) & 3] & mask);
 }
 
 
