@@ -86,6 +86,18 @@ const int ADSP2181_BDMA         = 7;        // BDMA
 const int ADSP2181_IRQL1        = 8;        // IRQL1
 const int ADSP2181_IRQL0        = 9;        // IRQL0
 
+// ADSP-2111 IRQs (ADSP-2101 core plus Host Interface Port)
+const int ADSP2111_IRQ0         = 0;        // IRQ0
+const int ADSP2111_SPORT1_RX    = 0;        // SPORT1 receive IRQ
+const int ADSP2111_IRQ1         = 1;        // IRQ1
+const int ADSP2111_SPORT1_TX    = 1;        // SPORT1 transmit IRQ
+const int ADSP2111_IRQ2         = 2;        // IRQ2
+const int ADSP2111_SPORT0_RX    = 3;        // SPORT0 receive IRQ
+const int ADSP2111_SPORT0_TX    = 4;        // SPORT0 transmit IRQ
+const int ADSP2111_TIMER        = 5;        // internal timer IRQ
+const int ADSP2111_HIP_WRITE    = 6;        // host wrote an HDR (HIP write IRQ)
+const int ADSP2111_HIP_READ     = 7;        // host read an HDR (HIP read IRQ)
+
 // register enumeration
 enum
 {
@@ -192,6 +204,8 @@ public:
 	auto sport_tx() { return m_sport_tx_cb.bind(); }
 	auto timer_fired() { return m_timer_fired_cb.bind(); }
 	auto dmovlay() { return m_dmovlay_cb.bind(); }
+	// flag outputs changed: bit 0 = FLAG_OUT, bit 1 = FL0, bit 2 = FL1, bit 3 = FL2
+	auto flag_out() { return m_flag_out_cb.bind(); }
 
 	// public interfaces
 	void load_boot_data(uint8_t *srcdata, uint32_t *dstdata);
@@ -206,6 +220,7 @@ protected:
 		CHIP_TYPE_ADSP2104,
 		CHIP_TYPE_ADSP2105,
 		CHIP_TYPE_ADSP2115,
+		CHIP_TYPE_ADSP2111,
 		CHIP_TYPE_ADSP2181
 	};
 
@@ -233,6 +248,8 @@ protected:
 	// helpers
 	void create_tables();
 	inline void update_mstat();
+	virtual void timer_enable_changed(bool enabled) { m_timer_fired_cb(enabled); }
+	void update_flag_outputs(uint8_t prev);
 	inline uint32_t pc_stack_top();
 	inline void set_pc_stack_top(uint32_t top);
 	inline void pc_stack_push();
@@ -449,6 +466,7 @@ protected:
 	devcb_write32         m_sport_tx_cb;    // callback for serial transmit
 	devcb_write_line      m_timer_fired_cb; // callback for timer fired
 	devcb_write32         m_dmovlay_cb;     // callback for DMOVLAY instruction
+	devcb_write8          m_flag_out_cb;    // callback for FLAG_OUT/FL0-FL2 changes
 
 	// debugging
 #if ADSP_TRACK_HOTSPOTS
@@ -554,12 +572,91 @@ public:
 
 
 
+// ======================> adsp2111_device
+
+// ADSP-2101 core plus 8/16-bit Host Interface Port (HIP).
+// Only the 8-bit HIP mode with HIP boot (BMODE=1, HMD=0) is implemented, which
+// is what the Olivetti Quaderno uses.
+class adsp2111_device : public adsp2101_device
+{
+public:
+	// construction/destruction
+	adsp2111_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+	// configuration
+	void set_hip_boot(bool enable) { m_hip_boot_enabled = enable; }
+
+	// host side of the HIP (HA2-HA0 = offset)
+	uint8_t hip_r(offs_t offset);
+	void hip_w(offs_t offset, uint8_t data);
+
+	// boot status (for drivers/debugging)
+	bool hip_booting() const { return m_hip_booting; }
+
+protected:
+	// device-level overrides
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+
+	virtual void execute_run() override;
+
+	// device_memory_interface overrides
+	virtual space_config_vector memory_space_config() const override;
+
+	// interrupts
+	virtual bool generate_irq(int which, int indx) override;
+	virtual void check_irqs() override;
+
+	virtual void timer_enable_changed(bool enabled) override;
+
+private:
+	void internal_program(address_map &map) ATTR_COLD;
+	void internal_data(address_map &map) ATTR_COLD;
+
+	uint16_t hip_dsp_r(offs_t offset);
+	void hip_dsp_w(offs_t offset, uint16_t data);
+	uint16_t ctrl_r(offs_t offset);
+	void ctrl_w(offs_t offset, uint16_t data);
+
+	void hip_reset();
+	void enter_hip_boot();
+	void hip_boot_byte(int reg, uint8_t data);
+	void raise_hip_irq(int which);
+
+	TIMER_CALLBACK_MEMBER(timer_tick);
+	void timer_reload();
+
+	const address_space_config m_program_config_2111;
+	const address_space_config m_data_config_2111;
+
+	// HIP state
+	uint8_t     m_hdr[6];       // HDR0-HDR5 (8-bit mode)
+	uint8_t     m_hsr6;         // bits 0-5: HDRn written by host, not yet read by DSP
+	uint8_t     m_hsr7;         // bits 0-5: HDRn written by DSP, not yet read by host; bit 6: SWR
+	uint16_t    m_hmask;        // bits 0-5: HIP write IRQ enables, bits 8-13: HIP read IRQ enables
+	bool        m_hip_boot_enabled;
+	bool        m_hip_booting;
+	int32_t     m_boot_count;   // -1 = waiting for page count in HDR3
+	int32_t     m_boot_addr;
+	uint8_t     m_boot_bytes;   // bitmask of HDR0/1/2 received for the current word
+
+	// memory-mapped control registers 0x3fe9-0x3fff (storage only, except timer)
+	uint16_t    m_ctrl[0x20];
+
+	// timer
+	emu_timer * m_timer;
+	bool        m_timer_enabled;
+	uint16_t    m_tcount;
+};
+
+
 // device type definition
 DECLARE_DEVICE_TYPE(ADSP2100, adsp2100_device)
 DECLARE_DEVICE_TYPE(ADSP2101, adsp2101_device)
 DECLARE_DEVICE_TYPE(ADSP2104, adsp2104_device)
 DECLARE_DEVICE_TYPE(ADSP2105, adsp2105_device)
 DECLARE_DEVICE_TYPE(ADSP2115, adsp2115_device)
+DECLARE_DEVICE_TYPE(ADSP2111, adsp2111_device)
 DECLARE_DEVICE_TYPE(ADSP2181, adsp2181_device)
 
 
