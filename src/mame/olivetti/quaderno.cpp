@@ -162,7 +162,7 @@ private:
 	void pm_w(offs_t offset, uint8_t data);
 	uint8_t ems_r(offs_t offset);
 	void ems_w(offs_t offset, uint8_t data);
-	void shadow_w(offs_t offset, uint8_t data);
+	void shadow_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void update_windows();
 	void update_cpu_clock();
 
@@ -202,7 +202,7 @@ private:
 	memory_view m_sramwin_view;
 	required_memory_bank m_rom_bank;
 	required_memory_bank m_sram_bank;
-	memory_share_creator<uint8_t> m_shadow;
+	memory_share_creator<uint16_t> m_shadow;
 	memory_share_creator<uint8_t> m_sram;
 	required_ioport m_config;
 	output_finder<4> m_lcd_digit;
@@ -339,9 +339,9 @@ void quaderno_state::r26_w(offs_t offset, uint8_t data)
 	}
 }
 
-void quaderno_state::shadow_w(offs_t offset, uint8_t data)
+void quaderno_state::shadow_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	m_shadow[offset] = data;
+	COMBINE_DATA(&m_shadow[offset]);
 }
 
 uint8_t quaderno_state::ga_r(offs_t offset)
@@ -959,11 +959,11 @@ void quaderno_state::quaderno(machine_config &config)
 
 ROM_START( quaderno )
 	// U4: MS-ROM-DOS 5.0 (E0000) + BIOS "Resident Diagnostics Rev 1.88" 10/23/92 (F0000)
-	ROM_REGION( 0x20000, "bios", 0 )
+	ROM_REGION16_LE( 0x20000, "bios", 0 )
 	ROM_LOAD( "abg_r188.u4", 0x00000, 0x20000, CRC(f64985a6) SHA1(ad1d397bf3e04c42a54b3216d2544923364fdc2c) )
 
 	// ROM disk, XBIOS DSP code and code page fonts
-	ROM_REGION( 0x80000, "sdisk", 0 )
+	ROM_REGION16_LE( 0x80000, "sdisk", 0 )
 	ROM_LOAD( "fw-aag_r105.bin", 0x00000, 0x80000, CRC(6bc196e4) SHA1(da5bc11864ec2d78578d0c8a4d6fab233fb6f964) )
 
 	// Mitsubishi M37410M4 internal mask ROM, emulated at high level
