@@ -1835,6 +1835,7 @@ if BUSES["CENTRONICS"] then
 
 	dependency {
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",  GEN_DIR .. "emu/layout/ex800.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/epson_fx80.cpp",   GEN_DIR .. "emu/layout/epson_fx80.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx800.cpp",  GEN_DIR .. "emu/layout/lx800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx810l.cpp", GEN_DIR .. "emu/layout/lx800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/nixdorf_md16.cpp", GEN_DIR .. "emu/layout/nixdorf_md16.lh" },
@@ -1843,6 +1844,7 @@ if BUSES["CENTRONICS"] then
 	}
 
 	custombuildtask {
+		layoutbuildtask("emu/layout", "epson_fx80"),
 		layoutbuildtask("emu/layout", "ex800"),
 		layoutbuildtask("emu/layout", "lx800"),
 		layoutbuildtask("emu/layout", "nixdorf_md16"),
