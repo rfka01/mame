@@ -82,7 +82,7 @@ const u8 pf_sequence[8] = { 0xb, 0x9, 0xd, 0x5, 0x7, 0x6, 0xe, 0xa };
 } // anonymous namespace
 
 
-DEFINE_DEVICE_TYPE(STAR_NL10, star_nl10_device, "star_nl10", "Star NL-10")
+DEFINE_DEVICE_TYPE(STAR_NL10, star_nl10_device, "nl10", "Star NL-10")
 
 
 //**************************************************************************
@@ -191,7 +191,8 @@ star_nl10_device::star_nl10_device(const machine_config &mconfig, const char *ta
 	m_cr_pos(CR_EDGE - 20),
 	m_cr_phase(0),
 	m_cr_dir(1),
-	m_pf_phase(-1)
+	m_pf_phase(-1),
+	m_power_cycled(false)
 {
 }
 
@@ -244,6 +245,7 @@ void star_nl10_device::device_start()
 	save_item(NAME(m_cr_period));
 	save_item(NAME(m_pf_phase));
 	save_item(NAME(m_power_on));
+	save_item(NAME(m_power_cycled));
 }
 
 void star_nl10_device::device_reset()
@@ -252,6 +254,7 @@ void star_nl10_device::device_reset()
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
 	m_power_on = machine().time();
+	m_power_cycled = false;
 	update_busy();
 	output_fault(1);
 	output_ack(1);
@@ -265,6 +268,7 @@ INPUT_CHANGED_MEMBER(star_nl10_device::power_switch)
 		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
 		m_data_ready = false;
 		m_power_on = machine().time();
+		m_power_cycled = true;
 		update_busy();
 	}
 }
@@ -298,9 +302,10 @@ u8 star_nl10_device::panel_r()
 	if (!BIT(cfg, 1))
 		data |= 0xc0;
 
-	// keys held while the printer is switched on (the firmware looks after homing the carriage)
+	// keys held while the printer is switched on with its power switch
+	// (the firmware looks after homing the carriage)
 	static u8 const held[8] = { 0x00, 0x01, 0x02, 0x0a, 0x08, 0x04, 0x00, 0x00 };
-	if (machine().time() - m_power_on < attotime::from_seconds(6))
+	if (m_power_cycled && (machine().time() - m_power_on < attotime::from_seconds(6)))
 		data &= ~held[(cfg >> 2) & 7];
 	return data;
 }

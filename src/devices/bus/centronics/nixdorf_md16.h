@@ -94,6 +94,7 @@ private:
 	attotime m_cr_period;
 	int m_pf_phase;
 	attotime m_power_on;
+	bool m_power_cycled;    // switched on with the power switch, not by a machine reset
 };
 
 
