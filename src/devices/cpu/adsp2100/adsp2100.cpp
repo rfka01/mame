@@ -119,6 +119,7 @@ DEFINE_DEVICE_TYPE(ADSP2101, adsp2101_device, "adsp2101", "Analog Devices ADSP-2
 DEFINE_DEVICE_TYPE(ADSP2104, adsp2104_device, "adsp2104", "Analog Devices ADSP-2104")
 DEFINE_DEVICE_TYPE(ADSP2105, adsp2105_device, "adsp2105", "Analog Devices ADSP-2105")
 DEFINE_DEVICE_TYPE(ADSP2115, adsp2115_device, "adsp2115", "Analog Devices ADSP-2115")
+DEFINE_DEVICE_TYPE(ADSP2111, adsp2111_device, "adsp2111", "Analog Devices ADSP-2111")
 DEFINE_DEVICE_TYPE(ADSP2181, adsp2181_device, "adsp2181", "Analog Devices ADSP-2181")
 
 
@@ -167,11 +168,13 @@ adsp21xx_device::adsp21xx_device(const machine_config &mconfig, device_type type
 	m_icount(0),
 	m_mstat_mask((m_chip_type >= CHIP_TYPE_ADSP2101) ? 0x7f : 0x0f),
 	m_imask_mask((m_chip_type >= CHIP_TYPE_ADSP2181) ? 0x3ff :
+				(m_chip_type == CHIP_TYPE_ADSP2111) ? 0xff :
 				(m_chip_type >= CHIP_TYPE_ADSP2101) ? 0x3f : 0x0f),
 	m_sport_rx_cb(*this, 0),
 	m_sport_tx_cb(*this),
 	m_timer_fired_cb(*this),
-	m_dmovlay_cb(*this)
+	m_dmovlay_cb(*this),
+	m_flag_out_cb(*this)
 {
 	// initialize remaining state
 	memset(&m_core, 0, sizeof(m_core));
@@ -603,7 +606,7 @@ void adsp21xx_device::device_start()
 	state_add(ADSP2100_STATSP,  "STATSP",    m_stat_sp).mask(0xf);
 	state_add(ADSP2100_LOOPSP,  "LOOPSP",    m_loop_sp).mask(0xf);
 
-	state_add(ADSP2100_IMASK,   "IMASK",     m_imask).mask((m_chip_type == CHIP_TYPE_ADSP2100) ? 0x00f : (m_chip_type == CHIP_TYPE_ADSP2181) ? 0x3ff : 0x07f).callimport();
+	state_add(ADSP2100_IMASK,   "IMASK",     m_imask).mask((m_chip_type == CHIP_TYPE_ADSP2100) ? 0x00f : (m_chip_type == CHIP_TYPE_ADSP2181) ? 0x3ff : (m_chip_type == CHIP_TYPE_ADSP2111) ? 0x0ff : 0x07f).callimport();
 	state_add(ADSP2100_ICNTL,   "ICNTL",     m_icntl).mask(0x1f).callimport();
 
 	for (int irqnum = 0; irqnum < 4; irqnum++)
@@ -877,6 +880,414 @@ inline uint32_t adsp21xx_device::opcode_read()
 ***************************************************************************/
 
 #include "2100ops.hxx"
+
+
+
+//-------------------------------------------------
+//  update_flag_outputs - notify the owner about
+//  FLAG_OUT/FL0/FL1/FL2 changes
+//-------------------------------------------------
+
+void adsp21xx_device::update_flag_outputs(uint8_t prev)
+{
+	const uint8_t now = m_flagout | (m_fl0 << 1) | (m_fl1 << 2) | (m_fl2 << 3);
+	if (now != prev)
+		m_flag_out_cb(0, now, 0x0f);
+}
+
+
+
+/***************************************************************************
+    ADSP-2111 (ADSP-2101 core + Host Interface Port)
+
+    Host side (8-bit mode, HA2-HA0):
+        0-5  HDR0-HDR5 data registers
+        6    HSR6 status: bits 0-5 set while HDRn holds a byte written by
+             the host that the DSP has not read yet
+        7    HSR7 status: bits 0-5 set while HDRn holds a byte written by
+             the DSP that the host has not read yet; writing bit 6 (SWR)
+             performs a software reset and, with BMODE=1, a HIP boot
+
+    DSP side (data memory):
+        3fe0-3fe5  HDR0-HDR5
+        3fe6       HSR6
+        3fe7       HSR7
+        3fe8       HMASK: bits 0-5 enable the HIP write interrupt for
+                   HDR0-5, bits 8-13 enable the HIP read interrupt
+
+    Interrupt vectors: 0000 reset, 0004 IRQ2, 0008 HIP write, 000c HIP
+    read, 0010 SPORT0 TX, 0014 SPORT0 RX, 0018 IRQ1/SPORT1 TX,
+    001c IRQ0/SPORT1 RX, 0020 timer.  IMASK bit 7 = IRQ2 ... bit 0 = timer.
+
+    HIP boot (8-bit): after reset the host writes the number of 8-word
+    pages minus one to HDR3, then sends the program words starting with
+    the highest address, each as HDR0 (bits 23-16), HDR2 (bits 7-0) and
+    HDR1 (bits 15-8).  The DSP starts at 0000 once address 0 has been
+    loaded.  Verified against the boot loader embedded in the Olivetti
+    Quaderno XBIOS.COM.
+
+    TODO:
+    - 16-bit HIP mode, overwrite mode (HSR7 bit 7), HIP interrupts on
+      the host side (HACK/HINT are not used by the Quaderno)
+    - IFC bit layout is extrapolated from the ADSP-2181 and unverified
+    - SPORT autobuffering, BDMA-less EPROM boot
+***************************************************************************/
+
+adsp2111_device::adsp2111_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: adsp2101_device(mconfig, ADSP2111, tag, owner, clock, CHIP_TYPE_ADSP2111)
+	, m_program_config_2111("program", ENDIANNESS_LITTLE, 32, 14, -2, address_map_constructor(FUNC(adsp2111_device::internal_program), this))
+	, m_data_config_2111("data", ENDIANNESS_LITTLE, 16, 14, -1, address_map_constructor(FUNC(adsp2111_device::internal_data), this))
+	, m_hsr6(0)
+	, m_hsr7(0)
+	, m_hmask(0)
+	, m_hip_boot_enabled(true)
+	, m_hip_booting(false)
+	, m_boot_count(-1)
+	, m_boot_addr(0)
+	, m_boot_bytes(0)
+	, m_timer(nullptr)
+	, m_timer_enabled(false)
+	, m_tcount(0)
+{
+	std::fill(std::begin(m_hdr), std::end(m_hdr), 0);
+	std::fill(std::begin(m_ctrl), std::end(m_ctrl), 0);
+}
+
+device_memory_interface::space_config_vector adsp2111_device::memory_space_config() const
+{
+	return space_config_vector {
+		std::make_pair(AS_PROGRAM, &m_program_config_2111),
+		std::make_pair(AS_DATA,    &m_data_config_2111)
+	};
+}
+
+void adsp2111_device::internal_program(address_map &map)
+{
+	// MMAP = 0: 2K words of on-chip program RAM at 0000
+	map(0x0000, 0x07ff).ram();
+}
+
+void adsp2111_device::internal_data(address_map &map)
+{
+	map(0x3800, 0x3bff).ram();
+	map(0x3fe0, 0x3fe8).rw(FUNC(adsp2111_device::hip_dsp_r), FUNC(adsp2111_device::hip_dsp_w));
+	map(0x3fe9, 0x3fff).rw(FUNC(adsp2111_device::ctrl_r), FUNC(adsp2111_device::ctrl_w));
+}
+
+void adsp2111_device::device_start()
+{
+	adsp2101_device::device_start();
+
+	m_timer = timer_alloc(FUNC(adsp2111_device::timer_tick), this);
+
+	save_item(NAME(m_hdr));
+	save_item(NAME(m_hsr6));
+	save_item(NAME(m_hsr7));
+	save_item(NAME(m_hmask));
+	save_item(NAME(m_hip_booting));
+	save_item(NAME(m_boot_count));
+	save_item(NAME(m_boot_addr));
+	save_item(NAME(m_boot_bytes));
+	save_item(NAME(m_ctrl));
+	save_item(NAME(m_timer_enabled));
+	save_item(NAME(m_tcount));
+}
+
+void adsp2111_device::device_reset()
+{
+	adsp2101_device::device_reset();
+	hip_reset();
+	if (m_hip_boot_enabled)
+		enter_hip_boot();
+}
+
+void adsp2111_device::hip_reset()
+{
+	std::fill(std::begin(m_hdr), std::end(m_hdr), 0);
+	m_hsr6 = 0;
+	m_hsr7 = 0;
+	m_hmask = 0;
+	std::fill(std::begin(m_ctrl), std::end(m_ctrl), 0);
+	m_timer->adjust(attotime::never);
+	m_timer_enabled = false;
+	m_tcount = 0;
+}
+
+void adsp2111_device::enter_hip_boot()
+{
+	// hold the core until the host has sent the boot image
+	m_hip_booting = true;
+	m_boot_count = -1;
+	m_boot_addr = 0;
+	m_boot_bytes = 0;
+	suspend(SUSPEND_REASON_HALT, true);
+}
+
+void adsp2111_device::hip_boot_byte(int reg, uint8_t data)
+{
+	if (m_boot_count < 0)
+	{
+		// first byte: page count - 1 in HDR3
+		if (reg == 3)
+		{
+			m_boot_count = (data + 1) * 8;
+			m_boot_addr = m_boot_count - 1;
+			m_boot_bytes = 0;
+		}
+		return;
+	}
+
+	if (reg > 2)
+		return;
+
+	m_hdr[reg] = data;
+	m_boot_bytes |= 1 << reg;
+	if (m_boot_bytes != 0x07)
+		return;
+
+	const uint32_t word = (m_hdr[0] << 16) | (m_hdr[1] << 8) | m_hdr[2];
+	program_write(m_boot_addr, word);
+	m_boot_bytes = 0;
+
+	if (m_boot_addr-- == 0)
+	{
+		// boot complete: start execution at 0000
+		m_hip_booting = false;
+		std::fill(std::begin(m_hdr), std::end(m_hdr), 0);
+		m_pc = m_ppc = 0;
+		resume(SUSPEND_REASON_HALT);
+	}
+}
+
+void adsp2111_device::raise_hip_irq(int which)
+{
+	m_irq_latch[which] = 1;
+	m_irq_state[which] = 1;
+	if (m_idle)
+		abort_timeslice();
+}
+
+uint8_t adsp2111_device::hip_r(offs_t offset)
+{
+	offset &= 7;
+	switch (offset)
+	{
+		case 6:
+			return m_hsr6 & 0x3f;
+
+		case 7:
+			return m_hsr7 & 0x3f;
+
+		default:
+		{
+			const uint8_t data = m_hdr[offset];
+			if (!machine().side_effects_disabled() && BIT(m_hsr7, offset))
+			{
+				m_hsr7 &= ~(1 << offset);
+				if (BIT(m_hmask, 8 + offset))
+					raise_hip_irq(ADSP2111_HIP_READ);
+			}
+			return data;
+		}
+	}
+}
+
+void adsp2111_device::hip_w(offs_t offset, uint8_t data)
+{
+	offset &= 7;
+	switch (offset)
+	{
+		case 6:
+			logerror("HIP: host write to HSR6 %02x ignored\n", data);
+			break;
+
+		case 7:
+			if (BIT(data, 6))
+			{
+				// software reset (and HIP boot)
+				adsp21xx_device::device_reset();
+				hip_reset();
+				if (m_hip_boot_enabled)
+					enter_hip_boot();
+			}
+			break;
+
+		default:
+			if (m_hip_booting)
+			{
+				hip_boot_byte(offset, data);
+				break;
+			}
+			m_hdr[offset] = data;
+			m_hsr6 |= 1 << offset;
+			if (BIT(m_hmask, offset))
+				raise_hip_irq(ADSP2111_HIP_WRITE);
+			break;
+	}
+}
+
+uint16_t adsp2111_device::hip_dsp_r(offs_t offset)
+{
+	switch (offset)
+	{
+		case 6:
+			return m_hsr6 & 0x3f;
+		case 7:
+			return m_hsr7 & 0x7f;
+		case 8:
+			return m_hmask;
+		default:
+			if (!machine().side_effects_disabled())
+				m_hsr6 &= ~(1 << offset);
+			return m_hdr[offset];
+	}
+}
+
+void adsp2111_device::hip_dsp_w(offs_t offset, uint16_t data)
+{
+	switch (offset)
+	{
+		case 6:
+		case 7:
+			// status registers are read-only from the DSP side
+			break;
+		case 8:
+			m_hmask = data & 0x3f3f;
+			break;
+		default:
+			m_hdr[offset] = data & 0xff;
+			m_hsr7 |= 1 << offset;
+			break;
+	}
+}
+
+// memory mapped control registers 3fe9-3fff; only the timer is acted upon
+// 3ffb = TSCALE, 3ffc = TCOUNT, 3ffd = TPERIOD
+uint16_t adsp2111_device::ctrl_r(offs_t offset)
+{
+	const offs_t reg = offset + 9;
+	if (reg == 0x1c)
+		return m_tcount;
+	return m_ctrl[reg];
+}
+
+void adsp2111_device::ctrl_w(offs_t offset, uint16_t data)
+{
+	const offs_t reg = offset + 9;
+	m_ctrl[reg] = data;
+	if (reg == 0x1c)
+		m_tcount = data;
+	if (m_timer_enabled && (reg == 0x1b || reg == 0x1c))
+		timer_reload();
+}
+
+void adsp2111_device::timer_reload()
+{
+	const uint32_t scale = (m_ctrl[0x1b] & 0xff) + 1;
+	m_timer->adjust(cycles_to_attotime(uint64_t(scale) * (uint64_t(m_tcount) + 1)));
+}
+
+void adsp2111_device::timer_enable_changed(bool enabled)
+{
+	m_timer_enabled = enabled;
+	if (enabled)
+		timer_reload();
+	else
+		m_timer->adjust(attotime::never);
+	adsp2101_device::timer_enable_changed(enabled);
+}
+
+TIMER_CALLBACK_MEMBER(adsp2111_device::timer_tick)
+{
+	// TCOUNT reached zero: raise the timer interrupt and reload from TPERIOD
+	m_irq_latch[ADSP2111_TIMER] = 1;
+	m_tcount = m_ctrl[0x1d];
+	if (m_timer_enabled)
+		timer_reload();
+	if (m_idle)
+		abort_timeslice();
+}
+
+void adsp2111_device::execute_run()
+{
+	// the 2111 really halts in IDLE until an interrupt arrives
+	if (m_idle)
+	{
+		check_irqs();
+		if (m_idle)
+		{
+			m_icount = 0;
+			return;
+		}
+	}
+	adsp2101_device::execute_run();
+}
+
+bool adsp2111_device::generate_irq(int which, int indx)
+{
+	// skip if masked
+	if (!(m_imask & (0x80 >> indx)))
+		return false;
+
+	// clear the latch
+	m_irq_latch[which] = 0;
+	if (which == ADSP2111_HIP_WRITE || which == ADSP2111_HIP_READ || which == ADSP2111_TIMER)
+		m_irq_state[which] = 0;
+
+	// push the PC and the status
+	pc_stack_push();
+	stat_stack_push();
+
+	// vector to location & stop idling
+	m_pc = 0x04 + indx * 4;
+	m_idle = 0;
+
+	// mask other interrupts based on the nesting bit
+	if (m_icntl & 0x10) m_imask &= ~(0xff >> indx);
+	else m_imask &= ~0xff;
+
+	return true;
+}
+
+void adsp2111_device::check_irqs()
+{
+	uint8_t check;
+
+	// IRQ2 (highest priority)
+	check = (m_icntl & 4) ? m_irq_latch[ADSP2111_IRQ2] : m_irq_state[ADSP2111_IRQ2];
+	if (check && generate_irq(ADSP2111_IRQ2, 0))
+		return;
+
+	// HIP write
+	if (m_irq_latch[ADSP2111_HIP_WRITE] && generate_irq(ADSP2111_HIP_WRITE, 1))
+		return;
+
+	// HIP read
+	if (m_irq_latch[ADSP2111_HIP_READ] && generate_irq(ADSP2111_HIP_READ, 2))
+		return;
+
+	// SPORT0 transmit
+	if (m_irq_latch[ADSP2111_SPORT0_TX] && generate_irq(ADSP2111_SPORT0_TX, 3))
+		return;
+
+	// SPORT0 receive
+	if (m_irq_latch[ADSP2111_SPORT0_RX] && generate_irq(ADSP2111_SPORT0_RX, 4))
+		return;
+
+	// IRQ1/SPORT1 transmit
+	check = (m_icntl & 2) ? m_irq_latch[ADSP2111_IRQ1] : m_irq_state[ADSP2111_IRQ1];
+	if (check && generate_irq(ADSP2111_IRQ1, 5))
+		return;
+
+	// IRQ0/SPORT1 receive
+	check = (m_icntl & 1) ? m_irq_latch[ADSP2111_IRQ0] : m_irq_state[ADSP2111_IRQ0];
+	if (check && generate_irq(ADSP2111_IRQ0, 6))
+		return;
+
+	// timer
+	if (m_irq_latch[ADSP2111_TIMER] && generate_irq(ADSP2111_TIMER, 7))
+		return;
+}
 
 
 
@@ -1279,6 +1690,7 @@ void adsp21xx_device::execute_run()
 				{
 					if (condition(BIT(op, 0, 4)))
 					{
+						const uint8_t prevflags = m_flagout | (m_fl0 << 1) | (m_fl1 << 2) | (m_fl2 << 3);
 						if (BIT(op, 5)) m_flagout = 0;
 						if (BIT(op, 4)) m_flagout ^= 1;
 						if (m_chip_type >= CHIP_TYPE_ADSP2101)
@@ -1290,6 +1702,7 @@ void adsp21xx_device::execute_run()
 							if (BIT(op, 11)) m_fl2 = 0;
 							if (BIT(op, 10)) m_fl2 ^= 1;
 						}
+						update_flag_outputs(prevflags);
 					}
 				}
 				break;

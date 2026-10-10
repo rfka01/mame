@@ -474,6 +474,24 @@ void adsp21xx_device::write_reg3(int regnum, int32_t val)
 				if (BIT(val, 14)) m_irq_latch[ADSP2181_SPORT0_TX] = 1;
 				if (BIT(val, 15)) m_irq_latch[ADSP2181_IRQ2] = 1;
 			}
+			else if (m_chip_type == CHIP_TYPE_ADSP2111)
+			{
+				// TODO: layout extrapolated from the ADSP-2181, verify against the ADSP-2111 manual
+				if (BIT(val, 1)) m_irq_latch[ADSP2111_IRQ0] = 0;
+				if (BIT(val, 2)) m_irq_latch[ADSP2111_IRQ1] = 0;
+				if (BIT(val, 3)) m_irq_latch[ADSP2111_SPORT0_RX] = 0;
+				if (BIT(val, 4)) m_irq_latch[ADSP2111_SPORT0_TX] = 0;
+				if (BIT(val, 5)) m_irq_latch[ADSP2111_HIP_READ] = 0;
+				if (BIT(val, 6)) m_irq_latch[ADSP2111_HIP_WRITE] = 0;
+				if (BIT(val, 7)) m_irq_latch[ADSP2111_IRQ2] = 0;
+				if (BIT(val, 9)) m_irq_latch[ADSP2111_IRQ0] = 1;
+				if (BIT(val, 10)) m_irq_latch[ADSP2111_IRQ1] = 1;
+				if (BIT(val, 11)) m_irq_latch[ADSP2111_SPORT0_RX] = 1;
+				if (BIT(val, 12)) m_irq_latch[ADSP2111_SPORT0_TX] = 1;
+				if (BIT(val, 13)) m_irq_latch[ADSP2111_HIP_READ] = 1;
+				if (BIT(val, 14)) m_irq_latch[ADSP2111_HIP_WRITE] = 1;
+				if (BIT(val, 15)) m_irq_latch[ADSP2111_IRQ2] = 1;
+			}
 			else
 			{
 				// clear timer
