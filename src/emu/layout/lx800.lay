@@ -1,92 +1,124 @@
 <?xml version="1.0"?>
 <!--
 license:CC0-1.0
-copyright-holders:Dirk Best
+copyright-holders:Dirk Best, rfka01
+Epson LX-800: paper and control panel
 -->
 <mamelayout version="2">
-	<element name="background">
-		<rect>
-			<color red="0.1" green="0.1" blue="0.1" />
-		</rect>
-	</element>
+	<element name="case"><rect><color red="0.87" green="0.86" blue="0.80" /></rect></element>
+	<element name="bezel"><rect><color red="0.62" green="0.62" blue="0.58" /></rect></element>
+	<element name="panel"><rect><color red="0.09" green="0.11" blue="0.16" /></rect></element>
 
-	<element name="power_led" defstate="1">
-		<rect state="0">
-			<color red="0" green="0.2" blue="0" />
-		</rect>
-		<rect state="1">
-			<color red="0" green="0.8" blue="0" />
-		</rect>
-	</element>
+	<element name="power_led"><rect><color red="0.30" green="1.00" blue="0.30" /></rect></element>
 	<element name="green_led" defstate="0">
-		<rect state="0">
-			<color red="0" green="0.2" blue="0" />
-		</rect>
-		<rect state="1">
-			<color red="0" green="0.8" blue="0" />
-		</rect>
+		<rect state="0"><color red="0.12" green="0.24" blue="0.14" /></rect>
+		<rect state="1"><color red="0.30" green="1.00" blue="0.30" /></rect>
 	</element>
 	<element name="red_led" defstate="0">
-		<rect state="0">
-			<color red="0.2" green="0" blue="0" />
-		</rect>
-		<rect state="1">
-			<color red="0.8" green="0" blue="0" />
-		</rect>
+		<rect state="0"><color red="0.28" green="0.10" blue="0.12" /></rect>
+		<rect state="1"><color red="1.00" green="0.20" blue="0.15" /></rect>
 	</element>
 
-	<element name="power_str" defstate="0">
-		<text string="POWER">
-			<color red="1.0" green="1.0" blue="1.0" />
-			<bounds x="0" y="0" width="25" height="4" />
-		</text>
+	<!-- membrane keys -->
+	<element name="key_blue" defstate="0">
+		<rect state="0"><color red="0.16" green="0.66" blue="0.88" /></rect>
+		<rect state="1"><color red="0.10" green="0.48" blue="0.68" /></rect>
 	</element>
-	<element name="ready_str" defstate="0">
-		<text string="READY">
-			<color red="1.0" green="1.0" blue="1.0" />
-			<bounds x="0" y="0" width="25" height="4" />
-		</text>
+	<element name="key_grey" defstate="0">
+		<rect state="0"><color red="0.86" green="0.89" blue="0.89" /></rect>
+		<rect state="1"><color red="0.68" green="0.71" blue="0.72" /></rect>
 	</element>
-	<element name="paperout_str" defstate="0">
-		<text string="PAPER OUT">
-			<color red="1.0" green="1.0" blue="1.0" />
-			<bounds x="0" y="0" width="35" height="4" />
-		</text>
-	</element>
-	<element name="online_str" defstate="0">
-		<text string="ONLINE">
-			<color red="1.0" green="1.0" blue="1.0" />
-			<bounds x="0" y="0" width="35" height="4" />
-		</text>
-	</element>
+
+	<element name="t_power"><text string="POWER" align="1"><color red="0.95" green="0.95" blue="0.95" /></text></element>
+	<element name="t_ready"><text string="READY" align="1"><color red="0.95" green="0.95" blue="0.95" /></text></element>
+	<element name="t_paperout"><text string="PAPER OUT" align="1"><color red="0.95" green="0.95" blue="0.95" /></text></element>
+	<element name="t_on"><text string="ON" align="1"><color red="0.04" green="0.18" blue="0.32" /></text></element>
+	<element name="t_line"><text string="LINE" align="1"><color red="0.04" green="0.18" blue="0.32" /></text></element>
+	<element name="t_nlq"><text string="NLQ" align="1"><color red="0.15" green="0.45" blue="0.75" /></text></element>
+	<element name="t_roman"><text string="ROMAN" align="1"><color red="0.15" green="0.45" blue="0.75" /></text></element>
+	<element name="t_sans"><text string="SANS SERIF" align="1"><color red="0.15" green="0.45" blue="0.75" /></text></element>
+	<element name="t_form"><text string="FORM" align="2"><color red="0.12" green="0.12" blue="0.14" /></text></element>
+	<element name="t_feed"><text string="FEED" align="2"><color red="0.12" green="0.12" blue="0.14" /></text></element>
+	<element name="t_draft"><text string="DRAFT" align="1"><color red="0.15" green="0.45" blue="0.75" /></text></element>
+	<element name="t_linef"><text string="LINE" align="2"><color red="0.12" green="0.12" blue="0.14" /></text></element>
+	<element name="t_autoload"><text string="AUTO LOAD"><color red="0.12" green="0.12" blue="0.14" /></text></element>
+	<element name="t_model"><text string="LX-800"><color red="0.40" green="0.40" blue="0.38" /></text></element>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<element ref="case"><bounds x="0" y="360" width="1140" height="240" /></element>
+		<element ref="case"><bounds x="1140" y="0" width="300" height="600" /></element>
+		<element ref="bezel"><bounds x="1196" y="26" width="188" height="508" /></element>
+		<element ref="panel"><bounds x="1200" y="30" width="180" height="500" /></element>
+
+		<!-- POWER, READY, PAPER OUT -->
+		<element name="power_led" ref="power_led"><bounds x="1220" y="56" width="18" height="8" /></element>
+		<element ref="t_power"><bounds x="1248" y="49" width="110" height="22" /></element>
+		<element name="ready_led" ref="green_led"><bounds x="1220" y="92" width="18" height="8" /></element>
+		<element ref="t_ready"><bounds x="1248" y="85" width="110" height="22" /></element>
+		<element name="paperout_led" ref="red_led"><bounds x="1220" y="128" width="18" height="8" /></element>
+		<element ref="t_paperout"><bounds x="1248" y="121" width="120" height="22" /></element>
+
+		<!-- ON LINE -->
+		<element ref="key_blue" inputtag="ONLINE" inputmask="0x01"><bounds x="1212" y="166" width="156" height="96" /></element>
+		<element name="online_led" ref="green_led"><bounds x="1222" y="178" width="18" height="8" /></element>
+		<element ref="t_on"><bounds x="1246" y="171" width="60" height="22" /></element>
+		<element ref="t_line"><bounds x="1246" y="195" width="60" height="22" /></element>
+
+		<!-- NLQ / FORM FEED -->
+		<element ref="key_grey" inputtag="FORMFEED" inputmask="0x01"><bounds x="1212" y="282" width="156" height="104" /></element>
+		<element ref="t_nlq"><bounds x="1222" y="290" width="60" height="20" /></element>
+		<element ref="t_form"><bounds x="1290" y="290" width="70" height="20" /></element>
+		<element ref="t_feed"><bounds x="1290" y="312" width="70" height="20" /></element>
+		<element ref="t_roman"><bounds x="1238" y="340" width="110" height="16" /></element>
+		<element ref="t_sans"><bounds x="1238" y="358" width="110" height="16" /></element>
+
+		<!-- DRAFT / LINE FEED, AUTO LOAD -->
+		<element ref="key_grey" inputtag="LINEFEED" inputmask="0x01"><bounds x="1212" y="406" width="156" height="110" /></element>
+		<element ref="t_draft"><bounds x="1222" y="414" width="70" height="20" /></element>
+		<element ref="t_linef"><bounds x="1290" y="414" width="70" height="20" /></element>
+		<element ref="t_feed"><bounds x="1290" y="436" width="70" height="20" /></element>
+		<element ref="t_autoload"><bounds x="1220" y="490" width="140" height="18" /></element>
+
+		<element ref="t_model"><bounds x="1200" y="550" width="180" height="30" /></element>
+	</view>
 
 	<view name="Control panel">
-		<element ref="background">
-			<bounds x="0" y="0" width="67" height="52" />
-		</element>
-		<element name="power_led" ref="power_led">
-			<bounds x="8" y="9" width="8" height="4" />
-		</element>
-		<element name="power_str" ref="power_str">
-			<bounds x="18" y="9" width="17" height="4" />
-		</element>
-		<element name="ready_led" ref="green_led">
-			<bounds x="8" y="20" width="8" height="4" />
-		</element>
-		<element name="ready_str" ref="ready_str">
-			<bounds x="18" y="20" width="17" height="4" />
-		</element>
-		<element name="paperout_led" ref="red_led">
-			<bounds x="8" y="31" width="8" height="4" />
-		</element>
-		<element name="paperout_str" ref="paperout_str">
-			<bounds x="18" y="31" width="25" height="4" />
-		</element>
-		<element name="online_led" ref="green_led">
-			<bounds x="8" y="42" width="8" height="4" />
-		</element>
-		<element name="online_str" ref="online_str">
-			<bounds x="18" y="42" width="18" height="4" />
-		</element>
+		<element ref="case"><bounds x="0" y="0" width="300" height="600" /></element>
+		<element ref="bezel"><bounds x="56" y="26" width="188" height="508" /></element>
+		<element ref="panel"><bounds x="60" y="30" width="180" height="500" /></element>
+
+		<!-- POWER, READY, PAPER OUT -->
+		<element name="power_led" ref="power_led"><bounds x="80" y="56" width="18" height="8" /></element>
+		<element ref="t_power"><bounds x="108" y="49" width="110" height="22" /></element>
+		<element name="ready_led" ref="green_led"><bounds x="80" y="92" width="18" height="8" /></element>
+		<element ref="t_ready"><bounds x="108" y="85" width="110" height="22" /></element>
+		<element name="paperout_led" ref="red_led"><bounds x="80" y="128" width="18" height="8" /></element>
+		<element ref="t_paperout"><bounds x="108" y="121" width="120" height="22" /></element>
+
+		<!-- ON LINE -->
+		<element ref="key_blue" inputtag="ONLINE" inputmask="0x01"><bounds x="72" y="166" width="156" height="96" /></element>
+		<element name="online_led" ref="green_led"><bounds x="82" y="178" width="18" height="8" /></element>
+		<element ref="t_on"><bounds x="106" y="171" width="60" height="22" /></element>
+		<element ref="t_line"><bounds x="106" y="195" width="60" height="22" /></element>
+
+		<!-- NLQ / FORM FEED -->
+		<element ref="key_grey" inputtag="FORMFEED" inputmask="0x01"><bounds x="72" y="282" width="156" height="104" /></element>
+		<element ref="t_nlq"><bounds x="82" y="290" width="60" height="20" /></element>
+		<element ref="t_form"><bounds x="150" y="290" width="70" height="20" /></element>
+		<element ref="t_feed"><bounds x="150" y="312" width="70" height="20" /></element>
+		<element ref="t_roman"><bounds x="98" y="340" width="110" height="16" /></element>
+		<element ref="t_sans"><bounds x="98" y="358" width="110" height="16" /></element>
+
+		<!-- DRAFT / LINE FEED, AUTO LOAD -->
+		<element ref="key_grey" inputtag="LINEFEED" inputmask="0x01"><bounds x="72" y="406" width="156" height="110" /></element>
+		<element ref="t_draft"><bounds x="82" y="414" width="70" height="20" /></element>
+		<element ref="t_linef"><bounds x="150" y="414" width="70" height="20" /></element>
+		<element ref="t_feed"><bounds x="150" y="436" width="70" height="20" /></element>
+		<element ref="t_autoload"><bounds x="80" y="490" width="140" height="18" /></element>
+
+		<element ref="t_model"><bounds x="60" y="550" width="180" height="30" /></element>
 	</view>
 </mamelayout>
