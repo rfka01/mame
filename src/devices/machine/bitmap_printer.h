@@ -47,6 +47,47 @@ public:
 
 	// height of the paper shown on the paper screen, in inches (configuration time only)
 	void set_paper_view(double inches);
+
+	// selectable paper (configuration time only): the bitmap is the printer's
+	// mechanism; the selected sheet lies in it and is what is filed as a page
+	enum : int
+	{
+		PAPER_FANFOLD_12 = 0,   // 240 mm x 12" fanfold
+		PAPER_FANFOLD_11,       // 9.5" x 11" fanfold
+		PAPER_A4,               // A4 single sheet
+		PAPER_LETTER,           // US Letter single sheet
+		PAPER_FORMATS
+	};
+	void set_paper_formats(u8 mask, int default_format);
+
+	// paper sensor: a single sheet's trailing edge passes it the load offset before
+	// the end of the sheet reaches the print line
+	bool paper_present() const { return sheet_in() && (!sheet_handling() || (m_ypos < m_sheet_height - m_sensor_rows)); }
+	bool sheet_in() const { return !m_paper_mask || m_sheet_fanfold || m_sheet_loaded; }
+
+	// the printer handles single sheets (friction feed, paper sensor sees each sheet);
+	// false for fanfold paper and for sheets that are always loaded, which the
+	// printer takes for endless paper
+	bool sheet_handling() const { return single_sheet() && !m_always_loaded; }
+	bool single_sheet() const { return m_paper_mask && !m_sheet_fanfold; }
+	DECLARE_INPUT_CHANGED_MEMBER(insert_sheet);
+	DECLARE_INPUT_CHANGED_MEMBER(paper_changed);
+
+	// single sheets: distance from the paper sensor, where a new sheet's top edge stops,
+	// to the print line; the firmware's loading feed moves it up from there
+	// (configuration time only)
+	void set_sheet_load_offset(double inches) { m_load_offset = inches; }
+
+	// single sheets: a sheet is already in when the printer is switched on, instead of
+	// arriving a moment later (configuration time only)
+	void set_sheet_in_at_power_on(bool in) { m_sheet_at_power_on = in; }
+
+	// "always loaded" single sheets: first print line of a new sheet, in inches from its
+	// top edge, where the printer's own loading puts it (configuration time only)
+	void set_sheet_top(double inches) { m_sheet_top = inches; }
+
+	// lowest print position: a sheet being loaded is still below the print line
+	int min_ypos() const { return m_paper_mask ? -m_paper_height : 0; }
 	pdf_printer_device &pdf() { return *m_pdf; }
 
 	void draw_pixel(int x, int y, int pixelval);
@@ -59,6 +100,7 @@ public:
 
 	int get_top_margin();
 	int get_bottom_margin();
+	int sheet_start_row();
 	bool check_new_page();
 
 	int update_stepper_delta(stepper_device *stepper, uint8_t pattern);
@@ -94,6 +136,7 @@ private:
 	required_ioport m_top_margin_ioport;
 	required_ioport m_bottom_margin_ioport;
 	required_ioport m_draw_marks_ioport;
+	optional_ioport m_paper_ioport;
 
 	bitmap_rgb32 m_page_bitmap; // page bitmap
 	bitmap_rgb32 m_roll_bitmap; // continuous feed: rows retired from the page bitmap, held until a lap is ready to write
@@ -139,11 +182,37 @@ private:
 	u32 m_view_cached_serial;
 	int m_view_cached_scroll;
 
+	// selectable paper
+	u8 m_paper_mask;         // formats the mechanism takes, 0 = fixed paper (old behaviour)
+	int m_paper_default;
+	int m_sheet_height;      // rows of the selected sheet
+	int m_sheet_left;        // columns of the selected sheet in the mechanism
+	int m_sheet_right;
+	bool m_sheet_fanfold;
+	bool m_greenbar;
+	bool m_unlimited_sheets;
+	bool m_always_loaded;
+	bool m_sheet_loaded;
+	double m_load_offset;
+	bool m_sheet_at_power_on;
+	double m_sheet_top;
+	int m_sensor_rows;
+	attotime m_last_feed;        // last paper motor step
+	emu_timer *m_feeder_timer;   // single sheets: the next sheet arrives a moment after the last left
+
+	TIMER_CALLBACK_MEMBER(feed_sheet);
+	void load_sheet();
+
+	void apply_paper();
+	int page_rows() const { return m_paper_mask ? m_sheet_height : m_page_bitmap.height(); }
+	void render_paper(bitmap_rgb32 &dst, int page_row0, int col0, bool screen);
+	void paper_canvas(printer_page_canvas &page);
+
 	void configure_screen(screen_device &screen);
 	void touch() { m_view_serial++; }
 
 	void flush_to_pdf();
-	void expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst);
+	void expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst);   // stamps the ink of src onto dst
 	void draw_printhead(bitmap_rgb32 &bitmap, int x, int y);
 	u32 dimcolor(u32 incolor, int factor);
 
