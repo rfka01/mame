@@ -690,8 +690,32 @@ void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 	{
 		static const rgb_t png_palette[] = { rgb_t::white(), rgb_t::black() };
 
-		// save the paper into a png
-		util::png_write_bitmap(file, nullptr, bitmap, 2, png_palette);
+		// save the paper into a png; printers that plot dot centers get full-size dots
+		bitmap_rgb32 dots;
+		bitmap_rgb32 const *page = &bitmap;
+		if (m_dot_style_set)
+		{
+			dots.allocate(bitmap.width(), bitmap.height());
+			expand_dots(bitmap, dots);
+			page = &dots;
+		}
+
+		// square pixels, so image viewers show the page in its real proportions
+		if ((m_hdpi > 0) && (m_vdpi > 0) && (m_hdpi != m_vdpi))
+		{
+			int const dpi = std::max(m_hdpi, m_vdpi);
+			bitmap_rgb32 square(page->width() * dpi / m_hdpi, page->height() * dpi / m_vdpi);
+			for (int y = 0; y < square.height(); y++)
+			{
+				u32 const *const src = &page->pix(y * m_vdpi / dpi, 0);
+				u32 *const dst = &square.pix(y, 0);
+				for (int x = 0; x < square.width(); x++)
+					dst[x] = src[x * m_hdpi / dpi];
+			}
+			util::png_write_bitmap(file, nullptr, square, 2, png_palette);
+		}
+		else
+			util::png_write_bitmap(file, nullptr, *page, 2, png_palette);
 	}
 }
 
