@@ -5,47 +5,63 @@ copyright-holders:rfka01
 Nixdorf MD 16: paper and front panel
 -->
 <mamelayout version="2">
-	<element name="panel"><rect><color red="0.86" green="0.86" blue="0.84" /></rect></element>
-	<element name="label"><rect><color red="0.62" green="0.64" blue="0.66" /></rect></element>
+	<element name="case"><rect><color red="0.86" green="0.87" blue="0.86" /></rect></element>
+	<element name="case_light"><rect><color red="0.91" green="0.92" blue="0.91" /></rect></element>
+	<element name="label"><rect><color red="0.71" green="0.72" blue="0.74" /></rect></element>
+	<element name="plaque"><rect><color red="0.97" green="0.97" blue="0.97" /></rect></element>
+
 	<element name="led_green" defstate="0">
-		<disk state="0"><color red="0.10" green="0.25" blue="0.10" /></disk>
-		<disk state="1"><color red="0.20" green="1.00" blue="0.20" /></disk>
+		<disk state="0"><color red="0.20" green="0.20" blue="0.21" /></disk>
+		<disk state="1"><color red="0.25" green="0.95" blue="0.30" /></disk>
 	</element>
 	<element name="led_red" defstate="0">
-		<disk state="0"><color red="0.25" green="0.08" blue="0.08" /></disk>
-		<disk state="1"><color red="1.00" green="0.20" blue="0.20" /></disk>
+		<disk state="0"><color red="0.20" green="0.20" blue="0.21" /></disk>
+		<disk state="1"><color red="1.00" green="0.25" blue="0.15" /></disk>
 	</element>
-	<element name="power_on"><disk><color red="0.20" green="1.00" blue="0.20" /></disk></element>
+	<element name="led_power"><disk><color red="0.25" green="0.95" blue="0.30" /></disk></element>
+
 	<element name="key" defstate="0">
-		<rect state="0"><color red="0.55" green="0.56" blue="0.58" /></rect>
-		<rect state="1"><color red="0.80" green="0.81" blue="0.83" /></rect>
+		<rect state="0"><color red="0.58" green="0.59" blue="0.61" /></rect>
+		<rect state="1"><color red="0.42" green="0.43" blue="0.45" /></rect>
 	</element>
-	<element name="t_power"><text string="Power" align="1"><color red="0.1" green="0.1" blue="0.1" /></text></element>
-	<element name="t_paper"><text string="Paper Empty" align="1"><color red="0.1" green="0.1" blue="0.1" /></text></element>
-	<element name="t_online"><text string="On Line" align="1"><color red="0.1" green="0.1" blue="0.1" /></text></element>
-	<element name="t_lf"><text string="Line Feed"><color red="0.1" green="0.1" blue="0.1" /></text></element>
-	<element name="t_ff"><text string="Form Feed"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="key_frame"><rect><color red="0.30" green="0.31" blue="0.33" /></rect></element>
+
+	<element name="t_power"><text string="Power" align="1"><color red="0.12" green="0.12" blue="0.13" /></text></element>
+	<element name="t_paper"><text string="Paper Empty" align="1"><color red="0.12" green="0.12" blue="0.13" /></text></element>
+	<element name="t_online"><text string="On Line" align="1"><color red="0.12" green="0.12" blue="0.13" /></text></element>
+	<element name="t_lf"><text string="Line Feed"><color red="0.12" green="0.12" blue="0.13" /></text></element>
+	<element name="t_ff"><text string="Form Feed"><color red="0.12" green="0.12" blue="0.13" /></text></element>
+	<element name="t_model"><text string="MD 16"><color red="0.15" green="0.15" blue="0.16" /></text></element>
 
 	<view name="Paper and Control Panel">
 		<screen tag="bitmap_printer:screen">
 			<bounds x="0" y="0" width="1140" height="360" />
 		</screen>
-		<element ref="panel"><bounds x="0" y="360" width="1140" height="100" /></element>
-		<element ref="label"><bounds x="300" y="370" width="460" height="80" /></element>
+		<element ref="case"><bounds x="0" y="360" width="1140" height="170" /></element>
+		<element ref="case_light"><bounds x="253" y="360" width="560" height="20" /></element>
+		<element ref="label"><bounds x="253" y="380" width="560" height="118" /></element>
 
-		<element ref="power_on"><bounds x="310" y="380" width="12" height="12" /></element>
-		<element ref="t_power"><bounds x="328" y="378" width="90" height="16" /></element>
-		<element name="md16_paper_led" ref="led_red"><bounds x="310" y="402" width="12" height="12" /></element>
-		<element ref="t_paper"><bounds x="328" y="400" width="110" height="16" /></element>
+		<!-- Power, Paper Empty -->
+		<element ref="led_power"><bounds x="282" y="406" width="15" height="15" /></element>
+		<element ref="t_power"><bounds x="304" y="402" width="90" height="23" /></element>
+		<element name="md16_paper_led" ref="led_red"><bounds x="282" y="433" width="15" height="15" /></element>
+		<element ref="t_paper"><bounds x="304" y="429" width="140" height="23" /></element>
 
-		<element name="md16_online_led" ref="led_green"><bounds x="460" y="380" width="12" height="12" /></element>
-		<element ref="t_online"><bounds x="478" y="378" width="80" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x01"><bounds x="460" y="422" width="85" height="20" /></element>
+		<!-- On Line, Line Feed, Form Feed -->
+		<element name="md16_online_led" ref="led_green"><bounds x="462" y="406" width="15" height="15" /></element>
+		<element ref="t_online"><bounds x="483" y="402" width="90" height="23" /></element>
+		<element ref="t_lf"><bounds x="574" y="402" width="104" height="23" /></element>
+		<element ref="t_ff"><bounds x="690" y="402" width="106" height="23" /></element>
 
-		<element ref="t_lf"><bounds x="560" y="378" width="85" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x02"><bounds x="560" y="422" width="85" height="20" /></element>
+		<element ref="key_frame"><bounds x="451" y="456" width="111" height="21" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x01"><bounds x="453" y="458" width="107" height="17" /></element>
+		<element ref="key_frame"><bounds x="569" y="456" width="111" height="21" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x02"><bounds x="571" y="458" width="107" height="17" /></element>
+		<element ref="key_frame"><bounds x="687" y="456" width="111" height="21" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x04"><bounds x="689" y="458" width="107" height="17" /></element>
 
-		<element ref="t_ff"><bounds x="660" y="378" width="85" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x04"><bounds x="660" y="422" width="85" height="20" /></element>
+		<!-- type plate -->
+		<element ref="plaque"><bounds x="886" y="400" width="243" height="76" /></element>
+		<element ref="t_model"><bounds x="960" y="423" width="95" height="30" /></element>
 	</view>
 </mamelayout>
