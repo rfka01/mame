@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Epson ActionPrinter 2000: paper and control panel, after a photo of the printer
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.89" green="0.87" blue="0.81" /></rect></element>
+	<element name="divider"><rect><color red="0.60" green="0.57" blue="0.50" /></rect></element>
+	<element name="cell"><rect><color red="0.87" green="0.84" blue="0.74" /></rect></element>
+
+	<element name="led_green" defstate="0">
+		<rect state="0"><color red="0.18" green="0.26" blue="0.14" /></rect>
+		<rect state="1"><color red="0.55" green="1.00" blue="0.20" /></rect>
+	</element>
+	<element name="led_red" defstate="0">
+		<rect state="0"><color red="0.30" green="0.14" blue="0.12" /></rect>
+		<rect state="1"><color red="1.00" green="0.15" blue="0.20" /></rect>
+	</element>
+	<element name="led_power"><rect><color red="0.95" green="0.95" blue="0.30" /></rect></element>
+
+	<!-- oval key with a dark rim -->
+	<element name="key_rim">
+		<disk><bounds x="0" y="0" width="30" height="30" /><color red="0.36" green="0.32" blue="0.24" /></disk>
+		<rect><bounds x="15" y="0" width="94" height="30" /><color red="0.36" green="0.32" blue="0.24" /></rect>
+		<disk><bounds x="94" y="0" width="30" height="30" /><color red="0.36" green="0.32" blue="0.24" /></disk>
+	</element>
+	<element name="key" defstate="0">
+		<disk state="0"><bounds x="0" y="0" width="26" height="26" /><color red="0.93" green="0.88" blue="0.72" /></disk>
+		<rect state="0"><bounds x="13" y="0" width="94" height="26" /><color red="0.93" green="0.88" blue="0.72" /></rect>
+		<disk state="0"><bounds x="94" y="0" width="26" height="26" /><color red="0.93" green="0.88" blue="0.72" /></disk>
+		<disk state="1"><bounds x="0" y="0" width="26" height="26" /><color red="0.76" green="0.71" blue="0.56" /></disk>
+		<rect state="1"><bounds x="13" y="0" width="94" height="26" /><color red="0.76" green="0.71" blue="0.56" /></rect>
+		<disk state="1"><bounds x="94" y="0" width="26" height="26" /><color red="0.76" green="0.71" blue="0.56" /></disk>
+	</element>
+
+	<element name="t_power"><text string="POWER" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_ready"><text string="READY" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_paper"><text string="PAPER" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_out"><text string="OUT" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_online"><text string="ON LINE" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_offline"><text string="OFF LINE"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_nlq"><text string="NLQ" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_roman"><text string="ROMAN" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_sans"><text string="SANS SERIF" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_ff"><text string="FORM FEED"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_cond"><text string="CONDENSED" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_onoff"><text string="ON / OFF" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_load"><text string="LOAD/EJECT"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_draft"><text string="DRAFT" align="1"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+	<element name="t_lf"><text string="LINE FEED"><color red="0.22" green="0.20" blue="0.14" /></text></element>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<element ref="case"><bounds x="0" y="360" width="1140" height="292" /></element>
+
+		<!-- panel: lamps, CONDENSED key on the left; ON LINE, NLQ, DRAFT keys on the right -->
+		<element ref="divider"><bounds x="728" y="374" width="396" height="268" /></element>
+		<element ref="cell"><bounds x="732" y="378" width="148" height="170" /></element>
+		<element ref="cell"><bounds x="732" y="552" width="148" height="86" /></element>
+		<element ref="cell"><bounds x="884" y="378" width="236" height="83" /></element>
+		<element ref="cell"><bounds x="884" y="465" width="236" height="83" /></element>
+		<element ref="cell"><bounds x="884" y="552" width="236" height="86" /></element>
+
+		<!-- POWER, READY, PAPER OUT -->
+		<element ref="led_power"><bounds x="744" y="404" width="16" height="9" /></element>
+		<element ref="t_power"><bounds x="768" y="398" width="100" height="20" /></element>
+		<element name="lx810l_ready_led" ref="led_green"><bounds x="744" y="440" width="16" height="9" /></element>
+		<element ref="t_ready"><bounds x="768" y="434" width="100" height="20" /></element>
+		<element name="lx810l_paperout_led" ref="led_red"><bounds x="744" y="476" width="16" height="9" /></element>
+		<element ref="t_paper"><bounds x="768" y="470" width="100" height="20" /></element>
+		<element ref="t_out"><bounds x="768" y="490" width="100" height="20" /></element>
+
+		<!-- CONDENSED / LOAD/EJECT -->
+		<element ref="t_cond"><bounds x="744" y="558" width="124" height="18" /></element>
+		<element ref="t_onoff"><bounds x="744" y="576" width="124" height="14" /></element>
+		<element ref="key_rim"><bounds x="744" y="592" width="124" height="30" /></element>
+		<element ref="key" inputtag="LOADEJECT" inputmask="0x01"><bounds x="746" y="594" width="120" height="26" /></element>
+		<element ref="t_load"><bounds x="736" y="622" width="140" height="15" /></element>
+
+		<!-- ON LINE / OFF LINE -->
+		<element name="lx810l_online_led" ref="led_green"><bounds x="912" y="390" width="16" height="9" /></element>
+		<element ref="t_online"><bounds x="936" y="384" width="120" height="20" /></element>
+		<element ref="key_rim"><bounds x="940" y="408" width="124" height="30" /></element>
+		<element ref="key" inputtag="ONLINE" inputmask="0x01"><bounds x="942" y="410" width="120" height="26" /></element>
+		<element ref="t_offline"><bounds x="942" y="440" width="120" height="18" /></element>
+
+		<!-- NLQ / FORM FEED -->
+		<element ref="t_nlq"><bounds x="912" y="473" width="44" height="20" /></element>
+		<element ref="t_roman"><bounds x="958" y="469" width="80" height="12" /></element>
+		<element ref="t_sans"><bounds x="958" y="481" width="80" height="12" /></element>
+		<element ref="key_rim"><bounds x="940" y="495" width="124" height="30" /></element>
+		<element ref="key" inputtag="FORMFEED" inputmask="0x01"><bounds x="942" y="497" width="120" height="26" /></element>
+		<element ref="t_ff"><bounds x="942" y="527" width="120" height="18" /></element>
+
+		<!-- DRAFT / LINE FEED -->
+		<element ref="t_draft"><bounds x="912" y="560" width="100" height="20" /></element>
+		<element ref="key_rim"><bounds x="940" y="586" width="124" height="30" /></element>
+		<element ref="key" inputtag="LINEFEED" inputmask="0x01"><bounds x="942" y="588" width="120" height="26" /></element>
+		<element ref="t_lf"><bounds x="942" y="617" width="120" height="18" /></element>
+	</view>
+</mamelayout>

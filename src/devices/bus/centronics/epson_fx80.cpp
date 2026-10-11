@@ -74,6 +74,7 @@
 #include "speaker.h"
 
 #include "epson_fx80.lh"
+#include "epson_jx80.lh"
 
 //#define VERBOSE 1
 #include "logmacro.h"
@@ -87,7 +88,12 @@ constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr double LEFT_OFFSET = 0.75;    // paper edge to the home sensor edge
 
-constexpr double CR_LAG = 0.25;         // lag of the head behind the rotor, in steps
+// the carriage motor takes CR_MOVE for a step and dwells for the rest of a longer
+// step period (condensed, emphasized, elite); the head lags the rotor by CR_SHIFT
+// steps plus CR_TLAG seconds; found from bidirectional printing in all modes
+constexpr double CR_MOVE = 0.00104;
+constexpr double CR_SHIFT = 0.54;
+constexpr double CR_TLAG = -0.0003;
 constexpr int CR_LEFT = -40;            // left stop, steps from the home sensor edge
 constexpr int CR_RIGHT = 520;           // right stop
 
@@ -760,7 +766,7 @@ void epson_fx80_device::carriage_step(int dir)
 	m_bitmap_printer->setheadpos(int((m_cr_pos / 60.0 + LEFT_OFFSET) * HDPI), m_bitmap_printer->m_ypos);
 
 	// the sensor slot passes halfway through the step and stays open for 30% of it
-	attotime const period = m_cr_period.is_never() ? attotime::from_msec(3) : std::min(m_cr_period, attotime::from_msec(3));
+	attotime const period = m_cr_period.is_never() ? attotime::from_double(CR_MOVE) : std::min(m_cr_period, attotime::from_double(CR_MOVE));
 	attotime rise = period / 2;
 	if (m_pts_pending)
 	{
@@ -780,11 +786,12 @@ void epson_fx80_device::carriage_step(int dir)
 double epson_fx80_device::head_x() const
 {
 	// a step starts the move to the new position, which is reached at the
-	// next step when the carriage runs at constant speed
+	// next step when the carriage runs at full speed, after CR_MOVE when slower
 	if (m_cr_period.is_never() || (m_cr_period <= attotime::zero))
 		return m_cr_pos;
-	double const frac = std::min(1.0, (machine().time() - m_cr_last_step).as_double() / m_cr_period.as_double());
-	return m_cr_pos - m_cr_dir * (1.0 - frac + CR_LAG);
+	double const move = std::min(m_cr_period.as_double(), CR_MOVE);
+	double const frac = std::min(1.0, (machine().time() - m_cr_last_step).as_double() / move);
+	return m_cr_pos - m_cr_dir * (1.0 - frac + CR_SHIFT + CR_TLAG / m_cr_period.as_double());
 }
 
 void epson_fx80_device::fire(int needle)
@@ -834,6 +841,8 @@ void epson_jx80_device::device_add_mconfig(machine_config &config)
 {
 	epson_fx80_device::device_add_mconfig(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &epson_jx80_device::jx80_mem);
+
+	config.set_default_layout(layout_epson_jx80);
 }
 
 void epson_jx80_device::device_start()
