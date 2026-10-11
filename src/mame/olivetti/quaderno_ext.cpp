@@ -149,7 +149,7 @@ quaderno_efd1035_device::quaderno_efd1035_device(const machine_config &mconfig, 
 
 void quaderno_efd1035_device::device_add_mconfig(machine_config &config)
 {
-	FLOPPY_CONNECTOR(config, m_drive, floppies, "35hd", formats, true).enable_sound(true);
+	FLOPPY_CONNECTOR(config, m_drive, floppies, "35hd", formats).enable_sound(true);
 }
 
 } // anonymous namespace
