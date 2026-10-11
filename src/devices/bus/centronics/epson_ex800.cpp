@@ -178,7 +178,10 @@ constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr double LEFT_OFFSET = 1.0 / 3 + 0.75 - 0.392;    // paper edge to the home sensor edge: column 1 at 3/4"
 
-constexpr double CR_LAG = -0.00006;     // time offset of the head against the rotor (s), from bidirectional printing
+// the head lags the rotor by CR_LAG (s) plus CR_SHIFT (steps); both found from
+// bidirectional printing in draft (full steps) and NLQ (half steps, half speed)
+constexpr double CR_LAG = 0.000121;
+constexpr double CR_SHIFT = -0.25;
 constexpr int CR_LEFT = -40;            // left stop, steps from the home sensor edge
 constexpr int CR_RIGHT = 560;           // right stop
 
@@ -248,7 +251,7 @@ private:
 	void restart();
 	void update_busy();
 	bool dip(int sw) const;
-	void carriage_step(int dir);
+	void carriage_step(int delta);
 	double head_x() const;
 	void fire();
 	u8 keys_held() const;
@@ -283,7 +286,9 @@ private:
 
 	// carriage
 	int m_cr_pos;           // 1/60" steps right of the home sensor edge
-	int m_cr_phase;
+	int m_cr_half;          // carriage position in half steps
+	int m_cr_phase;         // electrical angle of the motor phases, in half steps
+	int m_cr_step;          // size of the last step in half steps (1 in NLQ, 2 in draft)
 	int m_cr_dir;
 	attotime m_cr_last_step;
 	attotime m_cr_period;
@@ -434,7 +439,9 @@ epson_ex800_base::epson_ex800_base(const machine_config &mconfig, device_type ty
 	m_co0(1),
 	m_rxd(1),
 	m_cr_pos(100),
+	m_cr_half(200),
 	m_cr_phase(-1),
+	m_cr_step(2),
 	m_cr_dir(1),
 	m_pf_phase(-1),
 	m_power_cycled(false)
@@ -503,7 +510,9 @@ void epson_ex800_base::device_start()
 	save_item(NAME(m_co0));
 	save_item(NAME(m_rxd));
 	save_item(NAME(m_cr_pos));
+	save_item(NAME(m_cr_half));
 	save_item(NAME(m_cr_phase));
+	save_item(NAME(m_cr_step));
 	save_item(NAME(m_cr_dir));
 	save_item(NAME(m_cr_last_step));
 	save_item(NAME(m_cr_period));
@@ -619,21 +628,20 @@ void epson_ex800_base::pa_w(u8 data)
 	u8 const old = m_pa;
 	m_pa = data;
 
-	// carriage stepper on PA3-PA0: A 9 5 6 is one direction
+	// carriage stepper on PA3-PA0 (active low): A 9 5 6 moves the carriage to the
+	// right in full steps (draft), A B 9 D 5 7 6 E in half steps (NLQ)
 	if ((old ^ data) & 0x0f)
 	{
 		LOGMASKED(LOG_MOTOR, "%s CR %x %x pos %d\n", machine().time().as_string(), data & 0x0f, (data >> 4) & 3, m_cr_pos);
-		static int const phase[16] = { -1, -1, -1, -1, -1, 2, 3, -1, -1, 1, 0, -1, -1, -1, -1, -1 };
+		static int const phase[16] = { -1, -1, -1, -1, -1, 4, 6, 5, -1, 2, 0, 1, -1, 3, 7, -1 };
 		int const p = phase[data & 0x0f];
 		if (p >= 0)
 		{
 			if (m_cr_phase >= 0)
 			{
-				int const delta = (p - m_cr_phase) & 3;
-				if (delta == 1)
-					carriage_step(1);
-				else if (delta == 3)
-					carriage_step(-1);
+				int const delta = ((p - m_cr_phase + 4) & 7) - 4;
+				if (delta)
+					carriage_step(delta);
 			}
 			m_cr_phase = p;
 		}
@@ -840,24 +848,31 @@ void epson_ex800_base::gate7a_w(offs_t offset, u8 data)
 //  carriage and printhead
 //-------------------------------------------------
 
-void epson_ex800_base::carriage_step(int dir)
+void epson_ex800_base::carriage_step(int delta)
 {
 	attotime const now = machine().time();
 	attotime const since = now - m_cr_last_step;
+	int const dir = (delta > 0) ? 1 : -1;
 
 	m_cr_period = (dir == m_cr_dir && since < attotime::from_msec(20)) ? since : attotime::never;
 	m_cr_last_step = now;
 	m_cr_dir = dir;
-	m_cr_pos = std::clamp(m_cr_pos + dir, CR_LEFT, CR_RIGHT);
+	m_cr_step = std::abs(delta);
+	m_cr_half = std::clamp(m_cr_half + delta, CR_LEFT * 2, CR_RIGHT * 2 + 1);   // the motor slips at the stops
+	m_cr_pos = m_cr_half >> 1;
 	m_bitmap_printer->setheadpos(int((m_cr_pos / 60.0 + LEFT_OFFSET) * HDPI), m_bitmap_printer->m_ypos);
 }
 
 double epson_ex800_base::head_x() const
 {
+	// a step starts the move to the new rotor position, which is reached at the
+	// next step when the carriage runs at constant speed
+	double const pos = m_cr_half / 2.0;
 	if (m_cr_period.is_never() || (m_cr_period <= attotime::zero))
-		return m_cr_pos;
+		return pos;
 	double const frac = std::min(1.0, (machine().time() - m_cr_last_step).as_double() / m_cr_period.as_double());
-	return m_cr_pos - m_cr_dir * (1.0 - frac + CR_LAG / m_cr_period.as_double());
+	double const step = m_cr_step / 2.0;
+	return pos - m_cr_dir * (step * (1.0 - frac + CR_LAG / m_cr_period.as_double()) + CR_SHIFT);
 }
 
 void epson_ex800_base::fire()

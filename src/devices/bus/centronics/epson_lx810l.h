@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Ramiro Polla, Felipe Sanches
+// copyright-holders:Ramiro Polla, Felipe Sanches, rfka01
 /*
  * Epson LX-810L dot matrix printer emulation
  *
@@ -14,7 +14,6 @@
 #include "machine/e05a30.h"
 #include "machine/eepromser.h"
 #include "machine/bitmap_printer.h"
-#include "machine/steppers.h"
 #include "sound/dac.h"
 #include "screen.h"
 
@@ -48,8 +47,8 @@ public:
 	/* Panel buttons */
 	DECLARE_INPUT_CHANGED_MEMBER(online_sw);
 
-	/* Reset Printer (equivalent to turning power off and back on) */
-	DECLARE_INPUT_CHANGED_MEMBER(reset_printer);
+	/* Power switch: turning the printer off and on again restarts only the printer */
+	DECLARE_INPUT_CHANGED_MEMBER(power_switch);
 
 protected:
 	epson_lx810l_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
@@ -73,8 +72,6 @@ private:
 	uint8_t portc_r(offs_t offset);
 	void portc_w(offs_t offset, uint8_t data);
 
-	TIMER_CALLBACK_MEMBER(cr_tick);
-
 	/* fake memory I/O to get past memory reset check */
 	uint8_t fakemem_r();
 	void fakemem_w(uint8_t data);
@@ -97,13 +94,28 @@ private:
 	void printhead(uint16_t data);
 	void pf_stepper(uint8_t data);
 	void cr_stepper(uint8_t data);
+
+	/* carriage, paper and printhead */
+	void carriage_step(int dir, int old_half);
+	double head_x() const;
+	void fire();
+	void restart();
+	uint8_t keys_held() const;
+	bool paper_sensor() const;
+
 	void e05a30_ready(int state);
 
 	void e05a30_centronics_ack(int state) { output_ack(state); }
 	void e05a30_centronics_busy(int state) { output_busy(state); }
 	void e05a30_centronics_perror(int state) { output_perror(state); }
 	void e05a30_centronics_fault(int state) { output_fault(state); }
-	void e05a30_centronics_select(int state) { output_select(state); }
+	void e05a30_centronics_select(int state)
+	{
+		// the ON LINE lamp follows SLCT
+		output_select(state);
+		m_online_led = state;
+		m_bitmap_printer->set_led_state(bitmap_printer_device::LED_ONLINE, state);
+	}
 
 	void e05a30_cpu_reset(int state) { if (!state) m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero); } // reset cpu
 
@@ -128,23 +140,32 @@ private:
 	required_ioport m_formfeed_ioport;
 	required_ioport m_linefeed_ioport;
 	required_ioport m_loadeject_ioport;
-	required_ioport m_paperend_ioport;
 	required_ioport m_dipsw1_ioport;
 	required_ioport m_dipsw2_ioport;
+	required_ioport m_config_ioport;
 
 	int m_93c06_clk;
 	int m_93c06_cs;
 	uint16_t m_printhead;
-	int m_real_cr_steps;
 	uint8_t m_fakemem;
-	int m_in_between_offset; // in between cr_stepper phases
-	int m_rightward_offset; // offset pixels when stepper moving rightward
+	int m_co0;
 
-	enum {
-		TIMER_CR
-	};
+	// carriage: 4-phase stepper, 1/60" per full step
+	int m_cr_pos;           // full steps right of the home sensor edge
+	int m_cr_half;          // position in half steps
+	int m_cr_angle;         // electrical angle of the energised phases, in half steps
+	int m_cr_dir;
+	int m_cr_step_start;    // position in half steps before the current step
+	attotime m_cr_last_step;
+	attotime m_cr_last_change;
+	attotime m_cr_period;
 
-	emu_timer *m_cr_timer;
+	// paper: 4-phase stepper, 1/216" per full step
+	int m_pf_angle;
+	int m_pf_half;
+
+	attotime m_power_on;
+	bool m_power_cycled;
 };
 
 // ======================> epson_ap2000_t
@@ -158,6 +179,7 @@ public:
 protected:
 	// optional information overrides
 	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 };
 
 

@@ -205,6 +205,8 @@ void e05a30_device::write(offs_t offset, uint8_t data)
 		}
 		m_write_centronics_ack (!m_centronics_nack);
 		m_write_centronics_busy( m_centronics_busy);
+		/* bit 1 is set while the printer is on line (found from the LX-810L firmware) */
+		m_write_centronics_select(BIT(data, 1));
 		break;
 	/* printhead */
 	case 0x05: update_printhead(0, data); break;
