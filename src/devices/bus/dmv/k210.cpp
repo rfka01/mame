@@ -105,6 +105,14 @@ void dmv_k210_device::device_add_mconfig(machine_config &config)
 	m_centronics->set_output_latch(*m_cent_data_out);
 }
 
+// The card has no jumpers and sits on IFSEL 0.  Per the schematic
+// (017-0031554) IFSEL0/ from c28 goes straight onto CE/ of the 8255,
+// and only BA1 (a26) and BA0 (c26) reach its address inputs - BA3 is
+// not connected.  So the four registers appear four times over the
+// whole group, in the B half (68h-6Fh) as well as the A half: this
+// mirroring is the hardware, not a shortcut.  It is also why a K210
+// cannot share a machine with a K212 or K213, as the manual states.
+
 void dmv_k210_device::io_read(int ifsel, offs_t offset, uint8_t &data)
 {
 	if (ifsel == 0)

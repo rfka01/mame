@@ -12,6 +12,31 @@
     K801 uses a 2661 instead of the 2651 and has 4 switches for
     select the IFSEL.
 
+    Addressing, from the schematics:
+
+    - K211/K212/K213 (017-0031865): one jumper picks the interface
+      select, J1 for IFSEL1/ (a28) and J2 for IFSEL0/ (c28); the plan
+      lists J1 for the K211 modem cable, J2 for the K212 printer cable
+      and the K213 plotter cable.  The 2651 gets A0 (c26), A1 (a26)
+      and A2 (c25) - the latter on its R/W pin, which is why the lower
+      four ports of a half read the chip and the upper four write it.
+      BA3 (a25) is not connected, so the board answers on BOTH halves
+      of its group, mirrored four times over sixteen ports.
+
+    - K801 (017-0032712): BD3 (a25) runs through switch S1 into a
+      74LS136, and the five ISEL lines go through a 74LS251 onto CE/.
+      The card therefore COMPARES address bit 3 with the switch and
+      occupies a single half.  Its four switches are labelled 4, 2, 1
+      and B in the manual: the first three pick IFSEL 0..4, the last
+      one picks the half.
+
+    NCR's "Interface Configuration" table (Doc 017-0033059) shows the
+    same thing: the bars for PRINTER 1 (K210/K212) and COMMUNICATION
+    (K211) run from the A column into the B column, with the legend
+    "Software and Hardware" for the A half and "Hardware" for the B
+    half, while the K801 gets a separate single bar in each of the ten
+    halves.
+
 ***************************************************************************/
 
 #include "emu.h"
@@ -24,11 +49,13 @@
 
 static INPUT_PORTS_START( dmv_k801 )
 	PORT_START("DSW")
-	// Default 2B: the only interface half not assigned to another module
-	// in NCR's interface configuration (K210/K212/K213 0A, K211 1A,
-	// K215 1B, K806 2A, K804 3A, K600 3B, fixed disk 4A, K803 4B).
-	// The emulated K210 and K211/K212/K213 also decode the B half of
-	// their IFSEL, so 0B and 1B would collide with them.
+	// NCR's interface configuration assigns K210/K212/K213 to 0A (and
+	// 0B through the mirroring above), K211 to 1A (and 1B), K215 to
+	// 1A, K806 to 2A, K804 to 2B, K600 to 3B, the fixed disk to 4A and
+	// K803 to 4B; 3A is the K801 itself when it drives a p-System
+	// plotter.  Default 2B, which is free in any machine without the
+	// IEEE-488 card - 3A and 3B are equally good.  0B and 1B are not,
+	// because the K210 and the K211 family answer there as well.
 	PORT_DIPNAME( 0x0f, 0x05, "K801 IFSEL" )  PORT_DIPLOCATION("S:!4,S:!3,S:!2,S:!1")
 	PORT_DIPSETTING( 0x00, "0A" )
 	PORT_DIPSETTING( 0x01, "0B" )
@@ -44,21 +71,21 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmv_k211 )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x03, 0x02, "K211 Jumpers" )  PORT_DIPLOCATION("J:1,J:2")
+	PORT_DIPNAME( 0x03, 0x02, "K211 Jumpers" )  PORT_DIPLOCATION("J:2,J:1")
 	PORT_DIPSETTING( 0x01, "IFSEL 0" )
 	PORT_DIPSETTING( 0x02, "IFSEL 1" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmv_k212 )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x03, 0x01, "K212 Jumpers" )  PORT_DIPLOCATION("J:1,J:2")
+	PORT_DIPNAME( 0x03, 0x01, "K212 Jumpers" )  PORT_DIPLOCATION("J:2,J:1")
 	PORT_DIPSETTING( 0x01, "IFSEL 0" )
 	PORT_DIPSETTING( 0x02, "IFSEL 1" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmv_k213 )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x03, 0x01, "K213 Jumpers" )  PORT_DIPLOCATION("J:1,J:2")
+	PORT_DIPNAME( 0x03, 0x01, "K213 Jumpers" )  PORT_DIPLOCATION("J:2,J:1")
 	PORT_DIPSETTING( 0x01, "IFSEL 0" )
 	PORT_DIPSETTING( 0x02, "IFSEL 1" )
 INPUT_PORTS_END
