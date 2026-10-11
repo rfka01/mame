@@ -621,7 +621,11 @@ void quaderno_state::kbd_fetch()
                    that produce the key codes 5400h..5B00h.  The mapping
                    to the individual keys is an assumption.
         MF+STRG    right STRG (E0 1D), MF+ALT = ALT GR (E0 38)
-        MF+DRUCK   TURBO, MF+ROLLEN display key: not emulated yet
+        MF+ENTER   keypad ENTER (E0 1C)
+        MF+DRUCK   TURBO: CPU clock HI -> Md -> Lo
+        MF+ROLLEN  inverse display
+    TURBO and MF+ROLLEN are done directly by the HLE; how the real MCU
+    tells the BIOS about them is not known.
 
     Key ids: 01h-58h are the set 1 make codes, 60h-6Fh are the keys that
     need a prefix, MF and a few host convenience keys.
@@ -712,9 +716,22 @@ void quaderno_state::kbd_key(int id, bool make)
 			code = 0xe01d;
 		else if (id == KEY_ALT)
 			code = 0xe038;
-		else if (id == KEY_DRUCK || id == KEY_ROLLEN)
+		else if (id == 0x1c)
+			code = 0xe01c;                        // keypad ENTER
+		else if (id == KEY_DRUCK)
 		{
-			logerror("keyboard: MF+%s not emulated\n", (id == KEY_DRUCK) ? "DRUCK (TURBO)" : "ROLLEN");
+			// TURBO: the MCU cycles HI -> Md -> Lo (HLE: set the clock directly)
+			static constexpr uint8_t next[8] = { 6, 6, 0, 0, 0, 0, 2, 0 };
+			m_ga[0xc2] = (m_ga[0xc2] & ~7) | next[m_ga[0xc2] & 7];
+			update_cpu_clock();
+			m_mcu_reg[0x3e] = ((m_ga[0xc2] & 7) == 0) ? 0 : ((m_ga[0xc2] & 7) == 2) ? 2 : 1;
+			status_lcd_update();
+			code = 0;
+		}
+		else if (id == KEY_ROLLEN)
+		{
+			// black on white <-> white on black (HLE: flip the LCD directly)
+			m_lcd->toggle_invert();
 			code = 0;
 		}
 	}
@@ -1176,10 +1193,11 @@ void quaderno_state::machine_reset()
     SHIFT < Y X C V B N M , . - UP SHIFT
     STRG MF ALT ^ SPACE BILD-AUF BILD-AB LEFT DOWN RIGHT
 
-    Host mapping follows the key positions of a PC keyboard.  MF sits where
-    the Windows key is; the context menu key works as well.  F11/F12,
-    ALT GR, right CTRL, Home/End/Insert/Delete and keypad Enter are host
-    conveniences for keys the Quaderno only has on the MF layer or keypad.
+    Host mapping follows the key positions of a PC keyboard.  MF is on the
+    right CTRL key and the context menu key (the Windows keys are taken by
+    the host); right STRG is MF+STRG as on the real machine.  F11/F12,
+    ALT GR, Home/End/Insert/Delete and keypad Enter are host conveniences
+    for keys the Quaderno only has on the MF layer or keypad.
 */
 
 #define QKEY(id_, name_, ...) \
@@ -1297,9 +1315,9 @@ static INPUT_PORTS_START( quaderno_keyboard )
 	QKEY(0x66, "Keypad /", PORT_CODE(KEYCODE_SLASH_PAD) PORT_CHAR(UCHAR_MAMEKEY(SLASH_PAD)))
 	QKEY(0x67, "DRUCK  S-ABF  (MF: TURBO)", PORT_CODE(KEYCODE_PRTSCR) PORT_CHAR(UCHAR_MAMEKEY(PRTSCR)))
 	QKEY(0x68, "PAUSE  UNTBR", PORT_CODE(KEYCODE_PAUSE) PORT_CHAR(UCHAR_MAMEKEY(PAUSE)))
-	QKEY(0x69, "MF", PORT_CODE(KEYCODE_LWIN) PORT_CODE(KEYCODE_MENU))
+	QKEY(0x69, "MF", PORT_CODE(KEYCODE_RCONTROL) PORT_CODE(KEYCODE_MENU))
 	QKEY(0x6a, "ALT GR (host, = MF+ALT)", PORT_CODE(KEYCODE_RALT) PORT_CHAR(UCHAR_MAMEKEY(RALT)))
-	QKEY(0x6b, "STRG right (host, = MF+STRG)", PORT_CODE(KEYCODE_RCONTROL))
+	PORT_BIT( 0x0800, IP_ACTIVE_HIGH, IPT_UNUSED )   // 6b: right STRG = MF+STRG
 	QKEY(0x6c, "POS1 (host)", PORT_CODE(KEYCODE_HOME) PORT_CHAR(UCHAR_MAMEKEY(HOME)))
 	QKEY(0x6d, "ENDE (host)", PORT_CODE(KEYCODE_END) PORT_CHAR(UCHAR_MAMEKEY(END)))
 	QKEY(0x6e, "EINFG (host)", PORT_CODE(KEYCODE_INSERT) PORT_CHAR(UCHAR_MAMEKEY(INSERT)))

@@ -28,6 +28,7 @@ public:
 
 	// extended CRTC registers (index >= 0x20) for the driver / debugger
 	uint8_t ext_reg(uint8_t index) const { return m_creg[index]; }
+	void toggle_invert() { m_creg[EXT_INVERT] ^= 0x80; }   // MF+ROLLEN
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
@@ -46,7 +47,7 @@ private:
 
 	// extended CRTC registers documented by A. Westfeld (BIOS Rev. 1.06)
 	static constexpr uint8_t EXT_GRAY      = 0xda; // 0x40 = grey levels on, 0x5f = off
-	static constexpr uint8_t EXT_INVERT    = 0xdf; // bit 7 = inverse display, bit 1 = font load mode
+	static constexpr uint8_t EXT_INVERT    = 0xdf; // bit 7 = inverse display, bit 6 = bold font on, bit 1 = font load mode
 
 	void lcd_palette(palette_device &palette) const;
 	offs_t vram_addr(offs_t offset) const;

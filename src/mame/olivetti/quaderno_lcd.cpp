@@ -27,7 +27,8 @@
       (meaning unknown, probably LCD timing).
 
     Assumptions (unverified, no ROM dump available yet):
-    - attribute bit 3 (intensity) selects the second (bold) font
+    - attribute bit 3 (intensity) selects the second (bold) font when
+      DFh bit 6 is set (BIOS function 64h/28h, "Fettschrift" in PA setup)
     - grey level mapping of the 16 CGA colours
     - EXT_GRAY bit 0..4 != 0 means "grey levels off" (BIOS writes 5f/40)
     - cursor start/end values <= 7 programmed for an 8 line cell are
@@ -218,6 +219,7 @@ uint32_t quaderno_lcd_device::screen_update(screen_device &screen, bitmap_ind16 
 void quaderno_lcd_device::draw_text(bitmap_ind16 &bitmap, const rectangle &cliprect, uint8_t const *shade)
 {
 	const bool grey = (m_creg[EXT_GRAY] & 0x1f) == 0;
+	const bool bold = BIT(m_creg[EXT_INVERT], 6);
 	const bool wide = !(m_mode & MODE_80COL);
 	const int cols = wide ? 40 : 80;
 	const int rows = (m_creg[6] >= 1 && m_creg[6] <= 50) ? m_creg[6] : 25;
@@ -267,7 +269,7 @@ void quaderno_lcd_device::draw_text(bitmap_ind16 &bitmap, const rectangle &clipr
 			}
 
 			// two 8x16 fonts in VRAM, rows 0-7 and 8-15 in separate 2K halves
-			const uint16_t font = 0x6000 | (BIT(attr, 3) ? 0x1000 : 0x0000);
+			const uint16_t font = 0x6000 | ((BIT(attr, 3) && bold) ? 0x1000 : 0x0000);
 			uint8_t bits = (fline < 8)
 					? m_vram[font | (chr << 3) | fline]
 					: m_vram[font | 0x0800 | (chr << 3) | (fline - 8)];
