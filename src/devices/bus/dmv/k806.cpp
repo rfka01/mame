@@ -21,7 +21,7 @@
       Hawley Mark II and Logitech LM-P5 900-1100, Depraz Souris P4 and
       Logitech P4 1700-2000 counts; moving right and up gives positive values
 
-    Firmware notes:
+    Firmware notes (from a disassembly of ROM 33378, addresses below):
     - the main loop polls P1 and decodes every edge of both encoder
       channels (4 counts per quadrature cycle)
     - X: an edge on XA counts up when XA != XB afterwards, an edge on XB
@@ -29,7 +29,36 @@
     - with T1 low the firmware remaps the Depraz pin order
     - only one channel per encoder may change between two polls,
       otherwise the edge is lost or counted in the wrong direction
-    - default range is X 0..640, Y 0..400
+    - default range is X 0..640, Y 0..400, from a table at 31Dh
+    - interrupts are off after reset, and a button change discards an
+      encoder edge seen in the same poll (16Bh)
+
+    Host interface, as the firmware implements it:
+    - address bit 0 of a write ends up in F1, and that is how the
+      firmware tells a command from a parameter (022h); a parameter
+      written without a preceding command is discarded
+    - the status byte the host reads is OBF, IBF, F0, F1 in bits 0..3
+      and the firmware's own flags in bits 4..7: bit 4 ROM error,
+      bit 5 RAM error, bit 6 interrupt pending, bit 7 always 0.
+      Bits 2 and 3 are NOT unused as the NCR manual has it: F0 is set
+      once a mouse event has been processed (180h) and cleared at the
+      end of every command (061h), and F1 reflects the last write.
+    - bit 6 is active high: command 03 clears it together with the
+      interrupt line (070h)
+    - a command arriving while the firmware is sending the five bytes
+      of command 00/09 ABORTS the transfer: the send loop tests F1
+      after every byte, fixes up the stack pointer by hand and jumps
+      straight into the command dispatcher (055h, 05Ch).  The same
+      applies while it collects parameters (07Fh).  A host that
+      acknowledges from an interrupt handler while its main loop is
+      reading the position will lose the rest of the transfer.
+    - the firmware does not poll P1 while it is busy with a command,
+      so edges generated in that window are lost; this is what the
+      m_p1_reads throttle below models
+    - INTR/ is asserted with ANL P2,#0FEh (17Eh) and released only by
+      command 03.  Asserting an already asserted line does nothing, so
+      without command 03 an edge triggered PIC - which is what the DMV
+      has - sees exactly one interrupt.
 
 ***************************************************************************/
 
@@ -216,8 +245,12 @@ void dmv_k806_device::io_write(int ifsel, offs_t offset, uint8_t data)
 	uint8_t jumpers = m_jumpers->read();
 	if (BIT(jumpers, ifsel) && ((!BIT(offset, 3) && BIT(jumpers, 5)) || (BIT(offset, 3) && BIT(jumpers, 6))))
 	{
+		// nothing on the board touches INTR/ on a host write: the line
+		// is driven by P2.0 alone, and only command 03 releases it.
+		// Clearing it here would hand an edge triggered PIC a fresh
+		// edge on every command, so a driver that never acknowledges
+		// would still keep receiving interrupts.
 		m_mcu->upi41_master_w(offset & 1, data);
-		out_int(CLEAR_LINE);
 	}
 }
 
