@@ -67,8 +67,8 @@
     TODO:
         - EMS page mapping (registers known, page frame address not yet)
         - power management NMI, suspend/resume, lid switch
-        - Fn layer of the real keyboard (F11/F12, TURBO, PA hot keys,
-          voice transport keys), voice buttons on the lid
+        - MF layer: TURBO and display key, verify the codes of the PA
+          keys (MF+F3..F10); voice buttons on the lid; side switch
         - AD28MSP02 control words, microphone input
         - PCMCIA slot
 
@@ -84,7 +84,6 @@
 #include "cpu/nec/nec.h"
 #include "machine/genpc.h"
 #include "machine/nvram.h"
-#include "machine/pckeybrd.h"
 #include "machine/ram.h"
 #include "sound/dac.h"
 
@@ -119,7 +118,6 @@ public:
 		, m_maincpu(*this, "maincpu")
 		, m_mb(*this, "mb")
 		, m_lcd(*this, "lcd")
-		, m_kbd(*this, "kbd")
 		, m_dsp(*this, "dsp")
 		, m_codec_dac(*this, "codec")
 		, m_shadow_view(*this, "shadow_view")
@@ -130,9 +128,13 @@ public:
 		, m_shadow(*this, "shadow", 0x10000, ENDIANNESS_LITTLE)
 		, m_sram(*this, "sram", 0x20000, ENDIANNESS_LITTLE)
 		, m_config(*this, "CONFIG")
+		, m_keys(*this, "KEY%u", 0U)
 		, m_lcd_digit(*this, "lcd_digit%u", 0U)
 		, m_lcd_alpha(*this, "lcd_alpha%u", 0U)
 		, m_lcd_colon(*this, "lcd_colon%u", 0U)
+		, m_led_caps(*this, "lcd_caps")
+		, m_led_num(*this, "lcd_num")
+		, m_led_scrl(*this, "lcd_scrl")
 	{ }
 
 	void quaderno(machine_config &config) ATTR_COLD;
@@ -171,8 +173,11 @@ private:
 	void chan_w(offs_t offset, uint8_t data);
 	uint8_t auxint_r(offs_t offset);
 	void auxint_w(offs_t offset, uint8_t data);
-	void kbd_keypress(int state);
 	void kbd_fetch();
+	void kbd_command(uint8_t data);
+	void kbd_send(uint16_t code, bool make);
+	void kbd_key(int id, bool make);
+	TIMER_CALLBACK_MEMBER(kbd_scan);
 	void mcu_fetch();
 	void update_irq1();
 	void mcu_command(uint8_t data);
@@ -194,7 +199,6 @@ private:
 	required_device<v30_device> m_maincpu;
 	required_device<pc_noppi_mb_device> m_mb;
 	required_device<quaderno_lcd_device> m_lcd;
-	required_device<at_keyboard_device> m_kbd;
 	required_device<adsp2111_device> m_dsp;
 	required_device<dac_16bit_r2r_twos_complement_device> m_codec_dac;
 	memory_view m_shadow_view;
@@ -205,12 +209,17 @@ private:
 	memory_share_creator<uint16_t> m_shadow;
 	memory_share_creator<uint8_t> m_sram;
 	required_ioport m_config;
+	required_ioport_array<7> m_keys;
 	output_finder<4> m_lcd_digit;
 	output_finder<2> m_lcd_alpha;
 	output_finder<2> m_lcd_colon;
+	output_finder<> m_led_caps;
+	output_finder<> m_led_num;
+	output_finder<> m_led_scrl;
 
 	emu_timer *m_codec_timer = nullptr;
 	emu_timer *m_rtc_timer = nullptr;
+	emu_timer *m_kbd_timer = nullptr;
 
 	uint8_t m_r26_index = 0;
 	uint8_t m_r26[0x100]{};
@@ -228,6 +237,15 @@ private:
 	uint8_t m_p69 = 0;
 	uint8_t m_auxmask = 0;
 	channel m_chan[2];
+
+	// M37410 keyboard HLE
+	std::deque<uint8_t> m_kbd_out;
+	uint16_t m_keystate[7]{};
+	uint16_t m_keysent[0x70]{};     // code sent on make, so that the break matches
+	uint8_t m_kbd_cmd = 0;          // command waiting for its parameter byte
+	bool m_kbd_enabled = true;
+	int m_repeat_key = -1;
+	int m_repeat_count = 0;
 
 	// M37410 HLE
 	std::deque<uint8_t> m_mcu_out;
@@ -525,7 +543,7 @@ void quaderno_state::chan_w(offs_t offset, uint8_t data)
 			}
 			else
 			{
-				m_kbd->write(data);
+				kbd_command(data);
 				kbd_fetch();
 			}
 			update_irq1();
@@ -543,24 +561,216 @@ void quaderno_state::chan_w(offs_t offset, uint8_t data)
 	}
 }
 
-void quaderno_state::kbd_keypress(int state)
+void quaderno_state::kbd_fetch()
 {
-	if (state)
+	if (m_chan[0].full || m_kbd_out.empty())
+		return;
+	m_chan[0].latch = m_kbd_out.front();
+	m_kbd_out.pop_front();
+	m_chan[0].full = true;
+}
+
+/***************************************************************************
+    M37410 keyboard (HLE)
+
+    The MCU scans the key matrix and talks to the host like an AT keyboard
+    in scan code set 1.  The MF key (blue dot between STRG and ALT) has no
+    scan code of its own; the MCU uses it as a modifier for the legends
+    printed in turquoise:
+        MF+F1/F2   F11/F12 (57h/58h)
+        MF+F3..F10 NOTIZEN, RECHNER, KALEND., TELEFON, DATEI, ARCHIV,
+                   cassette (voice), MENU: sent as 60h..67h.  These are
+                   not AT scan codes; BIOS 1.88 has table entries for them
+                   that produce the key codes 5400h..5B00h.  The mapping
+                   to the individual keys is an assumption.
+        MF+STRG    right STRG (E0 1D), MF+ALT = ALT GR (E0 38)
+        MF+DRUCK   TURBO, MF+ROLLEN display key: not emulated yet
+
+    Key ids: 01h-58h are the set 1 make codes, 60h-6Fh are the keys that
+    need a prefix, MF and a few host convenience keys.
+***************************************************************************/
+
+// code to send for each key id: 0 = none, E0xxh = with E0 prefix,
+// E11Dh = PAUSE sequence
+constexpr uint16_t quaderno_key_code(int id)
+{
+	if (id >= 0x01 && id <= 0x58)
+		return id;
+	switch (id)
+	{
+		case 0x60: return 0xe049;   // BILD auf
+		case 0x61: return 0xe051;   // BILD ab
+		case 0x62: return 0xe04b;   // cursor left
+		case 0x63: return 0xe04d;   // cursor right
+		case 0x64: return 0xe048;   // cursor up
+		case 0x65: return 0xe050;   // cursor down
+		case 0x66: return 0xe035;   // keypad /
+		case 0x67: return 0xe037;   // DRUCK
+		case 0x68: return 0xe11d;   // PAUSE
+		case 0x6a: return 0xe038;   // ALT GR (host convenience)
+		case 0x6b: return 0xe01d;   // right STRG (host convenience)
+		case 0x6c: return 0xe047;   // POS1 (host convenience)
+		case 0x6d: return 0xe04f;   // ENDE (host convenience)
+		case 0x6e: return 0xe052;   // EINFG (host convenience)
+		case 0x6f: return 0xe053;   // ENTF (host convenience)
+		default:   return 0;
+	}
+}
+
+constexpr int KEY_STRG = 0x1d;
+constexpr int KEY_LSHIFT = 0x2a;
+constexpr int KEY_RSHIFT = 0x36;
+constexpr int KEY_ALT = 0x38;
+constexpr int KEY_CAPS = 0x3a;
+constexpr int KEY_NUM = 0x45;
+constexpr int KEY_ROLLEN = 0x46;
+constexpr int KEY_DRUCK = 0x67;
+constexpr int KEY_PAUSE = 0x68;
+constexpr int KEY_MF = 0x69;
+
+constexpr bool quaderno_key_repeats(int id)
+{
+	return id != KEY_STRG && id != KEY_LSHIFT && id != KEY_RSHIFT && id != KEY_ALT &&
+			id != KEY_CAPS && id != KEY_NUM && id != KEY_ROLLEN && id != KEY_PAUSE &&
+			id != KEY_MF && id != 0x6a && id != 0x6b;
+}
+
+void quaderno_state::kbd_send(uint16_t code, bool make)
+{
+	if (!code || !m_kbd_enabled)
+		return;
+	if (code == 0xe11d)
+	{
+		if (make)
+			for (uint8_t b : { 0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5 })
+				m_kbd_out.push_back(b);
+		return;
+	}
+	if (code >> 8)
+		m_kbd_out.push_back(code >> 8);
+	m_kbd_out.push_back((code & 0x7f) | (make ? 0x00 : 0x80));
+}
+
+void quaderno_state::kbd_key(int id, bool make)
+{
+	auto held = [this] (int k) { return BIT(m_keystate[k >> 4], k & 15); };
+
+	if (!make)
+	{
+		kbd_send(m_keysent[id], false);
+		m_keysent[id] = 0;
+		if (m_repeat_key == id)
+			m_repeat_key = -1;
+		return;
+	}
+
+	uint16_t code = quaderno_key_code(id);
+	if (held(KEY_MF))
+	{
+		if (id == 0x3b || id == 0x3c)
+			code = id + 0x1c;                     // F11, F12
+		else if (id >= 0x3d && id <= 0x44)
+			code = 0x60 + (id - 0x3d);            // PA keys (assumed codes)
+		else if (id == KEY_STRG)
+			code = 0xe01d;
+		else if (id == KEY_ALT)
+			code = 0xe038;
+		else if (id == KEY_DRUCK || id == KEY_ROLLEN)
+		{
+			logerror("keyboard: MF+%s not emulated\n", (id == KEY_DRUCK) ? "DRUCK (TURBO)" : "ROLLEN");
+			code = 0;
+		}
+	}
+	else if (id == KEY_DRUCK && (held(KEY_ALT) || held(0x6a)))
+		code = 0x54;                              // S-ABF (SysRq)
+	else if (id == KEY_PAUSE && (held(KEY_STRG) || held(0x6b)))
+		code = 0xe046;                            // UNTBR (Break)
+
+	m_keysent[id] = (code == 0xe11d) ? 0 : code;
+	kbd_send(code, true);
+	if (quaderno_key_repeats(id) && code)
+	{
+		m_repeat_key = id;
+		m_repeat_count = 0;
+	}
+}
+
+TIMER_CALLBACK_MEMBER(quaderno_state::kbd_scan)
+{
+	// 100 Hz matrix scan; typematic 500 ms delay, 10 characters/s
+	for (int port = 0; port < 7; port++)
+	{
+		const uint16_t now = m_keys[port]->read();
+		const uint16_t changed = now ^ m_keystate[port];
+		for (int bit = 0; changed >> bit; bit++)
+		{
+			if (!BIT(changed, bit))
+				continue;
+			m_keystate[port] ^= 1 << bit;
+			kbd_key(port * 16 + bit, BIT(now, bit));
+		}
+	}
+
+	if (m_repeat_key >= 0 && ++m_repeat_count >= 50 && !((m_repeat_count - 50) % 10) && m_keysent[m_repeat_key])
+		kbd_send(m_keysent[m_repeat_key], true);
+
+	if (!m_chan[0].full && !m_kbd_out.empty())
 	{
 		kbd_fetch();
 		update_irq1();
 	}
 }
 
-void quaderno_state::kbd_fetch()
+void quaderno_state::kbd_command(uint8_t data)
 {
-	if (m_chan[0].full)
-		return;
-	const uint8_t data = m_kbd->read();
-	if (data)
+	LOGCHAN("keyboard command %02x\n", data);
+	if (m_kbd_cmd)
 	{
-		m_chan[0].latch = data;
-		m_chan[0].full = true;
+		const uint8_t cmd = m_kbd_cmd;
+		m_kbd_cmd = 0;
+		if (cmd == 0xed)
+		{
+			// LEDs are shown on the status LCD
+			m_led_scrl = BIT(data, 0);
+			m_led_num = BIT(data, 1);
+			m_led_caps = BIT(data, 2);
+		}
+		m_kbd_out.push_front(0xfa);
+		return;
+	}
+
+	switch (data)
+	{
+		case 0xed: case 0xf3: case 0xf0:
+			m_kbd_cmd = data;
+			m_kbd_out.push_front(0xfa);
+			break;
+		case 0xee:
+			m_kbd_out.push_front(0xee);
+			break;
+		case 0xf2:
+			m_kbd_out.clear();
+			for (uint8_t b : { 0xfa, 0xab, 0x83 })
+				m_kbd_out.push_back(b);
+			break;
+		case 0xf4:
+			m_kbd_enabled = true;
+			m_kbd_out.push_front(0xfa);
+			break;
+		case 0xf5:
+			m_kbd_enabled = false;
+			m_kbd_out.clear();
+			m_kbd_out.push_back(0xfa);
+			break;
+		case 0xff:
+			m_kbd_enabled = true;
+			m_kbd_out.clear();
+			m_kbd_out.push_back(0xfa);
+			m_kbd_out.push_back(0xaa);
+			break;
+		default:
+			m_kbd_out.push_front(0xfa);
+			break;
 	}
 }
 
@@ -835,6 +1045,7 @@ void quaderno_state::machine_start()
 
 	m_codec_timer = timer_alloc(FUNC(quaderno_state::codec_frame), this);
 	m_rtc_timer = timer_alloc(FUNC(quaderno_state::rtc_tick), this);
+	m_kbd_timer = timer_alloc(FUNC(quaderno_state::kbd_scan), this);
 
 	system_time systime;
 	machine().base_datetime(systime);
@@ -862,6 +1073,12 @@ void quaderno_state::machine_start()
 	save_item(NAME(m_auxmask));
 	save_item(STRUCT_MEMBER(m_chan, latch));
 	save_item(STRUCT_MEMBER(m_chan, full));
+	save_item(NAME(m_keystate));
+	save_item(NAME(m_keysent));
+	save_item(NAME(m_kbd_cmd));
+	save_item(NAME(m_kbd_enabled));
+	save_item(NAME(m_repeat_key));
+	save_item(NAME(m_repeat_count));
 	save_item(NAME(m_mcu_cmd));
 	save_item(NAME(m_mcu_need));
 	save_item(NAME(m_mcu_got));
@@ -892,6 +1109,13 @@ void quaderno_state::machine_reset()
 	m_chan[0] = m_chan[1] = channel();
 	m_mcu_out.clear();
 	m_mcu_need = 0;
+	m_kbd_out.clear();
+	m_kbd_cmd = 0;
+	m_kbd_enabled = true;
+	m_repeat_key = -1;
+	std::fill(std::begin(m_keystate), std::end(m_keystate), 0);
+	std::fill(std::begin(m_keysent), std::end(m_keysent), 0);
+	m_kbd_timer->adjust(attotime::from_hz(100), 0, attotime::from_hz(100));
 	update_irq1();
 
 	m_dsp_flags = 0;
@@ -902,7 +1126,149 @@ void quaderno_state::machine_reset()
 }
 
 
+/*
+    Quaderno keyboard (German layout, see photos):
+
+    ESC F1 .. F10 DRUCK ROLLEN PAUSE                 keypad: 7 8 9 /
+    1 2 3 4 5 6 7 8 9 0 ß ´ <-                               4 5 6 *
+    TAB Q W E R T Z U I O P Ü + #                            1 2 3 -
+    CAPS A S D F G H J K L Ö Ä ENTER                         NUM 0 , +
+    SHIFT < Y X C V B N M , . - UP SHIFT
+    STRG MF ALT ^ SPACE BILD-AUF BILD-AB LEFT DOWN RIGHT
+
+    Host mapping follows the key positions of a PC keyboard.  MF sits where
+    the Windows key is; the context menu key works as well.  F11/F12,
+    ALT GR, right CTRL, Home/End/Insert/Delete and keypad Enter are host
+    conveniences for keys the Quaderno only has on the MF layer or keypad.
+*/
+
+#define QKEY(id_, name_, ...) \
+	PORT_BIT( 1U << ((id_) & 15), IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME(name_) __VA_ARGS__
+
+static INPUT_PORTS_START( quaderno_keyboard )
+	PORT_START("KEY0")
+	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_UNUSED )
+	QKEY(0x01, "ESC", PORT_CODE(KEYCODE_ESC) PORT_CHAR(UCHAR_MAMEKEY(ESC)))
+	QKEY(0x02, "1  !", PORT_CODE(KEYCODE_1) PORT_CHAR('1') PORT_CHAR('!'))
+	QKEY(0x03, "2  \"", PORT_CODE(KEYCODE_2) PORT_CHAR('2') PORT_CHAR('"'))
+	QKEY(0x04, "3  \xc2\xa7", PORT_CODE(KEYCODE_3) PORT_CHAR('3'))
+	QKEY(0x05, "4  $", PORT_CODE(KEYCODE_4) PORT_CHAR('4') PORT_CHAR('$'))
+	QKEY(0x06, "5  %", PORT_CODE(KEYCODE_5) PORT_CHAR('5') PORT_CHAR('%'))
+	QKEY(0x07, "6  &", PORT_CODE(KEYCODE_6) PORT_CHAR('6') PORT_CHAR('&'))
+	QKEY(0x08, "7  /  {", PORT_CODE(KEYCODE_7) PORT_CHAR('7') PORT_CHAR('/'))
+	QKEY(0x09, "8  (  [", PORT_CODE(KEYCODE_8) PORT_CHAR('8') PORT_CHAR('('))
+	QKEY(0x0a, "9  )  ]", PORT_CODE(KEYCODE_9) PORT_CHAR('9') PORT_CHAR(')'))
+	QKEY(0x0b, "0  =  }", PORT_CODE(KEYCODE_0) PORT_CHAR('0') PORT_CHAR('='))
+	QKEY(0x0c, "\xc3\x9f  ?  \\", PORT_CODE(KEYCODE_MINUS) PORT_CHAR(0xdf) PORT_CHAR('?'))
+	QKEY(0x0d, "\xc2\xb4  `", PORT_CODE(KEYCODE_EQUALS))
+	QKEY(0x0e, "Backspace", PORT_CODE(KEYCODE_BACKSPACE) PORT_CHAR(8))
+	QKEY(0x0f, "Tab", PORT_CODE(KEYCODE_TAB) PORT_CHAR(9))
+
+	PORT_START("KEY1")
+	QKEY(0x10, "Q  @", PORT_CODE(KEYCODE_Q) PORT_CHAR('q') PORT_CHAR('Q'))
+	QKEY(0x11, "W", PORT_CODE(KEYCODE_W) PORT_CHAR('w') PORT_CHAR('W'))
+	QKEY(0x12, "E", PORT_CODE(KEYCODE_E) PORT_CHAR('e') PORT_CHAR('E'))
+	QKEY(0x13, "R", PORT_CODE(KEYCODE_R) PORT_CHAR('r') PORT_CHAR('R'))
+	QKEY(0x14, "T", PORT_CODE(KEYCODE_T) PORT_CHAR('t') PORT_CHAR('T'))
+	QKEY(0x15, "Z", PORT_CODE(KEYCODE_Y) PORT_CHAR('z') PORT_CHAR('Z'))
+	QKEY(0x16, "U", PORT_CODE(KEYCODE_U) PORT_CHAR('u') PORT_CHAR('U'))
+	QKEY(0x17, "I", PORT_CODE(KEYCODE_I) PORT_CHAR('i') PORT_CHAR('I'))
+	QKEY(0x18, "O", PORT_CODE(KEYCODE_O) PORT_CHAR('o') PORT_CHAR('O'))
+	QKEY(0x19, "P", PORT_CODE(KEYCODE_P) PORT_CHAR('p') PORT_CHAR('P'))
+	QKEY(0x1a, "\xc3\x9c", PORT_CODE(KEYCODE_OPENBRACE) PORT_CHAR(0xfc) PORT_CHAR(0xdc))
+	QKEY(0x1b, "+  *  ~", PORT_CODE(KEYCODE_CLOSEBRACE) PORT_CHAR('+') PORT_CHAR('*'))
+	QKEY(0x1c, "Enter", PORT_CODE(KEYCODE_ENTER) PORT_CODE(KEYCODE_ENTER_PAD) PORT_CHAR(13))
+	QKEY(0x1d, "STRG", PORT_CODE(KEYCODE_LCONTROL) PORT_CHAR(UCHAR_MAMEKEY(LCONTROL)))
+	QKEY(0x1e, "A", PORT_CODE(KEYCODE_A) PORT_CHAR('a') PORT_CHAR('A'))
+	QKEY(0x1f, "S", PORT_CODE(KEYCODE_S) PORT_CHAR('s') PORT_CHAR('S'))
+
+	PORT_START("KEY2")
+	QKEY(0x20, "D", PORT_CODE(KEYCODE_D) PORT_CHAR('d') PORT_CHAR('D'))
+	QKEY(0x21, "F", PORT_CODE(KEYCODE_F) PORT_CHAR('f') PORT_CHAR('F'))
+	QKEY(0x22, "G", PORT_CODE(KEYCODE_G) PORT_CHAR('g') PORT_CHAR('G'))
+	QKEY(0x23, "H", PORT_CODE(KEYCODE_H) PORT_CHAR('h') PORT_CHAR('H'))
+	QKEY(0x24, "J", PORT_CODE(KEYCODE_J) PORT_CHAR('j') PORT_CHAR('J'))
+	QKEY(0x25, "K", PORT_CODE(KEYCODE_K) PORT_CHAR('k') PORT_CHAR('K'))
+	QKEY(0x26, "L", PORT_CODE(KEYCODE_L) PORT_CHAR('l') PORT_CHAR('L'))
+	QKEY(0x27, "\xc3\x96", PORT_CODE(KEYCODE_COLON) PORT_CHAR(0xf6) PORT_CHAR(0xd6))
+	QKEY(0x28, "\xc3\x84", PORT_CODE(KEYCODE_QUOTE) PORT_CHAR(0xe4) PORT_CHAR(0xc4))
+	QKEY(0x29, "^  \xc2\xb0", PORT_CODE(KEYCODE_TILDE) PORT_CHAR('^'))
+	QKEY(0x2a, "Shift (left)", PORT_CODE(KEYCODE_LSHIFT) PORT_CHAR(UCHAR_SHIFT_1))
+	QKEY(0x2b, "#  '", PORT_CODE(KEYCODE_BACKSLASH) PORT_CHAR('#') PORT_CHAR('\''))
+	QKEY(0x2c, "Y", PORT_CODE(KEYCODE_Z) PORT_CHAR('y') PORT_CHAR('Y'))
+	QKEY(0x2d, "X", PORT_CODE(KEYCODE_X) PORT_CHAR('x') PORT_CHAR('X'))
+	QKEY(0x2e, "C", PORT_CODE(KEYCODE_C) PORT_CHAR('c') PORT_CHAR('C'))
+	QKEY(0x2f, "V", PORT_CODE(KEYCODE_V) PORT_CHAR('v') PORT_CHAR('V'))
+
+	PORT_START("KEY3")
+	QKEY(0x30, "B", PORT_CODE(KEYCODE_B) PORT_CHAR('b') PORT_CHAR('B'))
+	QKEY(0x31, "N", PORT_CODE(KEYCODE_N) PORT_CHAR('n') PORT_CHAR('N'))
+	QKEY(0x32, "M  \xc2\xb5", PORT_CODE(KEYCODE_M) PORT_CHAR('m') PORT_CHAR('M'))
+	QKEY(0x33, ",  ;", PORT_CODE(KEYCODE_COMMA) PORT_CHAR(',') PORT_CHAR(';'))
+	QKEY(0x34, ".  :", PORT_CODE(KEYCODE_STOP) PORT_CHAR('.') PORT_CHAR(':'))
+	QKEY(0x35, "-  _", PORT_CODE(KEYCODE_SLASH) PORT_CHAR('-') PORT_CHAR('_'))
+	QKEY(0x36, "Shift (right)", PORT_CODE(KEYCODE_RSHIFT))
+	QKEY(0x37, "Keypad *", PORT_CODE(KEYCODE_ASTERISK) PORT_CHAR(UCHAR_MAMEKEY(ASTERISK)))
+	QKEY(0x38, "ALT", PORT_CODE(KEYCODE_LALT) PORT_CHAR(UCHAR_MAMEKEY(LALT)))
+	QKEY(0x39, "Space", PORT_CODE(KEYCODE_SPACE) PORT_CHAR(' '))
+	QKEY(0x3a, "Caps Lock", PORT_CODE(KEYCODE_CAPSLOCK) PORT_CHAR(UCHAR_MAMEKEY(CAPSLOCK)))
+	QKEY(0x3b, "F1  HILFE  (MF: F11)", PORT_CODE(KEYCODE_F1) PORT_CHAR(UCHAR_MAMEKEY(F1)))
+	QKEY(0x3c, "F2  (MF: F12)", PORT_CODE(KEYCODE_F2) PORT_CHAR(UCHAR_MAMEKEY(F2)))
+	QKEY(0x3d, "F3  (MF: NOTIZEN)", PORT_CODE(KEYCODE_F3) PORT_CHAR(UCHAR_MAMEKEY(F3)))
+	QKEY(0x3e, "F4  (MF: RECHNER)", PORT_CODE(KEYCODE_F4) PORT_CHAR(UCHAR_MAMEKEY(F4)))
+	QKEY(0x3f, "F5  (MF: KALEND.)", PORT_CODE(KEYCODE_F5) PORT_CHAR(UCHAR_MAMEKEY(F5)))
+
+	PORT_START("KEY4")
+	QKEY(0x40, "F6  (MF: TELEFON)", PORT_CODE(KEYCODE_F6) PORT_CHAR(UCHAR_MAMEKEY(F6)))
+	QKEY(0x41, "F7  (MF: DATEI)", PORT_CODE(KEYCODE_F7) PORT_CHAR(UCHAR_MAMEKEY(F7)))
+	QKEY(0x42, "F8  (MF: ARCHIV)", PORT_CODE(KEYCODE_F8) PORT_CHAR(UCHAR_MAMEKEY(F8)))
+	QKEY(0x43, "F9  (MF: cassette)", PORT_CODE(KEYCODE_F9) PORT_CHAR(UCHAR_MAMEKEY(F9)))
+	QKEY(0x44, "F10  BEFEHLE  (MF: MENU)", PORT_CODE(KEYCODE_F10) PORT_CHAR(UCHAR_MAMEKEY(F10)))
+	QKEY(0x45, "NUM", PORT_CODE(KEYCODE_NUMLOCK) PORT_CHAR(UCHAR_MAMEKEY(NUMLOCK)))
+	QKEY(0x46, "ROLLEN", PORT_CODE(KEYCODE_SCRLOCK) PORT_CHAR(UCHAR_MAMEKEY(SCRLOCK)))
+	QKEY(0x47, "Keypad 7  POS1", PORT_CODE(KEYCODE_7_PAD) PORT_CHAR(UCHAR_MAMEKEY(7_PAD)))
+	QKEY(0x48, "Keypad 8  Up", PORT_CODE(KEYCODE_8_PAD) PORT_CHAR(UCHAR_MAMEKEY(8_PAD)))
+	QKEY(0x49, "Keypad 9  BILD auf", PORT_CODE(KEYCODE_9_PAD) PORT_CHAR(UCHAR_MAMEKEY(9_PAD)))
+	QKEY(0x4a, "Keypad -", PORT_CODE(KEYCODE_MINUS_PAD) PORT_CHAR(UCHAR_MAMEKEY(MINUS_PAD)))
+	QKEY(0x4b, "Keypad 4  Left", PORT_CODE(KEYCODE_4_PAD) PORT_CHAR(UCHAR_MAMEKEY(4_PAD)))
+	QKEY(0x4c, "Keypad 5", PORT_CODE(KEYCODE_5_PAD) PORT_CHAR(UCHAR_MAMEKEY(5_PAD)))
+	QKEY(0x4d, "Keypad 6  Right", PORT_CODE(KEYCODE_6_PAD) PORT_CHAR(UCHAR_MAMEKEY(6_PAD)))
+	QKEY(0x4e, "Keypad +", PORT_CODE(KEYCODE_PLUS_PAD) PORT_CHAR(UCHAR_MAMEKEY(PLUS_PAD)))
+	QKEY(0x4f, "Keypad 1  ENDE", PORT_CODE(KEYCODE_1_PAD) PORT_CHAR(UCHAR_MAMEKEY(1_PAD)))
+
+	PORT_START("KEY5")
+	QKEY(0x50, "Keypad 2  Down", PORT_CODE(KEYCODE_2_PAD) PORT_CHAR(UCHAR_MAMEKEY(2_PAD)))
+	QKEY(0x51, "Keypad 3  BILD ab", PORT_CODE(KEYCODE_3_PAD) PORT_CHAR(UCHAR_MAMEKEY(3_PAD)))
+	QKEY(0x52, "Keypad 0  EINFG", PORT_CODE(KEYCODE_0_PAD) PORT_CHAR(UCHAR_MAMEKEY(0_PAD)))
+	QKEY(0x53, "Keypad ,  ENTF", PORT_CODE(KEYCODE_DEL_PAD) PORT_CHAR(UCHAR_MAMEKEY(DEL_PAD)))
+	PORT_BIT( 0x0030, IP_ACTIVE_HIGH, IPT_UNUSED )
+	QKEY(0x56, "<  >  |", PORT_CODE(KEYCODE_BACKSLASH2) PORT_CHAR('<') PORT_CHAR('>'))
+	QKEY(0x57, "F11 (host, = MF+F1)", PORT_CODE(KEYCODE_F11))
+	QKEY(0x58, "F12 (host, = MF+F2)", PORT_CODE(KEYCODE_F12))
+	PORT_BIT( 0xfe00, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KEY6")
+	QKEY(0x60, "BILD auf", PORT_CODE(KEYCODE_PGUP) PORT_CHAR(UCHAR_MAMEKEY(PGUP)))
+	QKEY(0x61, "BILD ab", PORT_CODE(KEYCODE_PGDN) PORT_CHAR(UCHAR_MAMEKEY(PGDN)))
+	QKEY(0x62, "Cursor Left", PORT_CODE(KEYCODE_LEFT) PORT_CHAR(UCHAR_MAMEKEY(LEFT)))
+	QKEY(0x63, "Cursor Right", PORT_CODE(KEYCODE_RIGHT) PORT_CHAR(UCHAR_MAMEKEY(RIGHT)))
+	QKEY(0x64, "Cursor Up", PORT_CODE(KEYCODE_UP) PORT_CHAR(UCHAR_MAMEKEY(UP)))
+	QKEY(0x65, "Cursor Down", PORT_CODE(KEYCODE_DOWN) PORT_CHAR(UCHAR_MAMEKEY(DOWN)))
+	QKEY(0x66, "Keypad /", PORT_CODE(KEYCODE_SLASH_PAD) PORT_CHAR(UCHAR_MAMEKEY(SLASH_PAD)))
+	QKEY(0x67, "DRUCK  S-ABF  (MF: TURBO)", PORT_CODE(KEYCODE_PRTSCR) PORT_CHAR(UCHAR_MAMEKEY(PRTSCR)))
+	QKEY(0x68, "PAUSE  UNTBR", PORT_CODE(KEYCODE_PAUSE) PORT_CHAR(UCHAR_MAMEKEY(PAUSE)))
+	QKEY(0x69, "MF", PORT_CODE(KEYCODE_LWIN) PORT_CODE(KEYCODE_MENU))
+	QKEY(0x6a, "ALT GR (host, = MF+ALT)", PORT_CODE(KEYCODE_RALT) PORT_CHAR(UCHAR_MAMEKEY(RALT)))
+	QKEY(0x6b, "STRG right (host, = MF+STRG)", PORT_CODE(KEYCODE_RCONTROL))
+	QKEY(0x6c, "POS1 (host)", PORT_CODE(KEYCODE_HOME) PORT_CHAR(UCHAR_MAMEKEY(HOME)))
+	QKEY(0x6d, "ENDE (host)", PORT_CODE(KEYCODE_END) PORT_CHAR(UCHAR_MAMEKEY(END)))
+	QKEY(0x6e, "EINFG (host)", PORT_CODE(KEYCODE_INSERT) PORT_CHAR(UCHAR_MAMEKEY(INSERT)))
+	QKEY(0x6f, "ENTF (host)", PORT_CODE(KEYCODE_DEL) PORT_CHAR(UCHAR_MAMEKEY(DEL)))
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( quaderno )
+	PORT_INCLUDE( quaderno_keyboard )
+
 	PORT_START("CONFIG")
 	PORT_CONFNAME( 0x01, 0x01, "Power source" )
 	PORT_CONFSETTING(    0x00, "Battery" )
@@ -935,10 +1301,6 @@ void quaderno_state::quaderno(machine_config &config)
 	ISA8_SLOT(config, "lpt", 0, "mb:isa", pc_isa8_cards, "lpt", true);
 	ISA8_SLOT(config, "hdc", 0, "mb:isa", pc_isa8_cards, "hdc", true)
 			.set_option_device_input_defaults("hdc", DEVICE_INPUT_DEFAULTS_NAME(quaderno_hdc));
-
-	// the M37410 presents the keyboard like an AT keyboard in scan code set 1
-	AT_KEYB(config, m_kbd, pc_keyboard_device::KEYBOARD_TYPE::MF2, 1);
-	m_kbd->keypress().set(FUNC(quaderno_state::kbd_keypress));
 
 	RAM(config, RAM_TAG).set_default_size("640K");
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
