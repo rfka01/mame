@@ -722,9 +722,9 @@ constexpr int KEY_MF = 0x69;
 
 constexpr bool quaderno_key_repeats(int id)
 {
-	return id != KEY_STRG && id != KEY_LSHIFT && id != KEY_RSHIFT && id != KEY_ALT &&
-			id != KEY_CAPS && id != KEY_NUM && id != KEY_ROLLEN && id != KEY_PAUSE &&
-			id != KEY_MF && id != 0x6a && id != 0x6b;
+	// like an AT keyboard, SHIFT/STRG/ALT repeat as well; ROM-DOS checks
+	// for a held ALT (boot menu) only when it starts
+	return id != KEY_CAPS && id != KEY_NUM && id != KEY_ROLLEN && id != KEY_PAUSE && id != KEY_MF;
 }
 
 void quaderno_state::kbd_send(uint16_t code, bool make)
