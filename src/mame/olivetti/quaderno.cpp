@@ -128,6 +128,9 @@ public:
 		, m_sramwin_view(*this, "sramwin_view")
 		, m_rom_bank(*this, "rom_bank")
 		, m_sram_bank(*this, "sram_bank")
+		, m_ems_view{ {*this, "ems_view0"}, {*this, "ems_view1"}, {*this, "ems_view2"}, {*this, "ems_view3"} }
+		, m_ems_bank(*this, "ems_bank%u", 0U)
+		, m_ram(*this, RAM_TAG)
 		, m_shadow(*this, "shadow", 0x10000, ENDIANNESS_LITTLE)
 		, m_sram(*this, "sram", 0x20000, ENDIANNESS_LITTLE)
 		, m_config(*this, "CONFIG")
@@ -142,9 +145,12 @@ public:
 
 	void quaderno(machine_config &config) ATTR_COLD;
 
+	DECLARE_INPUT_CHANGED_MEMBER(factory_reset);
+
 protected:
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
+	virtual void device_post_load() override;
 
 private:
 	struct channel
@@ -187,6 +193,9 @@ private:
 	void update_irq1();
 	void mcu_command(uint8_t data);
 	void mcu_reply(uint8_t data) { m_mcu_out.push_back(data); }
+	void mcu_event(uint8_t bits);
+	TIMER_CALLBACK_MEMBER(nmi_check);
+	void update_ems(int reg);
 	TIMER_CALLBACK_MEMBER(rtc_tick);
 
 	// voice subsystem
@@ -212,6 +221,10 @@ private:
 	memory_view m_sramwin_view;
 	required_memory_bank m_rom_bank;
 	required_memory_bank m_sram_bank;
+	memory_view m_ems_view[4];
+	required_memory_bank_array<4> m_ems_bank;
+	required_device<ram_device> m_ram;
+	std::unique_ptr<uint8_t[]> m_ems_ram;   // DRAM above 640K: shadow + EMS pages
 	memory_share_creator<uint16_t> m_shadow;
 	memory_share_creator<uint8_t> m_sram;
 	required_ioport m_config;
@@ -226,6 +239,7 @@ private:
 	emu_timer *m_codec_timer = nullptr;
 	emu_timer *m_rtc_timer = nullptr;
 	emu_timer *m_kbd_timer = nullptr;
+	emu_timer *m_nmi_timer = nullptr;
 
 	uint8_t m_r26_index = 0;
 	uint8_t m_r26[0x100]{};
@@ -287,6 +301,15 @@ void quaderno_state::mem_map(address_map &map)
 	m_romwin_view[0](0xd8000, 0xdbfff).nopr().nopw();
 	m_romwin_view[1](0xd8000, 0xdbfff).bankr(m_rom_bank).nopw();
 
+	// EMS page frame: four 16K windows, mapping registers c0-cc
+	for (int i = 0; i < 4; i++)
+	{
+		const offs_t start = 0xc0000 + i * 0x4000;
+		map(start, start + 0x3fff).view(m_ems_view[i]);
+		m_ems_view[i][0](start, start + 0x3fff).nopr().nopw();
+		m_ems_view[i][1](start, start + 0x3fff).bankrw(m_ems_bank[i]);
+	}
+
 	map(0xdc000, 0xdffff).view(m_sramwin_view);
 	m_sramwin_view[0](0xdc000, 0xdffff).nopr().nopw();
 	m_sramwin_view[1](0xdc000, 0xdffff).bankrw(m_sram_bank);
@@ -312,6 +335,7 @@ void quaderno_state::io_map(address_map &map)
 	map(0x0066, 0x006a).rw(FUNC(quaderno_state::chan_r), FUNC(quaderno_state::chan_w));
 	map(0x006c, 0x006f).rw(FUNC(quaderno_state::ems_r), FUNC(quaderno_state::ems_w));
 	map(0x00a0, 0x00a1).rw(FUNC(quaderno_state::auxint_r), FUNC(quaderno_state::auxint_w));
+	map(0x0176, 0x0176).lw8(NAME([this] (uint8_t data) { m_ga[0xc0] &= data; }));   // NMI acknowledge
 	map(0x0178, 0x0179).rw(FUNC(quaderno_state::ga_r), FUNC(quaderno_state::ga_w));
 	map(0x0300, 0x030b).rw(FUNC(quaderno_state::pm_r), FUNC(quaderno_state::pm_w));
 	map(0x0350, 0x0357).rw(FUNC(quaderno_state::hip_r), FUNC(quaderno_state::hip_w));
@@ -475,16 +499,43 @@ uint8_t quaderno_state::ems_r(offs_t offset)
 	}
 }
 
+/*
+    EMS (EMMPT.SYS): 06c = register index, 06e/06f = 16-bit data.  There is
+    one register per 16K page of the CPU address space, index = A19-A14 * 4.
+    Data bit 15 = mapping enabled, bits 5-0 = 16K page of the 1 MB DRAM.
+    The driver maps 80000-9ffff 1:1 (pages 20h-27h) and uses c0000-cffff
+    (registers c0-cc) as page frame.
+*/
 void quaderno_state::ems_w(offs_t offset, uint8_t data)
 {
-	// TODO: EMS mapping registers 80-9c (8 pages) and c0-cc (4)
-	uint16_t &reg = m_ems[(m_ems_index >> 2) & 0x3f];
+	const int r = (m_ems_index >> 2) & 0x3f;
+	uint16_t &reg = m_ems[r];
 	switch (offset)
 	{
-		case 0: m_ems_index = data; break;
+		case 0: m_ems_index = data; return;
 		case 2: reg = (reg & 0xff00) | data; break;
 		case 3: reg = (reg & 0x00ff) | (data << 8); break;
+		default: return;
 	}
+	update_ems(r);
+}
+
+void quaderno_state::update_ems(int reg)
+{
+	const uint16_t data = m_ems[reg];
+	if (reg >= 0x30 && reg <= 0x33)
+	{
+		const int i = reg - 0x30;
+		if (BIT(data, 15))
+		{
+			m_ems_bank[i]->set_entry(data & 0x3f);
+			m_ems_view[i].select(1);
+		}
+		else
+			m_ems_view[i].select(0);
+	}
+	else if (reg >= 0x20 && reg <= 0x27 && BIT(data, 15) && (data & 0x3f) != reg)
+		LOGUNK("EMS: conventional page %05x mapped to DRAM page %02x (not emulated)\n", reg << 14, data & 0x3f);
 }
 
 
@@ -616,16 +667,16 @@ void quaderno_state::kbd_fetch()
     printed in turquoise:
         MF+F1/F2   F11/F12 (57h/58h)
         MF+F3..F10 NOTIZEN, RECHNER, KALEND., TELEFON, DATEI, ARCHIV,
-                   cassette (voice), MENU: sent as 60h..67h.  These are
-                   not AT scan codes; BIOS 1.88 has table entries for them
-                   that produce the key codes 5400h..5B00h.  The mapping
-                   to the individual keys is an assumption.
+                   cassette (voice), MENU
         MF+STRG    right STRG (E0 1D), MF+ALT = ALT GR (E0 38)
         MF+ENTER   keypad ENTER (E0 1C)
         MF+DRUCK   TURBO: CPU clock HI -> Md -> Lo
         MF+ROLLEN  inverse display
-    TURBO and MF+ROLLEN are done directly by the HLE; how the real MCU
-    tells the BIOS about them is not known.
+    The last three are not scan codes: the MCU sets a bit in its register
+    11h (80h TURBO, 40h display, 20h PA key) and raises an NMI with gate
+    array register C0h bit 7.  The BIOS NMI handler reads register 11h,
+    for PA keys also register 17h (bit 0 = F3 ... bit 7 = F10), and calls
+    the far hook PA installed with BIOS vector 5Eh (CMOS 2Ch).
 
     Key ids: 01h-58h are the set 1 make codes, 60h-6Fh are the keys that
     need a prefix, MF and a few host convenience keys.
@@ -711,7 +762,12 @@ void quaderno_state::kbd_key(int id, bool make)
 		if (id == 0x3b || id == 0x3c)
 			code = id + 0x1c;                     // F11, F12
 		else if (id >= 0x3d && id <= 0x44)
-			code = 0x60 + (id - 0x3d);            // PA keys (assumed codes)
+		{
+			// PA keys: bit n of MCU register 17h, BIOS calls the PA hook
+			m_mcu_reg[0x17] |= 1 << (id - 0x3d);
+			mcu_event(0x20);
+			code = 0;
+		}
 		else if (id == KEY_STRG)
 			code = 0xe01d;
 		else if (id == KEY_ALT)
@@ -720,18 +776,12 @@ void quaderno_state::kbd_key(int id, bool make)
 			code = 0xe01c;                        // keypad ENTER
 		else if (id == KEY_DRUCK)
 		{
-			// TURBO: the MCU cycles HI -> Md -> Lo (HLE: set the clock directly)
-			static constexpr uint8_t next[8] = { 6, 6, 0, 0, 0, 0, 2, 0 };
-			m_ga[0xc2] = (m_ga[0xc2] & ~7) | next[m_ga[0xc2] & 7];
-			update_cpu_clock();
-			m_mcu_reg[0x3e] = ((m_ga[0xc2] & 7) == 0) ? 0 : ((m_ga[0xc2] & 7) == 2) ? 2 : 1;
-			status_lcd_update();
+			mcu_event(0x80);                      // TURBO, the BIOS cycles HI/Md/Lo
 			code = 0;
 		}
 		else if (id == KEY_ROLLEN)
 		{
-			// black on white <-> white on black (HLE: flip the LCD directly)
-			m_lcd->toggle_invert();
+			mcu_event(0x40);                      // the BIOS toggles inverse video
 			code = 0;
 		}
 	}
@@ -821,6 +871,10 @@ void quaderno_state::kbd_command(uint8_t data)
 			m_kbd_out.clear();
 			m_kbd_out.push_back(0xfa);
 			m_kbd_out.push_back(0xaa);
+			// keys held during the reset (e.g. ALT for the boot menu) are
+			// reported again by the next matrix scan
+			std::fill(std::begin(m_keystate), std::end(m_keystate), 0);
+			std::fill(std::begin(m_keysent), std::end(m_keysent), 0);
 			break;
 		default:
 			m_kbd_out.push_front(0xfa);
@@ -913,7 +967,11 @@ void quaderno_state::mcu_command(uint8_t data)
 	mcu_reply(0xfa);
 
 	if (data < 0x40)
+	{
 		mcu_reply(m_mcu_reg[data]);
+		if (data == 0x11 || data == 0x17)
+			m_mcu_reg[data] = 0;                  // event registers clear on read
+	}
 	else if (data < 0x80)
 		m_mcu_need = 1;
 	else
@@ -947,6 +1005,36 @@ void quaderno_state::mcu_command(uint8_t data)
 				break;
 		}
 	}
+}
+
+void quaderno_state::mcu_event(uint8_t bits)
+{
+	m_mcu_reg[0x11] |= bits;
+	m_ga[0xc0] |= 0x80;
+	m_nmi_timer->adjust(attotime::zero);
+}
+
+TIMER_CALLBACK_MEMBER(quaderno_state::nmi_check)
+{
+	// don't interrupt a command the host is exchanging with the MCU
+	if (m_mcu_need || !m_mcu_out.empty() || m_chan[1].full)
+	{
+		m_nmi_timer->adjust(attotime::from_msec(1));
+		return;
+	}
+	if (BIT(m_ga[0xc0], 7))
+		m_maincpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
+}
+
+INPUT_CHANGED_MEMBER(quaderno_state::factory_reset)
+{
+	if (!newval)
+		return;
+	// "Werkseinstellungstaste": the setup data is lost, the machine restarts
+	// and asks for date and time.  CMOS lives at DF80:0100 in the SRAM window.
+	const offs_t base = (BIT(m_config->read(), 1) ? 7 : 1) * 0x4000 + 0x3900;
+	std::fill_n(&m_sram[base], 0x80, 0);
+	machine().schedule_soft_reset();
 }
 
 TIMER_CALLBACK_MEMBER(quaderno_state::rtc_tick)
@@ -1100,6 +1188,17 @@ void quaderno_state::machine_start()
 	m_codec_timer = timer_alloc(FUNC(quaderno_state::codec_frame), this);
 	m_rtc_timer = timer_alloc(FUNC(quaderno_state::rtc_tick), this);
 	m_kbd_timer = timer_alloc(FUNC(quaderno_state::kbd_scan), this);
+	m_nmi_timer = timer_alloc(FUNC(quaderno_state::nmi_check), this);
+
+	// 1 MB DRAM: pages 00-27 are the 640K base RAM, 28-3f are kept here
+	m_ems_ram = std::make_unique<uint8_t[]>(0x60000);
+	std::fill_n(m_ems_ram.get(), 0x60000, 0);
+	save_pointer(NAME(m_ems_ram), 0x60000);
+	for (int i = 0; i < 4; i++)
+		for (int page = 0; page < 0x40; page++)
+			m_ems_bank[i]->configure_entry(page, (page < 0x28)
+					? m_ram->pointer() + page * 0x4000
+					: m_ems_ram.get() + (page - 0x28) * 0x4000);
 	subdevice<quaderno_fdc_device>("fdc:qfdc")->set_connector(m_ext);
 
 	system_time systime;
@@ -1150,12 +1249,21 @@ void quaderno_state::machine_start()
 	save_item(NAME(m_dsp_irq));
 }
 
+void quaderno_state::device_post_load()
+{
+	for (int r = 0x30; r <= 0x33; r++)
+		update_ems(r);
+}
+
 void quaderno_state::machine_reset()
 {
 	std::fill(std::begin(m_r26), std::end(m_r26), 0);
 	std::fill(std::begin(m_ga), std::end(m_ga), 0);
 	std::fill(std::begin(m_pm), std::end(m_pm), 0);
 	m_shadow_view.select(0);
+	std::fill(std::begin(m_ems), std::end(m_ems), 0);
+	for (int i = 0; i < 4; i++)
+		m_ems_view[i].select(0);
 	update_windows();
 	update_cpu_clock();
 
@@ -1326,6 +1434,9 @@ INPUT_PORTS_END
 
 static INPUT_PORTS_START( quaderno )
 	PORT_INCLUDE( quaderno_keyboard )
+
+	PORT_START("BUTTONS")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Werkseinstellung (factory reset)") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(quaderno_state::factory_reset), 0)
 
 	PORT_START("CONFIG")
 	PORT_CONFNAME( 0x01, 0x01, "Power source" )
