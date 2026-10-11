@@ -1,10 +1,112 @@
 <?xml version="1.0"?>
 <!--
 license:CC0-1.0
-copyright-holders:Dirk Best
+copyright-holders:Dirk Best, rfka01
+Epson EX-800: paper and control panel (SelecType)
 -->
 <mamelayout version="2">
-	<view name="Default Layout">
-		<bounds left="0" top="0" right="1" bottom="1" />
+	<element name="case"><rect><color red="0.86" green="0.80" blue="0.62" /></rect></element>
+	<element name="case_dark"><rect><color red="0.78" green="0.72" blue="0.55" /></rect></element>
+	<element name="panel"><rect><color red="0.21" green="0.22" blue="0.24" /></rect></element>
+	<element name="frame"><rect><color red="0.82" green="0.84" blue="0.88" /></rect></element>
+	<element name="bar"><rect><color red="0.90" green="0.90" blue="0.92" /></rect></element>
+
+	<element name="led_green" defstate="0">
+		<rect state="0"><color red="0.14" green="0.24" blue="0.16" /></rect>
+		<rect state="1"><color red="0.35" green="1.00" blue="0.35" /></rect>
+	</element>
+	<element name="led_power"><rect><color red="0.35" green="1.00" blue="0.35" /></rect></element>
+	<element name="led_red" defstate="0">
+		<rect state="0"><color red="0.26" green="0.12" blue="0.12" /></rect>
+		<rect state="1"><color red="1.00" green="0.22" blue="0.18" /></rect>
+	</element>
+
+	<!-- the SelecType keys light up when selected -->
+	<element name="st_key" defstate="0">
+		<rect state="0"><color red="0.80" green="0.81" blue="0.82" /></rect>
+		<rect state="1"><color red="1.00" green="0.55" blue="0.45" /></rect>
+	</element>
+	<!-- ON LINE, FORM FEED, LINE FEED: plain keys -->
+	<element name="key" defstate="0">
+		<rect state="0"><color red="0.85" green="0.72" blue="0.47" /></rect>
+		<rect state="1"><color red="0.70" green="0.58" blue="0.36" /></rect>
+	</element>
+	<element name="t_power"><text string="POWER" align="1"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_ready"><text string="READY" align="1"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_paper"><text string="PAPER" align="1"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_out"><text string="OUT" align="1"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_online"><text string="ON LINE" align="2"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_ff"><text string="FORM FEED" align="2"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_lf"><text string="LINE FEED" align="2"><color red="0.92" green="0.92" blue="0.92" /></text></element>
+	<element name="t_selectype"><text string="SelecType"><color red="0.92" green="0.92" blue="0.95" /></text></element>
+	<element name="k_draft"><text string="DRAFT"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_nlq"><text string="NLQ"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_roman"><text string="ROMAN"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_pica"><text string="PICA"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_sans"><text string="SANS SERIF"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_elite"><text string="ELITE"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_prop1"><text string="PROPOR-"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_prop2"><text string="TIONAL"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_normal"><text string="NORMAL"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="k_cond"><text string="CONDENSED"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+	<element name="t_model"><text string="EX-800" align="1"><color red="0.52" green="0.47" blue="0.34" /></text></element>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<element ref="case"><bounds x="0" y="360" width="1140" height="290" /></element>
+		<element ref="case_dark"><bounds x="0" y="360" width="1140" height="6" /></element>
+		<element ref="t_model"><bounds x="40" y="590" width="200" height="34" /></element>
+
+		<element ref="panel"><bounds x="700" y="375" width="420" height="262" /></element>
+
+		<!-- lamps -->
+		<element ref="led_power"><bounds x="722" y="415" width="16" height="7" /></element>
+		<element ref="t_power"><bounds x="744" y="408" width="80" height="20" /></element>
+		<element name="ex800_ready_led" ref="led_green"><bounds x="722" y="485" width="16" height="7" /></element>
+		<element ref="t_ready"><bounds x="744" y="478" width="80" height="20" /></element>
+		<element name="ex800_paper_led" ref="led_red"><bounds x="722" y="545" width="16" height="7" /></element>
+		<element ref="t_paper"><bounds x="744" y="538" width="80" height="20" /></element>
+		<element ref="t_out"><bounds x="744" y="557" width="80" height="20" /></element>
+
+		<!-- SelecType: white frame with the eight keys -->
+		<element ref="frame"><bounds x="828" y="407" width="144" height="222" /></element>
+		<element ref="panel"><bounds x="831" y="410" width="138" height="216" /></element>
+		<element ref="panel"><bounds x="858" y="397" width="86" height="20" /></element>
+		<element ref="t_selectype"><bounds x="860" y="397" width="82" height="19" /></element>
+		<element ref="bar"><bounds x="896" y="439" width="12" height="4" /></element>
+		<element ref="bar"><bounds x="937" y="457" width="4" height="12" /></element>
+		<element ref="bar"><bounds x="866" y="504" width="4" height="12" /></element>
+		<element ref="bar"><bounds x="896" y="539" width="12" height="4" /></element>
+		<element ref="bar"><bounds x="896" y="590" width="12" height="4" /></element>
+		<element name="ex800_selectype_led0" ref="st_key" inputtag="SELECTYPE" inputmask="0x01"><bounds x="840" y="419" width="56" height="40" /></element>
+		<element ref="k_draft"><bounds x="842" y="433" width="52" height="12" /></element>
+		<element name="ex800_selectype_led1" ref="st_key" inputtag="SELECTYPE" inputmask="0x02"><bounds x="908" y="419" width="56" height="40" /></element>
+		<element ref="k_nlq"><bounds x="910" y="427" width="52" height="11" /></element>
+		<element ref="k_roman"><bounds x="910" y="440" width="52" height="11" /></element>
+		<element name="ex800_selectype_led2" ref="st_key" inputtag="SELECTYPE" inputmask="0x04"><bounds x="840" y="470" width="56" height="40" /></element>
+		<element ref="k_pica"><bounds x="842" y="484" width="52" height="12" /></element>
+		<element name="ex800_selectype_led3" ref="st_key" inputtag="SELECTYPE" inputmask="0x08"><bounds x="908" y="470" width="56" height="40" /></element>
+		<element ref="k_nlq"><bounds x="910" y="478" width="52" height="11" /></element>
+		<element ref="k_sans"><bounds x="910" y="491" width="52" height="11" /></element>
+		<element name="ex800_selectype_led4" ref="st_key" inputtag="SELECTYPE" inputmask="0x10"><bounds x="840" y="521" width="56" height="40" /></element>
+		<element ref="k_elite"><bounds x="842" y="535" width="52" height="12" /></element>
+		<element name="ex800_selectype_led5" ref="st_key" inputtag="SELECTYPE" inputmask="0x20"><bounds x="908" y="521" width="56" height="40" /></element>
+		<element ref="k_prop1"><bounds x="910" y="529" width="52" height="11" /></element>
+		<element ref="k_prop2"><bounds x="910" y="542" width="52" height="11" /></element>
+		<element name="ex800_selectype_led6" ref="st_key" inputtag="SELECTYPE" inputmask="0x40"><bounds x="840" y="572" width="56" height="40" /></element>
+		<element ref="k_normal"><bounds x="842" y="586" width="52" height="12" /></element>
+		<element name="ex800_selectype_led7" ref="st_key" inputtag="SELECTYPE" inputmask="0x80"><bounds x="908" y="572" width="56" height="40" /></element>
+		<element ref="k_cond"><bounds x="910" y="586" width="52" height="12" /></element>
+
+		<!-- ON LINE with its lamp above the key, FORM FEED, LINE FEED -->
+		<element ref="t_online"><bounds x="986" y="391" width="116" height="18" /></element>
+		<element name="ex800_online_led" ref="led_green"><bounds x="992" y="396" width="16" height="7" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="990" y="411" width="112" height="48" /></element>
+		<element ref="t_ff"><bounds x="986" y="475" width="116" height="18" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="990" y="495" width="112" height="48" /></element>
+		<element ref="t_lf"><bounds x="986" y="559" width="116" height="18" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="990" y="579" width="112" height="48" /></element>
 	</view>
 </mamelayout>
