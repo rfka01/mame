@@ -122,6 +122,7 @@ private:
 
 	output_finder<> m_online_led;
 	output_finder<> m_ready_led;
+	output_finder<> m_paperout_led;    // follows the paper end sensor
 
 	required_ioport m_online_ioport;
 	required_ioport m_formfeed_ioport;
