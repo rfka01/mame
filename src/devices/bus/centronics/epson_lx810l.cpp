@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Ramiro Polla, Felipe Sanches
+// copyright-holders:Ramiro Polla, Felipe Sanches, rfka01
 /*
  * Epson LX-810L dot matrix printer emulation
  *
@@ -11,39 +11,57 @@
  *   SLA7020M (step motor driver)
  *   uPC494C (pulse width modulation control)
  *
- * Devices boot and enter main input loop. Data is received through the
- * centronics bus and printed as expected in a separate screen.
+ * Carriage: 4-phase stepper behind an SLA7020M driver, 1 step = 1/60",
+ * 2-2 phase drive in draft, 1-2 phase (half steps) for NLQ. Paper:
+ * 4-phase stepper, 1 step = 1/216". The needles fire while FIRE (CO0)
+ * is low.
  *
- * It is possible to run the printers' self test with this procedure:
- * - Turn on device;
- * - Toggle Line Feed button (press 'L');
- * - Reset device;
- * - Toggle Line Feed button again;
- * - Press Online button (press 'O');
- *
- * The printer's carriage will seek home and it will start printing
- * some test data. The Online LED will blink at each line.
+ * Self test: hold LINE FEED (draft) or FORM FEED (NLQ) while switching
+ * the printer on, both keys for the data dump. The keys can also be
+ * selected under "Keys held at power on" and the power switch toggled.
  */
 
 #include "emu.h"
 #include "epson_lx810l.h"
 #include "speaker.h"
 
+#include "epson_ap2000.lh"
 #include "epson_lx810l.lh"
 
-//#define VERBOSE 1
+#define LOG_MOTOR (1U << 1)
+#define LOG_FIRE  (1U << 2)
+
+//#define VERBOSE (LOG_GENERAL | LOG_MOTOR | LOG_FIRE)
 #include "logmacro.h"
 
-/* The printer starts printing at x offset 44 and stops printing at x
- * offset 1009, giving a total of 965 printable pixels. Supposedly, the
- * border at the far right would be at x offset 1053. I've chosen the
- * width for the paper as 1024, since it's a nicer number than 1053, so
- * an offset must be used to centralize the pixels.
- */
-#define CR_OFFSET    (-14)
+namespace {
 
-#define PAPER_WIDTH  1024    // 120 dpi * 8.5333 inches
-#define PAPER_HEIGHT (11*72) // 72 dpi * 11 inches
+constexpr int HDPI = 240;               // horizontal resolution of the paper bitmap
+constexpr int VDPI = 216;               // vertical resolution (one paper step)
+constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
+constexpr double PAPER_HEIGHT = 11.0;
+constexpr double LEFT_OFFSET = 0.115;   // paper edge to the home sensor edge: column 1 13 mm from the edge
+										// of continuous paper (user's guide: left margin 13 mm)
+constexpr double SHEET_TOP = 8.5 / 25.4;   // the loading feed leaves the first line 8.5 mm from the top (minimum top margin)
+constexpr double SHEET_SENSOR = 1.78 - SHEET_TOP;   // single sheets: paper end sensor to print line, from the loading feed of 1.78"
+constexpr double CR_LAG = 0.000167;     // the head lags the rotor by this time (s) plus CR_SHIFT steps;
+constexpr double CR_SHIFT = 0.15;       // both found from bidirectional draft (full steps) and NLQ (half steps)
+constexpr int CR_LEFT = -40;            // left stop, steps from the home sensor edge
+constexpr int CR_RIGHT = 560;           // right stop
+
+// electrical angle (in half steps, 0-7) of the energised windings, -1 if none or invalid
+// carriage: SLA7020M outputs A (bit 0), /A (bit 1), B (bit 2), /B (bit 3)
+constexpr int cr_angle_table[16] = { -1,  6,  2, -1,  0,  7,  1, -1,  4,  5,  3, -1, -1, -1, -1, -1 };
+// paper: phase outputs of the gate array
+constexpr int pf_angle_table[16] = { -1,  4,  0, -1,  2,  3,  1, -1,  6,  5,  7, -1, -1, -1, -1, -1 };
+
+// change of the angle, -4..3 half steps
+int angle_delta(int from, int to)
+{
+	return ((to - from + 4) & 7) - 4;
+}
+
+} // anonymous namespace
 
 
 
@@ -162,10 +180,12 @@ void epson_lx810l_device::device_add_mconfig(machine_config &config)
 	/* 256-bit eeprom */
 	EEPROM_93C06_16BIT(config, "eeprom");
 
-	BITMAP_PRINTER(config, m_bitmap_printer, PAPER_WIDTH, PAPER_HEIGHT, 120, 72);  // do 72 dpi
-	m_bitmap_printer->set_pf_stepper_ratio(1,6);  // pf stepper moves at 216 dpi so at 72dpi half steps
-	m_bitmap_printer->set_cr_stepper_ratio(1,1);
+	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
+	m_bitmap_printer->set_dot_style(printer_dot_style::impact_9pin());
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_paper_formats(0x0f, bitmap_printer_device::PAPER_FANFOLD_11);
+	m_bitmap_printer->set_sheet_load_offset(SHEET_SENSOR);
+	m_bitmap_printer->set_sheet_top(SHEET_TOP);
 }
 
 /***************************************************************************
@@ -183,10 +203,18 @@ static INPUT_PORTS_START( epson_lx810 )
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Line Feed") PORT_CODE(KEYCODE_9_PAD)
 	PORT_START("LOADEJECT")
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Load/Eject") PORT_CODE(KEYCODE_1_PAD)
-	PORT_START("PAPEREND")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Paper End Sensor") PORT_CODE(KEYCODE_6_PAD)
-	PORT_START("RESET")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_KEYBOARD) PORT_NAME("Reset Printer") PORT_CODE(KEYCODE_2_PAD) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(epson_lx810l_device::reset_printer), 0)
+	PORT_START("POWER")
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("Power switch (off/on)") PORT_CODE(KEYCODE_2_PAD) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(epson_lx810l_device::power_switch), 0)
+
+	PORT_START("CONFIG")
+	PORT_CONFNAME( 0x01, 0x01, "Paper" )
+	PORT_CONFSETTING(    0x00, "Empty" )
+	PORT_CONFSETTING(    0x01, "Loaded" )
+	PORT_CONFNAME( 0x06, 0x00, "Keys held at power on" )
+	PORT_CONFSETTING(    0x00, "None" )
+	PORT_CONFSETTING(    0x02, "LINE FEED (self test, draft)" )
+	PORT_CONFSETTING(    0x04, "FORM FEED (self test, NLQ)" )
+	PORT_CONFSETTING(    0x06, "LINE FEED + FORM FEED (data dump)" )
 
 	PORT_START("DIPSW1")
 	PORT_DIPNAME(0x01, 0x00, "Character spacing")             PORT_DIPLOCATION("SW 1:!1")
@@ -264,13 +292,34 @@ INPUT_CHANGED_MEMBER(epson_lx810l_device::online_sw)
 	m_maincpu->set_input_line(UPD7810_INTF2, newval ? CLEAR_LINE : ASSERT_LINE);
 }
 
-INPUT_CHANGED_MEMBER(epson_lx810l_device::reset_printer)
+INPUT_CHANGED_MEMBER(epson_lx810l_device::power_switch)
 {
 	if (newval)
 	{
-		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);  // reset cpu
-		m_e05a30->reset();  // this will generate an NMI interrupt when the e05a30 is ready (minimum 0.9 seconds after reset)
+		restart();
+		m_power_cycled = true;
 	}
+}
+
+void epson_lx810l_device::restart()
+{
+	m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);  // reset cpu
+	m_e05a30->reset();  // this will generate an NMI interrupt when the e05a30 is ready (minimum 0.9 seconds after reset)
+	m_power_on = machine().time();
+	m_power_cycled = false;
+}
+
+uint8_t epson_lx810l_device::keys_held() const
+{
+	// keys held while the printer is switched on: bit 0 LINE FEED, bit 1 FORM FEED
+	if (m_power_cycled && (machine().time() - m_power_on < attotime::from_seconds(3)))
+		return (m_config_ioport->read() >> 1) & 3;
+	return 0;
+}
+
+bool epson_lx810l_device::paper_sensor() const
+{
+	return BIT(m_config_ioport->read(), 0) && m_bitmap_printer->paper_present();
 }
 
 
@@ -303,22 +352,34 @@ epson_lx810l_device::epson_lx810l_device(const machine_config &mconfig, device_t
 	m_formfeed_ioport(*this, "FORMFEED"),
 	m_linefeed_ioport(*this, "LINEFEED"),
 	m_loadeject_ioport(*this, "LOADEJECT"),
-	m_paperend_ioport(*this, "PAPEREND"),
 	m_dipsw1_ioport(*this, "DIPSW1"),
 	m_dipsw2_ioport(*this, "DIPSW2"),
+	m_config_ioport(*this, "CONFIG"),
 	m_93c06_clk(0),
 	m_93c06_cs(0),
 	m_printhead(0),
-	m_real_cr_steps(0),
 	m_fakemem(0),
-	m_in_between_offset(0),
-	m_rightward_offset(-3)
+	m_co0(1),
+	m_cr_pos(100),
+	m_cr_half(200),
+	m_cr_angle(-1),
+	m_cr_dir(1),
+	m_cr_step_start(200),
+	m_pf_angle(-1),
+	m_pf_half(0),
+	m_power_cycled(false)
 {
 }
 
 epson_ap2000_device::epson_ap2000_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: epson_lx810l_device(mconfig, EPSON_AP2000, tag, owner, clock)
 { }
+
+void epson_ap2000_device::device_add_mconfig(machine_config &config)
+{
+	epson_lx810l_device::device_add_mconfig(config);
+	config.set_default_layout(layout_epson_ap2000);
+}
 
 
 //-------------------------------------------------
@@ -327,7 +388,23 @@ epson_ap2000_device::epson_ap2000_device(const machine_config &mconfig, const ch
 
 void epson_lx810l_device::device_start()
 {
-	m_cr_timer = timer_alloc(FUNC(epson_lx810l_device::cr_tick), this);
+	save_item(NAME(m_93c06_clk));
+	save_item(NAME(m_93c06_cs));
+	save_item(NAME(m_printhead));
+	save_item(NAME(m_fakemem));
+	save_item(NAME(m_co0));
+	save_item(NAME(m_cr_pos));
+	save_item(NAME(m_cr_half));
+	save_item(NAME(m_cr_angle));
+	save_item(NAME(m_cr_dir));
+	save_item(NAME(m_cr_step_start));
+	save_item(NAME(m_cr_last_step));
+	save_item(NAME(m_cr_last_change));
+	save_item(NAME(m_cr_period));
+	save_item(NAME(m_pf_angle));
+	save_item(NAME(m_pf_half));
+	save_item(NAME(m_power_on));
+	save_item(NAME(m_power_cycled));
 }
 
 
@@ -337,27 +414,11 @@ void epson_lx810l_device::device_start()
 
 void epson_lx810l_device::device_reset()
 {
-	m_in_between_offset = 0;
-}
-
-
-//-------------------------------------------------
-//  cr_tick - handle a carriage return
-//-------------------------------------------------
-
-TIMER_CALLBACK_MEMBER(epson_lx810l_device::cr_tick)
-{
-	/* The firmware issues two half-steps in sequence, one immediately
-	 * after the other. At full speed, the motor does two half-steps at
-	 * each 833 microseconds. A timer fires the printhead twice, with
-	 * the same period as each half-step (417 microseconds), but with
-	 * a 356 microseconds delay relative to the motor steps.
-	 */
-	m_in_between_offset += param;
-
-	m_real_cr_steps--;
-	if (m_real_cr_steps)
-		m_cr_timer->adjust(attotime::from_usec(400), m_bitmap_printer->m_cr_direction);
+	m_cr_period = attotime::never;
+	m_cr_last_step = machine().time();
+	m_cr_last_change = m_cr_last_step;
+	m_power_on = machine().time();
+	m_power_cycled = false;
 }
 
 
@@ -393,20 +454,24 @@ void epson_lx810l_device::fakemem_w(uint8_t data)
 uint8_t epson_lx810l_device::porta_r(offs_t offset)
 {
 	uint8_t result = 0;
-	uint8_t hp_sensor = (m_bitmap_printer->m_xpos <= 0) ? 0 : 1;
+	uint8_t const held = keys_held();
+	bool const paper = paper_sensor();
 
-	//uint8_t pe_sensor = m_pf_pos_abs <= 0 ? 1 : 0;
-
-	result |= hp_sensor; /* home position */
-	//result |= pe_sensor << 1; /* paper end */
-	result |= m_paperend_ioport->read() << 1;  // simulate a paper out error
-	result |= m_linefeed_ioport->read() << 6;
-	result |= m_formfeed_ioport->read() << 7;
+	if (m_cr_pos > 0)
+		result |= 0x01;     /* home position sensor, low in the home zone */
+	if (paper)
+		result |= 0x02;     /* paper end sensor, low without paper */
+	if (m_bitmap_printer->sheet_handling())
+		result |= 0x04;     /* release lever, low = tractor */
+	if (m_linefeed_ioport->read() && !BIT(held, 0))
+		result |= 0x40;
+	if (m_formfeed_ioport->read() && !BIT(held, 1))
+		result |= 0x80;
 
 	LOG("%s: lx810l_PA_r(%02x): result %02x\n", machine().describe_context(), offset, result);
 
-	m_bitmap_printer->set_led_state(bitmap_printer_device::LED_ERROR, !m_paperend_ioport->read());
-	m_paperout_led = !m_paperend_ioport->read();
+	m_bitmap_printer->set_led_state(bitmap_printer_device::LED_ERROR, !paper);
+	m_paperout_led = !paper;
 
 	return result;
 }
@@ -430,12 +495,10 @@ uint8_t epson_lx810l_device::portb_r(offs_t offset)
 {
 	uint8_t result = ~m_dipsw1_ioport->read();
 
-	/* if 93C06 is selected */
-	if (m_93c06_cs) {
-		uint8_t do_r = m_eeprom->do_read();
+	/* PB0 is DIP switch 1-1 wired-AND with the 93C06 data output, which is
+	   high (pulled up) unless the EEPROM drives a 0 */
+	if (m_93c06_cs && !m_eeprom->do_read())
 		result &= 0xfe;
-		result |= do_r;
-	}
 
 	LOG("%s: lx810l_PB_r(%02x): result %02x\n", machine().describe_context(), offset, result);
 
@@ -456,7 +519,7 @@ void epson_lx810l_device::portb_w(offs_t offset, uint8_t data)
 /*
  * PC0   W  TXD        serial i/o txd, also TAMA.25
  * PC1  R   RXD        serial i/o rxd, also E05A30.28
- * PC2   W  ONLINE LP  online led
+ * PC2   W  paper feed motor drive (1) or hold (0) current
  * PC3  R   ONLINE SW  online switch
  * PC4   W  93C06.SK
  * PC5   W  93C06.CS
@@ -489,8 +552,6 @@ void epson_lx810l_device::portc_w(offs_t offset, uint8_t data)
 	m_eeprom->clk_write(m_93c06_clk ? ASSERT_LINE : CLEAR_LINE);
 	m_eeprom->cs_write (m_93c06_cs  ? ASSERT_LINE : CLEAR_LINE);
 
-	m_online_led = !BIT(data, 2);
-	m_bitmap_printer->set_led_state(bitmap_printer_device::LED_ONLINE, m_online_led);
 }
 
 
@@ -505,20 +566,94 @@ void epson_lx810l_device::printhead(uint16_t data)
 
 void epson_lx810l_device::pf_stepper(uint8_t data)
 {
-	m_bitmap_printer->update_pf_stepper(data);
+	LOGMASKED(LOG_MOTOR, "%s PF %x\n", machine().time().as_string(), data);
+
+	int const angle = pf_angle_table[data & 0x0f];
+	if (angle < 0)
+		return;
+	if (m_pf_angle >= 0)
+	{
+		int const old = m_pf_half >> 1;
+		m_pf_half += angle_delta(m_pf_angle, angle);   // a rising angle feeds the paper forward
+		int const now = m_pf_half >> 1;
+		if (now != old)
+		{
+			if (now > old)
+				m_bitmap_printer->m_ypos++;
+			else
+				m_bitmap_printer->m_ypos = std::max(m_bitmap_printer->min_ypos(), m_bitmap_printer->m_ypos - 1);
+			m_bitmap_printer->check_new_page();
+		}
+	}
+	m_pf_angle = angle;
 }
 
 void epson_lx810l_device::cr_stepper(uint8_t data)
 {
-	m_bitmap_printer->update_cr_stepper(bitswap<4>(data, 0, 1, 2, 3));  // reverse bits
+	LOGMASKED(LOG_MOTOR, "%s CR %x pos %d\n", machine().time().as_string(), data, m_cr_pos);
 
-	m_in_between_offset = 0;
-
-	if (!m_real_cr_steps)
+	// a rising angle moves the carriage to the right
+	int const angle = cr_angle_table[data & 0x0f];
+	if (angle < 0)
+		return;
+	if (m_cr_angle >= 0)
 	{
-		m_cr_timer->adjust(attotime::from_usec(400), m_bitmap_printer->m_cr_direction);
-		m_real_cr_steps++;
+		int const delta = angle_delta(m_cr_angle, angle);
+		if (delta)
+		{
+			int const old = m_cr_half;
+			m_cr_half = std::clamp(m_cr_half + delta, CR_LEFT * 2, CR_RIGHT * 2 + 1);   // the motor slips at the stops
+			carriage_step((delta > 0) ? 1 : -1, old);
+		}
 	}
+	m_cr_angle = angle;
+}
+
+void epson_lx810l_device::carriage_step(int dir, int old_half)
+{
+	// a 2-2 phase step (draft) is written in two halves a few microseconds apart;
+	// the second half belongs to the same step. NLQ moves in real half steps.
+	attotime const now = machine().time();
+	if ((now - m_cr_last_change) > attotime::from_usec(50))
+	{
+		attotime const since = now - m_cr_last_step;
+		m_cr_period = (dir == m_cr_dir && since < attotime::from_msec(20)) ? since : attotime::never;
+		m_cr_last_step = now;
+		m_cr_dir = dir;
+		m_cr_step_start = old_half;
+	}
+	m_cr_last_change = now;
+
+	m_cr_pos = m_cr_half >> 1;
+	m_bitmap_printer->setheadpos(int((m_cr_pos / 60.0 + LEFT_OFFSET) * HDPI), m_bitmap_printer->m_ypos);
+}
+
+double epson_lx810l_device::head_x() const
+{
+	// a step starts the move to the new rotor position, which is reached at the
+	// next step when the carriage runs at constant speed
+	double const pos = m_cr_half / 2.0;
+	if (m_cr_period.is_never() || (m_cr_period <= attotime::zero))
+		return pos;
+	double const step = std::abs(m_cr_half - m_cr_step_start) / 2.0;   // 1 in draft, 1/2 in NLQ
+	double const frac = std::min(1.0, (machine().time() - m_cr_last_step).as_double() / m_cr_period.as_double());
+	return pos - m_cr_dir * (step * (1.0 - frac + CR_LAG / m_cr_period.as_double()) + CR_SHIFT);
+}
+
+void epson_lx810l_device::fire()
+{
+	LOGMASKED(LOG_FIRE, "%s fire %03x x %.2f y %d\n", machine().time().as_string(), m_printhead, head_x(), m_bitmap_printer->m_ypos);
+	if (!m_printhead)
+		return;
+
+	int const x = int(std::lround((head_x() / 60.0 + LEFT_OFFSET) * HDPI));
+	if (x < 0 || x >= int(PAPER_WIDTH * HDPI))
+		return;
+
+	// bit 8 is the top needle; needles are 1/72" = 3 paper steps apart
+	for (int needle = 0; needle < 9; needle++)
+		if (BIT(m_printhead, 8 - needle))
+			m_bitmap_printer->draw_pixel(x, m_bitmap_printer->m_ypos + needle * (VDPI / 72), 0x000000);
 }
 
 void epson_lx810l_device::e05a30_ready(int state)
@@ -534,27 +669,10 @@ void epson_lx810l_device::e05a30_ready(int state)
 
 void epson_lx810l_device::co0_w(int state)
 {
-	/* Printhead is being fired on !state. */
-	if (!state) {
-		/* The firmware expects a 300 microseconds delay between the fire
-		 * signal and the impact of the printhead on the paper. This can be
-		 * verified by the timings of the steps and fire signals for the
-		 * same positions with different directions (left to right or right
-		 * to left). We don't simulate this delay since it is smaller than
-		 * the time it takes the printhead to travel one pixel (which would
-		 * be 417 microseconds), so it makes no difference to us.
-		 * It is interesting to note that the vertical alignment between
-		 * lines which are being printed in different directions is
-		 * noticeably off in the 20+ years old printer used for testing =).
-		 */
-		for (int i = 0; i < 9; i++)
-		{
-			if ((m_printhead & (1<<(8-i))) != 0)
-				m_bitmap_printer->pix(m_bitmap_printer->m_ypos + i * 1, // * 1 for no interleave at 72 vdpi
-				m_bitmap_printer->m_xpos + CR_OFFSET + m_in_between_offset +
-				(m_bitmap_printer->m_cr_direction > 0 ? m_rightward_offset : 0)) = 0x000000;
-		}
-	}
+	// the needles fire while FIRE is low
+	if (m_co0 && !state)
+		fire();
+	m_co0 = state;
 }
 
 
