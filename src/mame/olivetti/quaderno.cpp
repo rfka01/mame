@@ -48,9 +48,9 @@
                      60/61 = ROM window bank, 70/71 = SRAM window bank
         320-323  XT hard disk controller (DMA 3, IRQ 5)
         350-357  ADSP-2111 host interface port
-        378      printer (also receives POST codes)
+        378-37a  parallel port (also receives POST codes)
         3d0-3df  LCD controller (CGA + M24 3de, extended CRTC regs)
-        3f0-3f7  external floppy        3f8-3ff  COM1
+        3f0-3f7  floppy controller      3f8-3ff  COM1
 
     Memory map:
         00000-9ffff  RAM
@@ -68,7 +68,8 @@
         - EMS page mapping (registers known, page frame address not yet)
         - power management NMI, suspend/resume, lid switch
         - MF layer: TURBO and display key, verify the codes of the PA
-          keys (MF+F3..F10); voice buttons on the lid; side switch
+          keys (MF+F3..F10); voice buttons on the lid; dictation switch
+          ("Diktatschalter") on the side
         - AD28MSP02 control words, microphone input
         - PCMCIA slot
 
@@ -76,6 +77,7 @@
 
 #include "emu.h"
 
+#include "quaderno_ext.h"
 #include "quaderno_lcd.h"
 
 #include "bus/isa/isa.h"
@@ -118,6 +120,7 @@ public:
 		, m_maincpu(*this, "maincpu")
 		, m_mb(*this, "mb")
 		, m_lcd(*this, "lcd")
+		, m_ext(*this, "ext")
 		, m_dsp(*this, "dsp")
 		, m_codec_dac(*this, "codec")
 		, m_shadow_view(*this, "shadow_view")
@@ -166,6 +169,8 @@ private:
 	void ems_w(offs_t offset, uint8_t data);
 	void shadow_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void update_windows();
+	uint8_t lpt_r(offs_t offset);
+	void lpt_w(offs_t offset, uint8_t data);
 	void update_cpu_clock();
 
 	// keyboard / MCU channels
@@ -199,6 +204,7 @@ private:
 	required_device<v30_device> m_maincpu;
 	required_device<pc_noppi_mb_device> m_mb;
 	required_device<quaderno_lcd_device> m_lcd;
+	required_device<quaderno_ext_connector_device> m_ext;
 	required_device<adsp2111_device> m_dsp;
 	required_device<dac_16bit_r2r_twos_complement_device> m_codec_dac;
 	memory_view m_shadow_view;
@@ -233,6 +239,8 @@ private:
 	uint16_t m_ems[0x40]{};
 
 	uint8_t m_latch60 = 0;
+	uint8_t m_lpt_data = 0;
+	uint8_t m_lpt_ctrl = 0;
 	uint8_t m_p66 = 0;
 	uint8_t m_p69 = 0;
 	uint8_t m_auxmask = 0;
@@ -307,6 +315,7 @@ void quaderno_state::io_map(address_map &map)
 	map(0x0178, 0x0179).rw(FUNC(quaderno_state::ga_r), FUNC(quaderno_state::ga_w));
 	map(0x0300, 0x030b).rw(FUNC(quaderno_state::pm_r), FUNC(quaderno_state::pm_w));
 	map(0x0350, 0x0357).rw(FUNC(quaderno_state::hip_r), FUNC(quaderno_state::hip_w));
+	map(0x0378, 0x037a).rw(FUNC(quaderno_state::lpt_r), FUNC(quaderno_state::lpt_w));
 	map(0x03d0, 0x03df).rw(m_lcd, FUNC(quaderno_lcd_device::io_r), FUNC(quaderno_lcd_device::io_w));
 }
 
@@ -476,6 +485,34 @@ void quaderno_state::ems_w(offs_t offset, uint8_t data)
 		case 2: reg = (reg & 0xff00) | data; break;
 		case 3: reg = (reg & 0x00ff) | (data << 8); break;
 	}
+}
+
+
+/***************************************************************************
+    Parallel port (378-37a)
+
+    The registers are inside the Quaderno, so the BIOS finds LPT1 (and
+    can write its POST codes) even with nothing connected.  The signals
+    only reach a printer through the printer cable on the connector.
+***************************************************************************/
+
+uint8_t quaderno_state::lpt_r(offs_t offset)
+{
+	switch (offset)
+	{
+		case 0: return m_lpt_data;
+		case 1: return m_ext->lpt_r(1);    // 0xff without printer cable
+		default: return m_lpt_ctrl | 0xe0;
+	}
+}
+
+void quaderno_state::lpt_w(offs_t offset, uint8_t data)
+{
+	if (offset == 0)
+		m_lpt_data = data;
+	else if (offset == 2)
+		m_lpt_ctrl = data & 0x1f;
+	m_ext->lpt_w(offset, data);
 }
 
 
@@ -1046,6 +1083,7 @@ void quaderno_state::machine_start()
 	m_codec_timer = timer_alloc(FUNC(quaderno_state::codec_frame), this);
 	m_rtc_timer = timer_alloc(FUNC(quaderno_state::rtc_tick), this);
 	m_kbd_timer = timer_alloc(FUNC(quaderno_state::kbd_scan), this);
+	subdevice<quaderno_fdc_device>("fdc:qfdc")->set_connector(m_ext);
 
 	system_time systime;
 	machine().base_datetime(systime);
@@ -1068,6 +1106,8 @@ void quaderno_state::machine_start()
 	save_item(NAME(m_ems_index));
 	save_item(NAME(m_ems));
 	save_item(NAME(m_latch60));
+	save_item(NAME(m_lpt_data));
+	save_item(NAME(m_lpt_ctrl));
 	save_item(NAME(m_p66));
 	save_item(NAME(m_p69));
 	save_item(NAME(m_auxmask));
@@ -1278,6 +1318,11 @@ static INPUT_PORTS_START( quaderno )
 	PORT_CONFSETTING(    0x02, "128 KB" )
 INPUT_PORTS_END
 
+static void quaderno_internal_isa(device_slot_interface &device)
+{
+	device.option_add_internal("qfdc", QUADERNO_FDC);
+}
+
 static DEVICE_INPUT_DEFAULTS_START( quaderno_hdc )
 	DEVICE_INPUT_DEFAULTS("ROM", 0x01, 0x00)    // the system BIOS drives the controller
 DEVICE_INPUT_DEFAULTS_END
@@ -1296,11 +1341,13 @@ void quaderno_state::quaderno(machine_config &config)
 	m_mb->nmi_callback().set_inputline(m_maincpu, INPUT_LINE_NMI);
 
 	// internal peripherals with standard register sets
-	ISA8_SLOT(config, "fdc", 0, "mb:isa", pc_isa8_cards, "fdc_xt", true);
+	ISA8_SLOT(config, "fdc", 0, "mb:isa", quaderno_internal_isa, "qfdc", true);
 	ISA8_SLOT(config, "com", 0, "mb:isa", pc_isa8_cards, "com", true);
-	ISA8_SLOT(config, "lpt", 0, "mb:isa", pc_isa8_cards, "lpt", true);
 	ISA8_SLOT(config, "hdc", 0, "mb:isa", pc_isa8_cards, "hdc", true)
 			.set_option_device_input_defaults("hdc", DEVICE_INPUT_DEFAULTS_NAME(quaderno_hdc));
+
+	// parallel/floppy connector: printer cable or EFD 1035 floppy drive
+	QUADERNO_EXT(config, m_ext, quaderno_ext_devices, nullptr);
 
 	RAM(config, RAM_TAG).set_default_size("640K");
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
