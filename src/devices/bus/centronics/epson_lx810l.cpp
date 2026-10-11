@@ -29,11 +29,10 @@
 #include "epson_lx810l.h"
 #include "speaker.h"
 
+#include "epson_lx810l.lh"
+
 //#define VERBOSE 1
 #include "logmacro.h"
-
-//extern const char layout_lx800[]; /* use layout from lx800 */
-
 
 /* The printer starts printing at x offset 44 and stops printing at x
  * offset 1009, giving a total of 965 printable pixels. Supposedly, the
@@ -140,7 +139,7 @@ void epson_lx810l_device::device_add_mconfig(machine_config &config)
 	upd.co0_func().set(FUNC(epson_lx810l_device::co0_w));
 	upd.co1_func().set("dac", FUNC(dac_bit_interface::write));
 
-//  config.set_default_layout(layout_lx800);
+	config.set_default_layout(layout_epson_lx810l);
 
 	/* audio hardware */
 	SPEAKER(config, "speaker").front_center();
@@ -166,6 +165,7 @@ void epson_lx810l_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, PAPER_WIDTH, PAPER_HEIGHT, 120, 72);  // do 72 dpi
 	m_bitmap_printer->set_pf_stepper_ratio(1,6);  // pf stepper moves at 216 dpi so at 72dpi half steps
 	m_bitmap_printer->set_cr_stepper_ratio(1,1);
+	m_bitmap_printer->set_paper_view(3.0);
 }
 
 /***************************************************************************
@@ -296,8 +296,9 @@ epson_lx810l_device::epson_lx810l_device(const machine_config &mconfig, device_t
 	m_bitmap_printer(*this, "bitmap_printer"),
 	m_eeprom(*this, "eeprom"),
 	m_e05a30(*this, "e05a30"),
-	m_online_led(*this, "online_led"),
-	m_ready_led(*this, "ready_led"),
+	m_online_led(*this, "lx810l_online_led"),
+	m_ready_led(*this, "lx810l_ready_led"),
+	m_paperout_led(*this, "lx810l_paperout_led"),
 	m_online_ioport(*this, "ONLINE"),
 	m_formfeed_ioport(*this, "FORMFEED"),
 	m_linefeed_ioport(*this, "LINEFEED"),
@@ -405,6 +406,7 @@ uint8_t epson_lx810l_device::porta_r(offs_t offset)
 	LOG("%s: lx810l_PA_r(%02x): result %02x\n", machine().describe_context(), offset, result);
 
 	m_bitmap_printer->set_led_state(bitmap_printer_device::LED_ERROR, !m_paperend_ioport->read());
+	m_paperout_led = !m_paperend_ioport->read();
 
 	return result;
 }
