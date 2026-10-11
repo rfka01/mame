@@ -216,7 +216,22 @@ void bitmap_printer_device::device_start()
 void bitmap_printer_device::device_stop()
 {
 	if (!m_continuous_feed)
+	{
+		// without a PDF, a page that was started is saved as a PNG snapshot on exit
+		// (with a PDF the page is filed when the image is unloaded)
+		if (!m_pdf->exists())
+		{
+			for (int row = 0; row < m_paper_height; row++)
+			{
+				if (row_has_ink(m_page_bitmap, row))
+				{
+					write_snapshot_to_file();
+					break;
+				}
+			}
+		}
 		return;
+	}
 
 	flush_roll();
 
