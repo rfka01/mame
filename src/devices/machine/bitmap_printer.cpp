@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 /***************************************************************************
     DEVICE DECLARATION
@@ -67,8 +68,7 @@ void bitmap_printer_device::device_add_mconfig(machine_config &config)
 	screen_device &screen(SCREEN(config, m_screen));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
-	screen.set_size(m_paper_width, PAPER_SCREEN_HEIGHT);
-	screen.set_visarea(0, m_paper_width - 1, 0, PAPER_SCREEN_HEIGHT - 1);
+	configure_screen(screen);
 	screen.set_screen_update(FUNC(bitmap_printer_device::screen_update_bitmap));
 
 	// paper output: PDF document, or PNG snapshots when no file is mounted
@@ -120,8 +120,34 @@ bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, devi
 	m_pf_stepper_ratio1(1),
 	m_cr_stepper_ratio0(1),
 	m_cr_stepper_ratio1(1),
-	m_dot_style_set(false)
+	m_dot_style_set(false),
+	m_screen_height(DEFAULT_SCREEN_HEIGHT),
+	m_view_serial(1),
+	m_view_cached_serial(0),
+	m_view_cached_scroll(0)
 {
+}
+
+void bitmap_printer_device::configure_screen(screen_device &screen)
+{
+	screen.set_size(m_paper_width, m_screen_height);
+	screen.set_visarea(0, m_paper_width - 1, 0, m_screen_height - 1);
+
+	// the paper's real proportions, also when the resolution differs horizontally and vertically
+	if ((m_paper_width > 0) && (m_hdpi > 0) && (m_vdpi > 0))
+	{
+		u32 x = u32(m_paper_width) * u32(m_vdpi), y = u32(m_screen_height) * u32(m_hdpi);
+		u32 const g = std::gcd(x, y);
+		screen.set_physical_aspect(x / g, y / g);
+	}
+}
+
+void bitmap_printer_device::set_paper_view(double inches)
+{
+	m_screen_height = std::max(64, int(std::lround(inches * m_vdpi)));
+	screen_device *const screen = subdevice<screen_device>("screen");
+	if (screen)
+		configure_screen(*screen);
 }
 
 bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
@@ -353,12 +379,28 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 
 	int scrolly = calc_scroll_y(bitmap);
 
-	copyscrollbitmap(bitmap, m_page_bitmap, 0, nullptr, 1, &scrolly, cliprect);
-
-	// printers that plot dot centers get their dots drawn at full size, so the
-	// paper looks like the printout rather than a sparse grid of single pixels
 	if (m_dot_style_set)
-		expand_dots(bitmap, cliprect);
+	{
+		// printers that plot dot centers get their dots drawn at full size, so the
+		// paper looks like the printout rather than a sparse grid of single pixels;
+		// redone only when the paper changed or moved
+		if ((m_view_cache.width() != bitmap.width()) || (m_view_cache.height() != bitmap.height()))
+		{
+			m_view_cache.allocate(bitmap.width(), bitmap.height());
+			m_dot_view.allocate(bitmap.width(), bitmap.height());
+			m_view_cached_serial = m_view_serial - 1;
+		}
+		if ((m_view_cached_serial != m_view_serial) || (m_view_cached_scroll != scrolly))
+		{
+			copyscrollbitmap(m_dot_view, m_page_bitmap, 0, nullptr, 1, &scrolly, m_dot_view.cliprect());
+			expand_dots(m_dot_view, m_view_cache);
+			m_view_cached_serial = m_view_serial;
+			m_view_cached_scroll = scrolly;
+		}
+		copybitmap(bitmap, m_view_cache, 0, 0, 0, 0, cliprect);
+	}
+	else
+		copyscrollbitmap(bitmap, m_page_bitmap, 0, nullptr, 1, &scrolly, cliprect);
 
 	// an endless roll has no page edges, and the buffer wrap isn't a seam
 	if (!m_continuous_feed)
@@ -378,22 +420,18 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 	return 0;
 }
 
-void bitmap_printer_device::expand_dots(bitmap_rgb32 &bitmap, const rectangle &cliprect)
+void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst)
 {
+	rectangle const &clip = dst.cliprect();
+	dst.fill(paper_color);
+
 	int const rx = std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0);
 	int const ry = std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0);
-	if (!rx && !ry)
-		return;
 
-	if ((m_dot_view.width() != bitmap.width()) || (m_dot_view.height() != bitmap.height()))
-		m_dot_view.allocate(bitmap.width(), bitmap.height());
-	copybitmap(m_dot_view, bitmap, 0, 0, 0, 0, cliprect);
-	bitmap.fill(paper_color, cliprect);
-
-	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = clip.min_y; y <= clip.max_y; y++)
 	{
-		u32 const *const line = &m_dot_view.pix(y, 0);
-		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
+		u32 const *const line = &src.pix(y, 0);
+		for (int x = clip.min_x; x <= clip.max_x; x++)
 		{
 			u32 const color = line[x];
 			if ((color & 0xffffff) == paper_color)
@@ -403,14 +441,14 @@ void bitmap_printer_device::expand_dots(bitmap_rgb32 &bitmap, const rectangle &c
 			for (int dy = -ry; dy <= ry; dy++)
 			{
 				int const py = y + dy;
-				if ((py < cliprect.min_y) || (py > cliprect.max_y))
+				if ((py < clip.min_y) || (py > clip.max_y))
 					continue;
 				double const f = ry ? double(dy) / (ry + 0.5) : 0.0;
 				int const w = int((rx + 0.5) * std::sqrt(std::max(0.0, 1.0 - f * f)));
-				int const x0 = std::max(x - w, cliprect.min_x), x1 = std::min(x + w, cliprect.max_x);
-				u32 *const dst = &bitmap.pix(py, 0);
+				int const x0 = std::max(x - w, clip.min_x), x1 = std::min(x + w, clip.max_x);
+				u32 *const out = &dst.pix(py, 0);
 				for (int px = x0; px <= x1; px++)
-					dst[px] = color;
+					out[px] = color;
 			}
 		}
 	}
@@ -438,6 +476,7 @@ void bitmap_printer_device::bitmap_clear_band(int from_line, int to_line, u32 co
 
 void bitmap_printer_device::bitmap_clear_band(bitmap_rgb32 &bitmap, int from_line, int to_line, u32 color)
 {
+	touch();
 	bitmap.plot_box(0, from_line, m_paper_width, to_line - from_line + 1, color);
 }
 
@@ -570,6 +609,7 @@ void bitmap_printer_device::draw_pixel(int x, int y, int pixelval)
 	m_page_bitmap.pix(y, x) = pixelval;
 
 	m_page_dirty = 1;
+	touch();
 };
 
 int bitmap_printer_device::get_pixel(int x, int y)
@@ -587,6 +627,7 @@ unsigned int& bitmap_printer_device::pix(int y, int x)    // reversed y x
 	else if (y >= m_page_bitmap.height()) y = m_page_bitmap.height() - 1;
 	if (x >= m_page_bitmap.width()) x = m_page_bitmap.width() - 1;
 
+	touch();    // the caller may write through the reference
 	return m_page_bitmap.pix(y,x);
 };
 
@@ -629,6 +670,7 @@ void bitmap_printer_device::flush_to_pdf()
 
 	// the sheet has been torn off
 	m_page_bitmap.fill(paper_color);
+	touch();
 }
 
 void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
@@ -728,7 +770,7 @@ bool bitmap_printer_device::check_new_page()
 
 		// clear page down to visible area, starting from the top of page
 		m_clear_pos = 0;
-		clear_to_pos(m_paper_height - 1 - PAPER_SCREEN_HEIGHT),
+		clear_to_pos(m_paper_height - 1 - m_screen_height),
 
 		m_ypos = get_top_margin();  // lock to the top of page until we seek horizontally
 		m_pf_stepper->set_absolute_position(get_top_margin() / m_pf_stepper_ratio0 * m_pf_stepper_ratio1);

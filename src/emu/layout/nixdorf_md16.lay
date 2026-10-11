@@ -28,24 +28,24 @@ Nixdorf MD 16: paper and front panel
 
 	<view name="Paper and Control Panel">
 		<screen tag="bitmap_printer:screen">
-			<bounds x="0" y="0" width="1140" height="120" />
+			<bounds x="0" y="0" width="1140" height="360" />
 		</screen>
-		<element ref="panel"><bounds x="0" y="120" width="1140" height="100" /></element>
-		<element ref="label"><bounds x="300" y="130" width="460" height="80" /></element>
+		<element ref="panel"><bounds x="0" y="360" width="1140" height="100" /></element>
+		<element ref="label"><bounds x="300" y="370" width="460" height="80" /></element>
 
-		<element ref="power_on"><bounds x="310" y="140" width="12" height="12" /></element>
-		<element ref="t_power"><bounds x="328" y="138" width="90" height="16" /></element>
-		<element name="md16_paper_led" ref="led_red"><bounds x="310" y="162" width="12" height="12" /></element>
-		<element ref="t_paper"><bounds x="328" y="160" width="110" height="16" /></element>
+		<element ref="power_on"><bounds x="310" y="380" width="12" height="12" /></element>
+		<element ref="t_power"><bounds x="328" y="378" width="90" height="16" /></element>
+		<element name="md16_paper_led" ref="led_red"><bounds x="310" y="402" width="12" height="12" /></element>
+		<element ref="t_paper"><bounds x="328" y="400" width="110" height="16" /></element>
 
-		<element name="md16_online_led" ref="led_green"><bounds x="460" y="140" width="12" height="12" /></element>
-		<element ref="t_online"><bounds x="478" y="138" width="80" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x01"><bounds x="460" y="182" width="85" height="20" /></element>
+		<element name="md16_online_led" ref="led_green"><bounds x="460" y="380" width="12" height="12" /></element>
+		<element ref="t_online"><bounds x="478" y="378" width="80" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x01"><bounds x="460" y="422" width="85" height="20" /></element>
 
-		<element ref="t_lf"><bounds x="560" y="138" width="85" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x02"><bounds x="560" y="182" width="85" height="20" /></element>
+		<element ref="t_lf"><bounds x="560" y="378" width="85" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x02"><bounds x="560" y="422" width="85" height="20" /></element>
 
-		<element ref="t_ff"><bounds x="660" y="138" width="85" height="16" /></element>
-		<element ref="key" inputtag="KEYS" inputmask="0x04"><bounds x="660" y="182" width="85" height="20" /></element>
+		<element ref="t_ff"><bounds x="660" y="378" width="85" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x04"><bounds x="660" y="422" width="85" height="20" /></element>
 	</view>
 </mamelayout>

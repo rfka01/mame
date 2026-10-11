@@ -44,6 +44,9 @@ public:
 
 	// PDF output: dot appearance of the pages filed to the "printout" image
 	void set_dot_style(const printer_dot_style &style) { m_dot_style = style; m_dot_style_set = true; }
+
+	// height of the paper shown on the paper screen, in inches (configuration time only)
+	void set_paper_view(double inches);
 	pdf_printer_device &pdf() { return *m_pdf; }
 
 	void draw_pixel(int x, int y, int pixelval);
@@ -95,7 +98,7 @@ private:
 	bitmap_rgb32 m_page_bitmap; // page bitmap
 	bitmap_rgb32 m_roll_bitmap; // continuous feed: rows retired from the page bitmap, held until a lap is ready to write
 
-	static constexpr int PAPER_SCREEN_HEIGHT = 384; // match the height of the apple II driver
+	static constexpr int DEFAULT_SCREEN_HEIGHT = 384; // match the height of the apple II driver
 	static constexpr int m_distfrombottom = 50;  // print position from bottom of screen
 	static constexpr int MAX_LEDS = 5;
 	static constexpr u32 paper_color = 0xffffff;
@@ -129,10 +132,18 @@ private:
 
 	printer_dot_style m_dot_style;
 	bool m_dot_style_set;
-	bitmap_rgb32 m_dot_view; // paper screen scratch for drawing full-size dots
+	int m_screen_height;     // paper screen height in pixels
+	bitmap_rgb32 m_dot_view; // paper screen: unexpanded view of the page
+	bitmap_rgb32 m_view_cache; // paper screen: page with full-size dots
+	u32 m_view_serial;       // bumped whenever the page bitmap changes
+	u32 m_view_cached_serial;
+	int m_view_cached_scroll;
+
+	void configure_screen(screen_device &screen);
+	void touch() { m_view_serial++; }
 
 	void flush_to_pdf();
-	void expand_dots(bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	void expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst);
 	void draw_printhead(bitmap_rgb32 &bitmap, int x, int y);
 	u32 dimcolor(u32 incolor, int factor);
 

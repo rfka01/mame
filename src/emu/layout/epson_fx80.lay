@@ -28,24 +28,24 @@ Epson FX-80 / JX-80: paper and front panel
 
 	<view name="Paper and Control Panel">
 		<screen tag="bitmap_printer:screen">
-			<bounds x="0" y="0" width="1140" height="213" />
+			<bounds x="0" y="0" width="1140" height="360" />
 		</screen>
-		<element ref="panel"><bounds x="0" y="213" width="1140" height="90" /></element>
+		<element ref="panel"><bounds x="0" y="360" width="1140" height="90" /></element>
 
-		<element ref="power_on"><bounds x="40" y="229" width="14" height="14" /></element>
-		<element ref="t_power"><bounds x="20" y="249" width="55" height="18" /></element>
-		<element name="fx80_ready_led" ref="led_green"><bounds x="120" y="229" width="14" height="14" /></element>
-		<element ref="t_ready"><bounds x="100" y="249" width="55" height="18" /></element>
-		<element name="fx80_paper_led" ref="led_red"><bounds x="210" y="229" width="14" height="14" /></element>
-		<element ref="t_paper"><bounds x="180" y="249" width="75" height="18" /></element>
-		<element name="fx80_online_led" ref="led_green"><bounds x="300" y="229" width="14" height="14" /></element>
-		<element ref="t_online"><bounds x="275" y="249" width="65" height="18" /></element>
+		<element ref="power_on"><bounds x="40" y="376" width="14" height="14" /></element>
+		<element ref="t_power"><bounds x="20" y="396" width="55" height="18" /></element>
+		<element name="fx80_ready_led" ref="led_green"><bounds x="120" y="376" width="14" height="14" /></element>
+		<element ref="t_ready"><bounds x="100" y="396" width="55" height="18" /></element>
+		<element name="fx80_paper_led" ref="led_red"><bounds x="210" y="376" width="14" height="14" /></element>
+		<element ref="t_paper"><bounds x="180" y="396" width="75" height="18" /></element>
+		<element name="fx80_online_led" ref="led_green"><bounds x="300" y="376" width="14" height="14" /></element>
+		<element ref="t_online"><bounds x="275" y="396" width="65" height="18" /></element>
 
-		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="440" y="235" width="60" height="30" /></element>
-		<element ref="t_online"><bounds x="435" y="270" width="70" height="16" /></element>
-		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="550" y="235" width="60" height="30" /></element>
-		<element ref="t_ff"><bounds x="535" y="270" width="90" height="16" /></element>
-		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="660" y="235" width="60" height="30" /></element>
-		<element ref="t_lf"><bounds x="645" y="270" width="90" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="440" y="382" width="60" height="30" /></element>
+		<element ref="t_online"><bounds x="435" y="417" width="70" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="550" y="382" width="60" height="30" /></element>
+		<element ref="t_ff"><bounds x="535" y="417" width="90" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="660" y="382" width="60" height="30" /></element>
+		<element ref="t_lf"><bounds x="645" y="417" width="90" height="16" /></element>
 	</view>
 </mamelayout>
