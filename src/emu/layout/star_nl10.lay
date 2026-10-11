@@ -32,36 +32,36 @@ Star NL-10: paper and front panel
 
 	<view name="Paper and Control Panel">
 		<screen tag="bitmap_printer:screen">
-			<bounds x="0" y="0" width="1140" height="107" />
+			<bounds x="0" y="0" width="1140" height="360" />
 		</screen>
-		<element ref="panel"><bounds x="0" y="107" width="1140" height="90" /></element>
+		<element ref="panel"><bounds x="0" y="360" width="1140" height="90" /></element>
 
-		<element ref="power_on"><bounds x="40" y="123" width="14" height="14" /></element>
-		<element ref="t_power"><bounds x="20" y="143" width="55" height="18" /></element>
+		<element ref="power_on"><bounds x="40" y="376" width="14" height="14" /></element>
+		<element ref="t_power"><bounds x="20" y="396" width="55" height="18" /></element>
 
-		<element name="nl10_bold_led" ref="led_green"><bounds x="140" y="123" width="14" height="14" /></element>
-		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="120" y="141" width="55" height="30" /></element>
-		<element ref="t_bold"><bounds x="120" y="175" width="55" height="16" /></element>
+		<element name="nl10_bold_led" ref="led_green"><bounds x="140" y="376" width="14" height="14" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="120" y="394" width="55" height="30" /></element>
+		<element ref="t_bold"><bounds x="120" y="428" width="55" height="16" /></element>
 
-		<element name="nl10_mode_led0" ref="led_green"><bounds x="230" y="123" width="12" height="12" /></element>
-		<element ref="t_draft"><bounds x="246" y="121" width="70" height="16" /></element>
-		<element name="nl10_mode_led1" ref="led_green"><bounds x="230" y="140" width="12" height="12" /></element>
-		<element ref="t_96"><bounds x="246" y="138" width="70" height="16" /></element>
-		<element name="nl10_mode_led2" ref="led_green"><bounds x="230" y="157" width="12" height="12" /></element>
-		<element ref="t_136"><bounds x="246" y="155" width="70" height="16" /></element>
-		<element name="nl10_mode_led3" ref="led_green"><bounds x="230" y="174" width="12" height="12" /></element>
-		<element ref="t_nlq"><bounds x="246" y="172" width="70" height="16" /></element>
-		<element ref="key" inputtag="PANEL" inputmask="0x08"><bounds x="330" y="141" width="55" height="30" /></element>
-		<element ref="t_mode"><bounds x="330" y="175" width="55" height="16" /></element>
+		<element name="nl10_mode_led0" ref="led_green"><bounds x="230" y="376" width="12" height="12" /></element>
+		<element ref="t_draft"><bounds x="246" y="374" width="70" height="16" /></element>
+		<element name="nl10_mode_led1" ref="led_green"><bounds x="230" y="393" width="12" height="12" /></element>
+		<element ref="t_96"><bounds x="246" y="391" width="70" height="16" /></element>
+		<element name="nl10_mode_led2" ref="led_green"><bounds x="230" y="410" width="12" height="12" /></element>
+		<element ref="t_136"><bounds x="246" y="408" width="70" height="16" /></element>
+		<element name="nl10_mode_led3" ref="led_green"><bounds x="230" y="427" width="12" height="12" /></element>
+		<element ref="t_nlq"><bounds x="246" y="425" width="70" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x08"><bounds x="330" y="394" width="55" height="30" /></element>
+		<element ref="t_mode"><bounds x="330" y="428" width="55" height="16" /></element>
 
-		<element ref="key" inputtag="PANEL" inputmask="0x20"><bounds x="440" y="141" width="55" height="30" /></element>
-		<element ref="t_tof"><bounds x="440" y="175" width="55" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x20"><bounds x="440" y="394" width="55" height="30" /></element>
+		<element ref="t_tof"><bounds x="440" y="428" width="55" height="16" /></element>
 
-		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="540" y="141" width="55" height="30" /></element>
-		<element ref="t_feed"><bounds x="520" y="175" width="95" height="16" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="540" y="394" width="55" height="30" /></element>
+		<element ref="t_feed"><bounds x="520" y="428" width="95" height="16" /></element>
 
-		<element name="nl10_online_led" ref="led_green"><bounds x="660" y="123" width="14" height="14" /></element>
-		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="640" y="141" width="55" height="30" /></element>
-		<element ref="t_online"><bounds x="630" y="175" width="75" height="16" /></element>
+		<element name="nl10_online_led" ref="led_green"><bounds x="660" y="376" width="14" height="14" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="640" y="394" width="55" height="30" /></element>
+		<element ref="t_online"><bounds x="630" y="428" width="75" height="16" /></element>
 	</view>
 </mamelayout>

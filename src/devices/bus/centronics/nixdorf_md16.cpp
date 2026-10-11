@@ -207,6 +207,7 @@ void nixdorf_md16_device::device_add_mconfig(machine_config &config)
 
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::inkjet(0.0118));
+	m_bitmap_printer->set_paper_view(3.0);
 
 	config.set_default_layout(layout_nixdorf_md16);
 }
