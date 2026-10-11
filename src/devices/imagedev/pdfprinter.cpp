@@ -172,6 +172,55 @@ void printer_page_canvas::dot(double x, double y, const printer_dot_style &style
 	m_dirty = true;
 }
 
+void printer_page_canvas::fill_rect(double x, double y, double w, double h, u32 color)
+{
+	if (m_pixels.empty())
+		return;
+	int const x0 = std::max(0, int(std::lround(x * m_dpi)));
+	int const x1 = std::min(m_width, int(std::lround((x + w) * m_dpi)));
+	int const y0 = std::max(0, int(std::lround(y * m_dpi)));
+	int const y1 = std::min(m_height, int(std::lround((y + h) * m_dpi)));
+	u8 const c[3] = { u8(color >> 16), u8(color >> 8), u8(color) };
+	u8 const lum = u8((c[0] * 77 + c[1] * 150 + c[2] * 29) >> 8);
+	for (int py = y0; py < y1; py++)
+	{
+		u8 *const line = row(py);
+		for (int px = x0; px < x1; px++)
+		{
+			if (m_channels == 1)
+				line[px] = lum;
+			else
+				std::copy_n(c, 3, &line[px * 3]);
+		}
+	}
+}
+
+void printer_page_canvas::fill_circle(double cx, double cy, double r, u32 color)
+{
+	if (m_pixels.empty())
+		return;
+	double const pcx = cx * m_dpi, pcy = cy * m_dpi, pr = r * m_dpi;
+	int const x0 = std::max(0, int(std::floor(pcx - pr))), x1 = std::min(m_width - 1, int(std::ceil(pcx + pr)));
+	int const y0 = std::max(0, int(std::floor(pcy - pr))), y1 = std::min(m_height - 1, int(std::ceil(pcy + pr)));
+	u8 const c[3] = { u8(color >> 16), u8(color >> 8), u8(color) };
+	u8 const lum = u8((c[0] * 77 + c[1] * 150 + c[2] * 29) >> 8);
+	for (int py = y0; py <= y1; py++)
+	{
+		u8 *const line = row(py);
+		double const dy = py + 0.5 - pcy;
+		for (int px = x0; px <= x1; px++)
+		{
+			double const dx = px + 0.5 - pcx;
+			if (dx * dx + dy * dy > pr * pr)
+				continue;
+			if (m_channels == 1)
+				line[px] = lum;
+			else
+				std::copy_n(c, 3, &line[px * 3]);
+		}
+	}
+}
+
 void printer_page_canvas::take(printer_page_canvas &dest)
 {
 	dest.m_dpi = m_dpi;
@@ -338,14 +387,15 @@ void pdf_printer_device::eject_page(printer_page_canvas &page)
 	flush_jobs(false);
 }
 
-void pdf_printer_device::print_bitmap(const bitmap_rgb32 &bitmap, int hdpi, int vdpi, const printer_dot_style *style, u32 paper_color)
+void pdf_printer_device::print_bitmap(const bitmap_rgb32 &bitmap, int hdpi, int vdpi, const printer_dot_style *style, u32 paper_color,
+		const std::function<void (printer_page_canvas &)> &background, bool background_color)
 {
 	if ((hdpi <= 0) || (vdpi <= 0) || (bitmap.width() <= 0) || (bitmap.height() <= 0))
 		return;
 	paper_color &= 0xffffff;
 
 	// colored ink anywhere?
-	bool color = false;
+	bool color = background_color;
 	for (int y = 0; (y < bitmap.height()) && !color; y++)
 	{
 		u32 const *const line = &bitmap.pix(y, 0);
@@ -363,6 +413,8 @@ void pdf_printer_device::print_bitmap(const bitmap_rgb32 &bitmap, int hdpi, int 
 	printer_dot_style s = style ? *style : printer_dot_style::pixel(hdpi, vdpi);
 	printer_page_canvas page;
 	page.reset(double(bitmap.width()) / hdpi, double(bitmap.height()) / vdpi, output_dpi(std::max(hdpi, vdpi)), color);
+	if (background)
+		background(page);
 	for (int y = 0; y < bitmap.height(); y++)
 	{
 		u32 const *const line = &bitmap.pix(y, 0);

@@ -427,6 +427,7 @@ void epson_fx80_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::impact_9pin());
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_paper_formats(0x0f, bitmap_printer_device::PAPER_FANFOLD_11);
 
 	config.set_default_layout(layout_epson_fx80);
 
@@ -629,7 +630,7 @@ void epson_fx80_device::pc_w(u8 data)
 			if (delta == 1)
 				m_bitmap_printer->m_ypos++;
 			else if (delta == 3)
-				m_bitmap_printer->m_ypos = std::max(0, m_bitmap_printer->m_ypos - 1);
+				m_bitmap_printer->m_ypos = std::max(m_bitmap_printer->min_ypos(), m_bitmap_printer->m_ypos - 1);
 			m_bitmap_printer->check_new_page();
 		}
 		m_pf_phase = phase;
@@ -643,7 +644,7 @@ u8 epson_fx80_device::an1_r()
 
 u8 epson_fx80_device::an3_r()
 {
-	bool const paper = BIT(m_config->read(), 0);
+	bool const paper = BIT(m_config->read(), 0) && m_bitmap_printer->paper_present();
 	m_paper_led = !paper;
 	output_perror(!paper);
 	return paper ? 0xff : 0x00;

@@ -53,9 +53,50 @@ INPUT_PORTS_START(bitmap_printer)
 INPUT_PORTS_END
 
 
+INPUT_PORTS_START(bitmap_printer_paper)
+	PORT_INCLUDE(bitmap_printer)
+
+	PORT_START("PAPER")
+	PORT_CONFNAME(0x07, 0x00, "Paper format") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(bitmap_printer_device::paper_changed), 0)
+	PORT_CONFSETTING(0x00, "Printer default")
+	PORT_CONFSETTING(0x01, "Fanfold 240 mm x 12\"")
+	PORT_CONFSETTING(0x02, "Fanfold 9.5\" x 11\"")
+	PORT_CONFSETTING(0x03, "A4 single sheets")
+	PORT_CONFSETTING(0x04, "Letter single sheets")
+	PORT_CONFNAME(0x08, 0x00, "Green bar fanfold paper") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(bitmap_printer_device::paper_changed), 0)
+	PORT_CONFSETTING(0x00, DEF_STR( No ))
+	PORT_CONFSETTING(0x08, DEF_STR( Yes ))
+	PORT_CONFNAME(0x50, 0x50, "Single sheet supply") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(bitmap_printer_device::paper_changed), 0)
+	PORT_CONFSETTING(0x50, "Always loaded (printer sees endless paper)")
+	PORT_CONFSETTING(0x10, "Sheet feeder (paper sensor sees each sheet)")
+	PORT_CONFSETTING(0x00, "Insert each sheet by hand")
+	PORT_BIT(0x20, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("Insert sheet") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(bitmap_printer_device::insert_sheet), 0)
+INPUT_PORTS_END
+
+namespace {
+
+struct paper_format
+{
+	double width, height;   // inches
+	bool fanfold;           // with tractor strips
+	double left;            // left edge in the mechanism, inches
+};
+
+// fanfold paper uses the full width of the mechanism (tractor strips at both edges);
+// single sheets are put where the tear-off strip of fanfold paper would be
+const paper_format paper_formats[bitmap_printer_device::PAPER_FORMATS] =
+{
+	{ 9.5,          12.0,          true,  0.0 },  // 240 mm x 12" fanfold
+	{ 9.5,          11.0,          true,  0.0 },  // 9.5" x 11" fanfold
+	{ 210.0 / 25.4, 297.0 / 25.4,  false, 0.5 },  // A4
+	{ 8.5,          11.0,          false, 0.5 },  // US Letter
+};
+
+} // anonymous namespace
+
 ioport_constructor bitmap_printer_device::device_input_ports() const
 {
-	return INPUT_PORTS_NAME(bitmap_printer);
+	return m_paper_mask ? INPUT_PORTS_NAME(bitmap_printer_paper) : INPUT_PORTS_NAME(bitmap_printer);
 }
 
 //-------------------------------------------------
@@ -94,6 +135,7 @@ bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, devi
 	m_top_margin_ioport(*this, "TOPMARGIN"),
 	m_bottom_margin_ioport(*this, "BOTTOMMARGIN"),
 	m_draw_marks_ioport(*this, "DRAWMARKS"),
+	m_paper_ioport(*this, "PAPER"),
 	m_printhead_color(0x00EE00),
 	m_printhead_bordercolor(0xEE0000),
 	m_printhead_bordersize(2),
@@ -124,8 +166,201 @@ bitmap_printer_device::bitmap_printer_device(const machine_config &mconfig, devi
 	m_screen_height(DEFAULT_SCREEN_HEIGHT),
 	m_view_serial(1),
 	m_view_cached_serial(0),
-	m_view_cached_scroll(0)
+	m_view_cached_scroll(0),
+	m_paper_mask(0),
+	m_paper_default(PAPER_FANFOLD_11),
+	m_sheet_height(0),
+	m_sheet_left(0),
+	m_sheet_right(0),
+	m_sheet_fanfold(true),
+	m_greenbar(false),
+	m_unlimited_sheets(true),
+	m_always_loaded(true),
+	m_sheet_loaded(true),
+	m_load_offset(0.0),
+	m_sheet_at_power_on(false),
+	m_sheet_top(0.5),
+	m_sensor_rows(0),
+	m_feeder_timer(nullptr)
 {
+}
+
+void bitmap_printer_device::set_paper_formats(u8 mask, int default_format)
+{
+	m_paper_mask = mask;
+	m_paper_default = default_format;
+
+	// the page bitmap must hold the longest sheet
+	double height = 0.0;
+	for (int i = 0; i < PAPER_FORMATS; i++)
+		if (BIT(mask, i))
+			height = std::max(height, paper_formats[i].height);
+	m_paper_height = std::max(m_paper_height, int(std::ceil(height * m_vdpi)));
+}
+
+void bitmap_printer_device::apply_paper()
+{
+	if (!m_paper_mask)
+		return;
+
+	u32 const cfg = m_paper_ioport ? m_paper_ioport->read() : 0;
+	int format = int(cfg & 0x07) - 1;
+	if ((format < 0) || (format >= PAPER_FORMATS) || !BIT(m_paper_mask, format))
+		format = m_paper_default;
+	paper_format const &p = paper_formats[format];
+
+	m_sheet_height = std::min(m_paper_height, int(std::lround(p.height * m_vdpi)));
+	m_sheet_left = std::clamp(int(std::lround(p.left * m_hdpi)), 0, m_paper_width - 1);
+	m_sheet_right = std::min(m_paper_width, m_sheet_left + int(std::lround(p.width * m_hdpi)));
+	m_sheet_fanfold = p.fanfold;
+	m_sensor_rows = int(std::lround(m_load_offset * m_vdpi));
+	m_greenbar = p.fanfold && BIT(cfg, 3);
+	m_unlimited_sheets = BIT(cfg, 4) || BIT(cfg, 6);
+	m_always_loaded = BIT(cfg, 6);
+	if (m_always_loaded)
+		m_sheet_loaded = true;
+	touch();
+}
+
+INPUT_CHANGED_MEMBER(bitmap_printer_device::paper_changed)
+{
+	apply_paper();
+}
+
+INPUT_CHANGED_MEMBER(bitmap_printer_device::insert_sheet)
+{
+	// a new single sheet is put into the printer
+	if (newval && single_sheet() && !m_sheet_loaded)
+		load_sheet();
+}
+
+void bitmap_printer_device::load_sheet()
+{
+	m_sheet_loaded = true;
+	m_page_bitmap.fill(paper_color);
+	m_clear_pos = 0;
+
+	// the top edge of the new sheet rests at the paper sensor
+	if (m_sensor_rows > 0)
+	{
+		m_newpage_flag = 0;
+		m_ypos = -m_sensor_rows;
+	}
+	touch();
+}
+
+TIMER_CALLBACK_MEMBER(bitmap_printer_device::feed_sheet)
+{
+	if (!single_sheet() || !m_unlimited_sheets || m_sheet_loaded)
+		return;
+
+	// the feeder waits until the paper motor has finished ejecting the last sheet
+	attotime const settle = attotime::from_msec(500);
+	attotime const idle = machine().time() - m_last_feed;
+	if (idle < settle)
+		m_feeder_timer->adjust(settle - idle);
+	else
+		load_sheet();
+}
+
+namespace {
+
+constexpr u32 platen_color = 0x3a3a3c;      // the mechanism behind and beside the paper
+constexpr u32 greenbar_color = 0xd2ecd2;
+constexpr u32 perforation_color = 0xc4c4c4;
+constexpr u32 hole_file_color = 0xe4e4e4;   // tractor holes on the filed page
+constexpr double STRIP = 0.5;               // tractor strip width, inches
+constexpr double HOLE_PITCH = 0.5;
+constexpr double HOLE_RADIUS = 5.0 / 64.0;  // 5/32" holes
+constexpr double BAR = 1.0 / 6.0;            // green bar band height: one 6 lpi line (DIN computer paper, 4.23 mm)
+
+} // anonymous namespace
+
+// paper at a point of the sheet (inches from its top left); screen: holes show the platen
+static u32 paper_point(double sx, double sy, double w, bool fanfold, bool greenbar, bool screen, bool top_row)
+{
+	if (fanfold)
+	{
+		// tractor holes
+		double const hy = std::fmod(sy, HOLE_PITCH) - HOLE_PITCH / 2;
+		for (double hx : { STRIP / 2, w - STRIP / 2 })
+		{
+			double const dx = sx - hx;
+			if (dx * dx + hy * hy <= HOLE_RADIUS * HOLE_RADIUS)
+				return screen ? platen_color : hole_file_color;
+		}
+
+		// the page's perforation, only on the screen where the next page follows
+		if (screen && top_row && (std::fmod(sx, 0.125) < 0.075))
+			return perforation_color;
+
+		if (greenbar && (sx >= STRIP) && (sx < w - STRIP) && (std::fmod(sy, 2 * BAR) < BAR))
+			return greenbar_color;
+	}
+	return 0xffffff;
+}
+
+void bitmap_printer_device::render_paper(bitmap_rgb32 &dst, int page_row0, int col0, bool screen)
+{
+	double const w = double(m_sheet_right - m_sheet_left) / m_hdpi;
+	int const strip_l = m_sheet_left + int(std::lround(STRIP * m_hdpi));
+	int const strip_r = m_sheet_right - int(std::lround(STRIP * m_hdpi)) - 1;
+
+	for (int y = 0; y < dst.height(); y++)
+	{
+		u32 *const line = &dst.pix(y, 0);
+		int row = page_row0 + y;
+		bool on_sheet = true;
+		if (m_sheet_fanfold)
+			row = ((row % m_sheet_height) + m_sheet_height) % m_sheet_height;
+		else
+			on_sheet = (row >= 0) && (row < m_sheet_height);
+
+		double const sy = (row + 0.5) / m_vdpi;
+		bool const top_row = (row == 0);
+		bool const dashed = std::fmod(sy, 0.125) < 0.075;   // vertical perforation of the strips
+
+		for (int x = 0; x < dst.width(); x++)
+		{
+			int const col = col0 + x;
+			if (!on_sheet || (col < m_sheet_left) || (col >= m_sheet_right))
+			{
+				line[x] = platen_color;
+				continue;
+			}
+			if (m_sheet_fanfold && dashed && ((col == strip_l) || (col == strip_r)))
+			{
+				line[x] = perforation_color;
+				continue;
+			}
+			line[x] = paper_point((col - m_sheet_left + 0.5) / m_hdpi, sy, w, m_sheet_fanfold, m_greenbar, screen, top_row);
+		}
+	}
+}
+
+void bitmap_printer_device::paper_canvas(printer_page_canvas &page)
+{
+	if (!m_sheet_fanfold)
+		return;
+
+	double const w = page.width_in(), h = page.height_in();
+
+	if (m_greenbar)
+		for (double y = 0; y < h; y += 2 * BAR)
+			page.fill_rect(STRIP, y, w - 2 * STRIP, std::min(BAR, h - y), greenbar_color);
+
+	for (double y = HOLE_PITCH / 2; y < h; y += HOLE_PITCH)
+	{
+		page.fill_circle(STRIP / 2, y, HOLE_RADIUS, hole_file_color);
+		page.fill_circle(w - STRIP / 2, y, HOLE_RADIUS, hole_file_color);
+	}
+
+	double const t = 1.0 / page.dpi();
+	for (double y = 0; y < h; y += 0.125)
+	{
+		page.fill_rect(STRIP, y, t, 0.075, perforation_color);
+		page.fill_rect(w - STRIP - t, y, t, 0.075, perforation_color);
+	}
 }
 
 void bitmap_printer_device::configure_screen(screen_device &screen)
@@ -211,6 +446,9 @@ void bitmap_printer_device::device_start()
 	save_item(NAME(m_continuous_feed));
 	save_item(NAME(m_feed_hi));
 	save_item(NAME(m_feed_lo));
+	save_item(NAME(m_sheet_loaded));
+
+	m_feeder_timer = timer_alloc(FUNC(bitmap_printer_device::feed_sheet), this);
 }
 
 void bitmap_printer_device::device_stop()
@@ -219,9 +457,10 @@ void bitmap_printer_device::device_stop()
 	{
 		// without a PDF, a page that was started is saved as a PNG snapshot on exit
 		// (with a PDF the page is filed when the image is unloaded)
-		if (!m_pdf->exists())
+		if (!m_pdf->exists() && sheet_in())
 		{
-			for (int row = 0; row < m_paper_height; row++)
+			clear_to_pos(page_rows() - 1);  // the rest of the previous page shown below the head
+			for (int row = 0; row < page_rows(); row++)
 			{
 				if (row_has_ink(m_page_bitmap, row))
 				{
@@ -249,7 +488,7 @@ void bitmap_printer_device::device_stop()
 
 void bitmap_printer_device::device_reset_after_children()
 {
-	m_ypos = get_top_margin();
+	m_ypos = sheet_start_row();
 
 	if (m_continuous_feed)
 		reset_feed_marks();
@@ -257,6 +496,11 @@ void bitmap_printer_device::device_reset_after_children()
 
 void bitmap_printer_device::device_reset()
 {
+	// single sheets: the paper sensor sees the first sheet come in after power on
+	apply_paper();
+	m_sheet_loaded = !single_sheet() || m_always_loaded || m_sheet_at_power_on;
+	if (!m_sheet_loaded)
+		m_feeder_timer->adjust(attotime::from_msec(1500));
 }
 
 //-------------------------------------------------
@@ -394,7 +638,41 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 
 	int scrolly = calc_scroll_y(bitmap);
 
-	if (m_dot_style_set)
+	if (m_paper_mask)
+	{
+		// selectable paper: the sheet on the platen, with the ink stamped on it
+		if ((m_view_cache.width() != bitmap.width()) || (m_view_cache.height() != bitmap.height()))
+		{
+			m_view_cache.allocate(bitmap.width(), bitmap.height());
+			m_dot_view.allocate(bitmap.width(), bitmap.height());
+			m_view_cached_serial = m_view_serial - 1;
+		}
+		if ((m_view_cached_serial != m_view_serial) || (m_view_cached_scroll != scrolly))
+		{
+			int const rows = page_rows();
+			for (int y = 0; y < m_dot_view.height(); y++)
+			{
+				// above the top of the page: the end of the previous fanfold page
+				int row = y - scrolly;
+				if (m_sheet_fanfold && (row < 0))
+					row += rows;
+				u32 *const dst = &m_dot_view.pix(y, 0);
+				if ((row >= 0) && (row < rows) && ((y - scrolly >= 0) || sheet_in()))
+					std::copy_n(&m_page_bitmap.pix(row, 0), std::min(m_dot_view.width(), m_paper_width), dst);
+				else
+					std::fill_n(dst, m_dot_view.width(), paper_color);
+			}
+			if (sheet_in())
+				render_paper(m_view_cache, -scrolly, 0, true);
+			else
+				m_view_cache.fill(platen_color);
+			expand_dots(m_dot_view, m_view_cache);
+			m_view_cached_serial = m_view_serial;
+			m_view_cached_scroll = scrolly;
+		}
+		copybitmap(bitmap, m_view_cache, 0, 0, 0, 0, cliprect);
+	}
+	else if (m_dot_style_set)
 	{
 		// printers that plot dot centers get their dots drawn at full size, so the
 		// paper looks like the printout rather than a sparse grid of single pixels;
@@ -408,6 +686,7 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 		if ((m_view_cached_serial != m_view_serial) || (m_view_cached_scroll != scrolly))
 		{
 			copyscrollbitmap(m_dot_view, m_page_bitmap, 0, nullptr, 1, &scrolly, m_dot_view.cliprect());
+			m_view_cache.fill(paper_color);
 			expand_dots(m_dot_view, m_view_cache);
 			m_view_cached_serial = m_view_serial;
 			m_view_cached_scroll = scrolly;
@@ -418,7 +697,7 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 		copyscrollbitmap(bitmap, m_page_bitmap, 0, nullptr, 1, &scrolly, cliprect);
 
 	// an endless roll has no page edges, and the buffer wrap isn't a seam
-	if (!m_continuous_feed)
+	if (!m_continuous_feed && !m_paper_mask)
 	{
 		// draw a line on the very top of the top edge of page
 		bitmap.plot_box(0, bitmap.height() - m_distfrombottom - m_ypos, m_paper_width, 2, top_edge_color);
@@ -438,10 +717,9 @@ uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
 void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst)
 {
 	rectangle const &clip = dst.cliprect();
-	dst.fill(paper_color);
 
-	int const rx = std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0);
-	int const ry = std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0);
+	int const rx = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0) : 0;
+	int const ry = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0) : 0;
 
 	for (int y = clip.min_y; y <= clip.max_y; y++)
 	{
@@ -593,9 +871,10 @@ void bitmap_printer_device::draw_inch_marks(bitmap_rgb32& bitmap)
 	int drawmarks = m_draw_marks_ioport->read();
 	if (!drawmarks) return;
 
-	for (int i = 0; i < m_vdpi * 11; i += m_vdpi / 4)
+	int const rows = m_paper_mask ? page_rows() : m_vdpi * 11;
+	for (int i = 0; i < rows; i += m_vdpi / 4)
 	{
-		int adj_i = i + calc_scroll_y(bitmap) % m_paper_height;
+		int adj_i = i + calc_scroll_y(bitmap) % page_rows();
 		int barbase = m_vdpi / 6;
 		int barwidth = ((i % m_vdpi) == 0) ? barbase * 2 : barbase;
 		int barcolor = ((i % m_vdpi) == 0) ? dark_grey_color : light_grey_color;
@@ -619,6 +898,7 @@ void bitmap_printer_device::draw_pixel(int x, int y, int pixelval)
 {
 	if (m_continuous_feed) y = wrap_row(y);
 	else if (y >= m_page_bitmap.height()) y = m_page_bitmap.height() - 1;
+	else if (y < 0) return;   // below the print line: no paper there yet   // below the print line: no paper there yet
 	if (x >= m_page_bitmap.width()) x = m_page_bitmap.width() - 1;
 
 	m_page_bitmap.pix(y, x) = pixelval;
@@ -631,6 +911,7 @@ int bitmap_printer_device::get_pixel(int x, int y)
 {
 	if (m_continuous_feed) y = wrap_row(y);
 	else if (y >= m_page_bitmap.height()) y = m_page_bitmap.height() - 1;
+	else if (y < 0) return paper_color;
 	if (x >= m_page_bitmap.width()) x = m_page_bitmap.width() - 1;
 
 	return m_page_bitmap.pix(y, x);
@@ -640,6 +921,7 @@ unsigned int& bitmap_printer_device::pix(int y, int x)    // reversed y x
 {
 	if (m_continuous_feed) y = wrap_row(y);
 	else if (y >= m_page_bitmap.height()) y = m_page_bitmap.height() - 1;
+	else if (y < 0) y = 0;
 	if (x >= m_page_bitmap.width()) x = m_page_bitmap.width() - 1;
 
 	touch();    // the caller may write through the reference
@@ -652,7 +934,17 @@ unsigned int& bitmap_printer_device::pix(int y, int x)    // reversed y x
 
 void bitmap_printer_device::write_snapshot_to_file()
 {
-	write_bitmap_to_file(m_page_bitmap);
+	if (!m_paper_mask)
+	{
+		write_bitmap_to_file(m_page_bitmap);
+		return;
+	}
+
+	// only the sheet is filed, not the whole width and length of the mechanism
+	bitmap_rgb32 sheet(m_sheet_right - m_sheet_left, m_sheet_height);
+	for (int y = 0; y < m_sheet_height; y++)
+		std::copy_n(&m_page_bitmap.pix(y, m_sheet_left), sheet.width(), &sheet.pix(y, 0));
+	write_bitmap_to_file(sheet);
 }
 
 void bitmap_printer_device::flush_to_pdf()
@@ -671,9 +963,10 @@ void bitmap_printer_device::flush_to_pdf()
 			}
 		}
 	}
-	else
+	else if (sheet_in())
 	{
-		for (int row = 0; row < m_paper_height; row++)
+		clear_to_pos(page_rows() - 1);  // the rest of the previous page shown below the head
+		for (int row = 0; row < page_rows(); row++)
 		{
 			if (row_has_ink(m_page_bitmap, row))
 			{
@@ -692,7 +985,11 @@ void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 {
 	if (m_pdf->exists())
 	{
-		m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color);
+		if (m_paper_mask)
+			m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color,
+					[this] (printer_page_canvas &page) { paper_canvas(page); }, m_greenbar);
+		else
+			m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color);
 		return;
 	}
 
@@ -708,9 +1005,18 @@ void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 		// save the paper into a png; printers that plot dot centers get full-size dots
 		bitmap_rgb32 dots;
 		bitmap_rgb32 const *page = &bitmap;
-		if (m_dot_style_set)
+		if (m_paper_mask)
+		{
+			// the sheet with its strips and bars, and the ink on it
+			dots.allocate(bitmap.width(), bitmap.height());
+			render_paper(dots, 0, m_sheet_left, false);
+			expand_dots(bitmap, dots);
+			page = &dots;
+		}
+		else if (m_dot_style_set)
 		{
 			dots.allocate(bitmap.width(), bitmap.height());
+			dots.fill(paper_color);
 			expand_dots(bitmap, dots);
 			page = &dots;
 		}
@@ -739,11 +1045,20 @@ void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 //-------------------------------------------------
 
 int bitmap_printer_device::get_top_margin()    { return m_top_margin_ioport->read(); }
+
+int bitmap_printer_device::sheet_start_row()
+{
+	// an always loaded single sheet starts where the printer puts a sheet it loads
+	if (single_sheet() && m_always_loaded)
+		return std::max(get_top_margin(), int(std::lround(m_sheet_top * m_vdpi)));
+	return get_top_margin();
+}
 int bitmap_printer_device::get_bottom_margin() { return m_bottom_margin_ioport->read(); }
 
 bool bitmap_printer_device::check_new_page()
 {
 	bool retval = false;
+	m_last_feed = machine().time();
 
 	if (m_continuous_feed)
 	{
@@ -790,29 +1105,47 @@ bool bitmap_printer_device::check_new_page()
 	if (m_newpage_flag == 1)
 	{
 		// if you change m_ypos you have to change the stepper abs position too
-		m_ypos = get_top_margin();  // lock to the top of page until we seek horizontally
-		m_pf_stepper->set_absolute_position(get_top_margin() / m_pf_stepper_ratio0 * m_pf_stepper_ratio1);
+		m_ypos = sheet_start_row();  // lock to the top of page until we seek horizontally
+		m_pf_stepper->set_absolute_position(m_ypos / m_pf_stepper_ratio0 * m_pf_stepper_ratio1);
 	}
 
 	// If we are at the bottom of the page we will
 	// write the page to a file, then erase the top part of the page
 	// so we can still see the last page printed.
-	if (m_ypos > m_page_bitmap.height() - 1 - get_bottom_margin())
+	if (m_ypos > page_rows() - 1 - get_bottom_margin())
 	{
 		// clear paper to bottom from current position
-		clear_to_pos(m_paper_height - 1, rgb_t::white());
+		clear_to_pos(page_rows() - 1, rgb_t::white());
 
-		// save a snapshot
-		write_snapshot_to_file();
+		// save a snapshot (a sheet that has run out was filed when it did)
+		if (sheet_in())
+			write_snapshot_to_file();
+
+		// a single sheet put in by hand or from a feeder: the paper sensor reports
+		// the end of the sheet (an always loaded sheet follows without a gap)
+		if (single_sheet() && !m_always_loaded)
+		{
+			m_sheet_loaded = false;
+			if (m_unlimited_sheets)
+				m_feeder_timer->adjust(attotime::from_msec(500));
+		}
 
 		m_newpage_flag = 1;
 
+		// the next sheet takes the paper selected now
+		int const old_rows = page_rows();
+		apply_paper();
+		if ((page_rows() != old_rows) || single_sheet())
+			m_page_bitmap.fill(paper_color);   // a new single sheet is blank all over
+
 		// clear page down to visible area, starting from the top of page
 		m_clear_pos = 0;
-		clear_to_pos(m_paper_height - 1 - m_screen_height),
+		clear_to_pos(page_rows() - 1 - m_screen_height);
 
-		m_ypos = get_top_margin();  // lock to the top of page until we seek horizontally
-		m_pf_stepper->set_absolute_position(get_top_margin() / m_pf_stepper_ratio0 * m_pf_stepper_ratio1);
+		// lock to the top of page until we seek horizontally: an always loaded sheet
+		// comes in like one loaded by the printer, the rest of the paper feed is lost
+		m_ypos = sheet_start_row();
+		m_pf_stepper->set_absolute_position(m_ypos / m_pf_stepper_ratio0 * m_pf_stepper_ratio1);
 		retval = true;
 	}
 	else
