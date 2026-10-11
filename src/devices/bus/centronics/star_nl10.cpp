@@ -72,6 +72,8 @@ constexpr int VDPI = 432;               // vertical resolution (one paper half s
 constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 12.0;
 constexpr double LEFT_OFFSET = 0.75;    // paper edge to the home sensor edge
+constexpr double SHEET_SENSOR = 1.0;    // single sheets: paper sensor to print line (estimate; the
+										// firmware's loading feed of 1.53" then leaves about 1/2" on top)
 
 constexpr double CR_LAG = 0.625;        // lag of the head behind the rotor, in steps
 constexpr int CR_EDGE = 40;             // home sensor edge, steps from the left stop
@@ -146,9 +148,6 @@ static INPUT_PORTS_START( star_nl10 )
 	PORT_CONFNAME( 0x01, 0x01, "Paper" )
 	PORT_CONFSETTING(    0x00, "Empty" )
 	PORT_CONFSETTING(    0x01, "Loaded" )
-	PORT_CONFNAME( 0x02, 0x00, "Paper release lever" )
-	PORT_CONFSETTING(    0x00, "Tractor (fanfold)" )
-	PORT_CONFSETTING(    0x02, "Friction (single sheets)" )
 	PORT_CONFNAME( 0x1c, 0x00, "Keys held at power on" )
 	PORT_CONFSETTING(    0x00, "None" )
 	PORT_CONFSETTING(    0x04, "ON LINE (short self test)" )
@@ -221,6 +220,9 @@ void star_nl10_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::impact_9pin());
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_paper_formats(0x0f, bitmap_printer_device::PAPER_FANFOLD_12);
+	m_bitmap_printer->set_sheet_load_offset(SHEET_SENSOR);
+	m_bitmap_printer->set_sheet_top(1.53 - SHEET_SENSOR);   // where the loading feed leaves a sheet
 
 	config.set_default_layout(layout_star_nl10);
 
@@ -300,8 +302,8 @@ u8 star_nl10_device::panel_r()
 	u32 const cfg = m_config->read();
 	u8 data = m_panel->read() & 0x2f;
 
-	// levers: tractor = both switches 1, friction = both 0
-	if (!BIT(cfg, 1))
+	// levers follow the paper: tractor = both switches 1, friction (single sheets) = both 0
+	if (!m_bitmap_printer->sheet_handling())
 		data |= 0xc0;
 
 	// keys held while the printer is switched on with its power switch
@@ -378,7 +380,8 @@ void star_nl10_device::port2_w(u8 data)
 
 u8 star_nl10_device::port5_r()
 {
-	return BIT(m_config->read(), 0) ? 0xff : 0xfb;  // P52: paper sensor
+	bool const paper = BIT(m_config->read(), 0) && m_bitmap_printer->paper_present();
+	return paper ? 0xff : 0xfb;  // P52: paper sensor
 }
 
 void star_nl10_device::port5_w(u8 data)
@@ -436,7 +439,7 @@ void star_nl10_device::port6_w(u8 data)
 				if (delta == 1)
 					m_bitmap_printer->m_ypos++;
 				else if (delta == 7)
-					m_bitmap_printer->m_ypos = std::max(0, m_bitmap_printer->m_ypos - 1);
+					m_bitmap_printer->m_ypos = std::max(m_bitmap_printer->min_ypos(), m_bitmap_printer->m_ypos - 1);
 				m_bitmap_printer->check_new_page();
 			}
 			m_pf_phase = idx;

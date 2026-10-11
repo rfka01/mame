@@ -208,6 +208,7 @@ void nixdorf_md16_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::inkjet(0.0118));
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_paper_formats(0x0f, bitmap_printer_device::PAPER_FANFOLD_12);
 
 	config.set_default_layout(layout_nixdorf_md16);
 }
@@ -367,7 +368,8 @@ u8 nixdorf_md16_device::an0_r()
 
 u8 nixdorf_md16_device::an2_r()
 {
-	return BIT(m_config->read(), 0) ? 0x20 : 0xe0;  // paper sensor
+	bool const paper = BIT(m_config->read(), 0) && m_bitmap_printer->paper_present();
+	return paper ? 0x20 : 0xe0;  // paper sensor
 }
 
 u8 nixdorf_md16_device::an3_r()
@@ -415,7 +417,7 @@ void nixdorf_md16_device::motor_phase(u8 phases)
 				if (delta == 1 || delta == 2)
 					m_bitmap_printer->m_ypos += delta;
 				else if (delta == 6 || delta == 7)
-					m_bitmap_printer->m_ypos = std::max(0, m_bitmap_printer->m_ypos - (8 - delta));
+					m_bitmap_printer->m_ypos = std::max(m_bitmap_printer->min_ypos(), m_bitmap_printer->m_ypos - (8 - delta));
 				m_bitmap_printer->check_new_page();
 			}
 			m_pf_phase = i;

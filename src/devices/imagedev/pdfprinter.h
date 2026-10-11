@@ -88,6 +88,10 @@ public:
 	void dot(double x, double y) { dot(x, y, m_style); }
 	void dot(double x, double y, const printer_dot_style &style);
 
+	// paper background (drawn before the dots): rectangles and filled circles
+	void fill_rect(double x, double y, double w, double h, u32 color);
+	void fill_circle(double cx, double cy, double r, u32 color);
+
 	// raw access
 	u8 *row(int y) { return &m_pixels[size_t(y) * m_width * m_channels]; }
 	const u8 *row(int y) const { return &m_pixels[size_t(y) * m_width * m_channels]; }
@@ -145,7 +149,8 @@ public:
 
 	// file a page given as bitmap, e.g. from bitmap_printer; every non-paper
 	// pixel becomes one dot of the given style (pixel style if null)
-	void print_bitmap(const bitmap_rgb32 &bitmap, int hdpi, int vdpi, const printer_dot_style *style = nullptr, u32 paper_color = 0xffffff);
+	void print_bitmap(const bitmap_rgb32 &bitmap, int hdpi, int vdpi, const printer_dot_style *style = nullptr, u32 paper_color = 0xffffff,
+			const std::function<void (printer_page_canvas &)> &background = nullptr, bool background_color = false);
 
 	// resolution of the PDF page images for a printer of the given native resolution
 	int output_dpi(int native_dpi) const;
