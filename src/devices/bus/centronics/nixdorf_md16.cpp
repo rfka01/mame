@@ -421,9 +421,10 @@ void nixdorf_md16_device::motor_phase(u8 phases)
 			m_pf_phase = i;
 		}
 	}
-	else
+	else if (BIT(m_pa, 6))
 	{
-		// carriage motor, full steps of 1/40"
+		// carriage motor, full steps of 1/40" (the phase lines are shared with the
+		// paper motor; the carriage only follows them while its driver is on)
 		for (int i = 0; i < 4; i++)
 		{
 			if (cr_sequence[i] != phases)
@@ -431,15 +432,19 @@ void nixdorf_md16_device::motor_phase(u8 phases)
 			if (m_cr_phase >= 0)
 			{
 				int const delta = (i - m_cr_phase) & 3;
-				if (delta == 1 || delta == 3)
+				// a jump over one phase: a moving rotor carries on in its direction,
+				// a resting one is left where it is (the jumps come in pairs there)
+				bool const moving = (machine().time() - m_cr_last_step) < attotime::from_msec(5);
+				int const steps = (delta == 2) ? (moving ? 2 : 0) : 1;
+				if (steps && delta != 0)
 				{
-					int const dir = (delta == 1) ? 1 : -1;
+					int const dir = (delta == 2) ? m_cr_dir : (delta == 1) ? 1 : -1;
 					attotime const now = machine().time();
 					attotime const since = now - m_cr_last_step;
 					m_cr_period = (dir == m_cr_dir && since < attotime::from_msec(20)) ? since : attotime::never;
 					m_cr_last_step = now;
 					m_cr_dir = dir;
-					m_cr_pos = std::clamp(m_cr_pos + dir, 0, CR_RIGHT);
+					m_cr_pos = std::clamp(m_cr_pos + dir * steps, 0, CR_RIGHT);
 					m_bitmap_printer->setheadpos(int(m_cr_pos / 40.0 * HDPI + LEFT_OFFSET * HDPI), m_bitmap_printer->m_ypos);
 				}
 			}

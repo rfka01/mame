@@ -73,6 +73,7 @@ constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 12.0;
 constexpr double LEFT_OFFSET = 0.75;    // paper edge to the home sensor edge
 
+constexpr double CR_LAG = 0.625;        // lag of the head behind the rotor, in steps
 constexpr int CR_EDGE = 40;             // home sensor edge, steps from the left stop
 constexpr int CR_RIGHT = CR_EDGE + 500; // right stop
 
@@ -455,7 +456,7 @@ double star_nl10_device::head_x() const
 	if (m_cr_period.is_never() || (m_cr_period <= attotime::zero))
 		return m_cr_pos;
 	double const frac = std::min(1.0, (machine().time() - m_cr_last_step).as_double() / m_cr_period.as_double());
-	return m_cr_pos - m_cr_dir * (1.0 - frac);
+	return m_cr_pos - m_cr_dir * (1.0 - frac + CR_LAG);
 }
 
 void star_nl10_device::fire(u8 pins)
