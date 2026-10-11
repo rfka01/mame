@@ -1473,6 +1473,15 @@ void upd7810_device::update_sio(int cycles)
 
 void upd7810_device::handle_timers(int cycles)
 {
+	// pulses at TI in this time slice, for the timers counting them
+	int ti = 0;
+	if (m_ti_clock && (((TMM & 0x0c) == 0x08) || ((TMM & 0x60) == 0x40)))
+	{
+		m_ti_accum += uint64_t(cycles) * m_ti_clock * 3;
+		ti = int(m_ti_accum / clock());
+		m_ti_accum %= clock();
+	}
+
 	/**** TIMER 0 ****/
 	if (TMM & 0x10)         /* timer 0 upcounter reset ? */
 		CNT0 = 0;
@@ -1487,6 +1496,8 @@ void upd7810_device::handle_timers(int cycles)
 			upd7810_handle_timer0(cycles, 128);
 			break;
 		case 0x08:  /* external signal at TI */
+			if (ti)
+				upd7810_handle_timer0(ti, 1);
 			break;
 		case 0x0c:  /* disabled */
 			break;
@@ -1507,6 +1518,8 @@ void upd7810_device::handle_timers(int cycles)
 			upd7810_handle_timer1(cycles, 128);
 			break;
 		case 0x40:  /* external signal at TI */
+			if (ti)
+				upd7810_handle_timer1(ti, 1);
 			break;
 		case 0x60:  /* clocked with timer 0 */
 			break;
@@ -1792,6 +1805,7 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_ovce));
 	save_item(NAME(m_ovcf));
 	save_item(NAME(m_ovcs));
+	save_item(NAME(m_ti_accum));
 	save_item(NAME(m_edges));
 	save_item(NAME(m_adcnt));
 	save_item(NAME(m_adtot));

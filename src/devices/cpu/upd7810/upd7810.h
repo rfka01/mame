@@ -70,6 +70,10 @@ public:
 	auto pd_out_cb() { return m_pd_out_cb.bind(); }
 	auto pf_out_cb() { return m_pf_out_cb.bind(); }
 
+	// clock at the TI input (PC3), for timers counting external pulses
+	void set_ti_clock(uint32_t clock) { m_ti_clock = clock; }
+	void set_ti_clock(const XTAL &clock) { m_ti_clock = clock.value(); }
+
 	void set_pa_pullups(uint8_t p) { m_pa_pullups = p; }
 	void set_pb_pullups(uint8_t p) { m_pb_pullups = p; }
 	void set_pc_pullups(uint8_t p) { m_pc_pullups = p; }
@@ -330,6 +334,8 @@ protected:
 	int32_t   m_ovce;   /* overflow counter for ecnt */
 	int32_t   m_ovcf;   /* overflow counter for fixed clock div 3 mode */
 	int32_t   m_ovcs;   /* overflow counter for serial I/O */
+	uint32_t  m_ti_clock = 0;   /* clock at TI, 0 = none */
+	uint64_t  m_ti_accum = 0;   /* TI phase, in units of clock()/3 */
 	uint8_t   m_edges;  /* rising/falling edge flag for serial I/O */
 	uint16_t  m_adcnt;  /* A/D converter cycle count */
 	uint8_t   m_adtot;  /* A/D converter total cycles per conversion */
