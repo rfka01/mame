@@ -752,8 +752,8 @@ void quaderno_state::dsp_sport_tx_w(offs_t offset, uint32_t data)
 TIMER_CALLBACK_MEMBER(quaderno_state::codec_frame)
 {
 	m_codec_dac->write(m_codec_out);
-	m_dsp->pulse_input_line(ADSP2111_SPORT0_RX, attotime::zero);
-	m_dsp->pulse_input_line(ADSP2111_SPORT0_TX, attotime::zero);
+	m_dsp->pulse_input_line(ADSP2111_SPORT0_RX, m_dsp->clocks_to_attotime(1));
+	m_dsp->pulse_input_line(ADSP2111_SPORT0_TX, m_dsp->clocks_to_attotime(1));
 }
 
 
