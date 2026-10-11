@@ -40,7 +40,7 @@
 #include "cpu/upd7810/upd7810.h"
 #include "machine/bitmap_printer.h"
 #include "machine/e05a03.h"
-#include "sound/beep.h"
+#include "sound/dac.h"
 
 #include "speaker.h"
 
@@ -130,7 +130,7 @@ private:
 	required_device<upd7810_device> m_maincpu;
 	required_device<e05a03_device> m_ga;
 	required_device<bitmap_printer_device> m_bitmap_printer;
-	required_device<beep_device> m_beep;
+	required_device<dac_bit_interface> m_beep;   // buzzer, driven by CO1 (the firmware toggles it for a tone)
 	required_ioport m_panel;
 	required_ioport m_dsw1;
 	required_ioport m_dsw2;
@@ -304,7 +304,7 @@ void epson_lx800_device::device_add_mconfig(machine_config &config)
 	m_maincpu->pc_in_cb().set(FUNC(epson_lx800_device::pc_r));
 	m_maincpu->pc_out_cb().set(FUNC(epson_lx800_device::pc_w));
 	m_maincpu->co0_func().set(FUNC(epson_lx800_device::co0_w));
-	m_maincpu->co1_func().set(m_beep, FUNC(beep_device::set_state));
+	m_maincpu->co1_func().set(m_beep, FUNC(dac_bit_interface::write));
 	m_maincpu->an0_func().set(FUNC(epson_lx800_device::an0_r));
 	m_maincpu->an1_func().set(FUNC(epson_lx800_device::an1_r));
 	m_maincpu->an2_func().set(FUNC(epson_lx800_device::an2_r));
@@ -334,7 +334,7 @@ void epson_lx800_device::device_add_mconfig(machine_config &config)
 	config.set_default_layout(layout_lx800);
 
 	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beep, 3250).add_route(ALL_OUTPUTS, "mono", 0.3);
+	DAC_1BIT(config, m_beep, 0).add_route(ALL_OUTPUTS, "mono", 0.25);
 }
 
 void epson_lx800_device::device_start()
@@ -361,7 +361,6 @@ void epson_lx800_device::device_start()
 
 void epson_lx800_device::device_reset()
 {
-	m_beep->set_state(0);
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
 	m_cr_last_change = m_cr_last_step;
