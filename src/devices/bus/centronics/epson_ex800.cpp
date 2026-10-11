@@ -156,7 +156,7 @@ Findings from the firmware (rfka01):
 
 #include "cpu/upd7810/upd7810.h"
 #include "machine/bitmap_printer.h"
-#include "sound/beep.h"
+#include "sound/dac.h"
 
 #include "speaker.h"
 
@@ -255,7 +255,7 @@ private:
 
 	required_device<upd7810_device> m_maincpu;
 	required_device<bitmap_printer_device> m_bitmap_printer;
-	required_device<beep_device> m_beeper;
+	required_device<dac_bit_interface> m_beeper;   // buzzer, driven by CO1 (the firmware toggles it for a tone)
 	required_ioport m_panel;
 	required_ioport m_selectype;
 	required_ioport m_dsw1;
@@ -464,7 +464,7 @@ void epson_ex800_base::device_add_mconfig(machine_config &config)
 	m_maincpu->pc_in_cb().set(FUNC(epson_ex800_base::pc_r));
 	m_maincpu->pc_out_cb().set(FUNC(epson_ex800_base::pc_w));
 	m_maincpu->co0_func().set(FUNC(epson_ex800_base::co0_w));
-	m_maincpu->co1_func().set([this] (int state) { m_beeper->set_state(!state); });
+	m_maincpu->co1_func().set(m_beeper, FUNC(dac_bit_interface::write));
 	m_maincpu->txd_func().set([this] (int state) { LOGMASKED(LOG_IO, "%s TXD %d\n", machine().time().as_string(), state); out_txd(state); });
 	m_maincpu->rxd_func().set([this] () { return m_rxd; });
 	m_maincpu->an0_func().set(FUNC(epson_ex800_base::an0_r));
@@ -484,8 +484,7 @@ void epson_ex800_base::device_add_mconfig(machine_config &config)
 	config.set_default_layout(layout_ex800);
 
 	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beeper, 4000); // measured at 4000 Hz
-	m_beeper->add_route(ALL_OUTPUTS, "mono", 0.5);
+	DAC_1BIT(config, m_beeper, 0).add_route(ALL_OUTPUTS, "mono", 0.25);
 }
 
 void epson_ex800_base::device_start()
@@ -515,7 +514,6 @@ void epson_ex800_base::device_start()
 
 void epson_ex800_base::device_reset()
 {
-	m_beeper->set_state(0);
 	m_strobe_flag = false;
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
