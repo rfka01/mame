@@ -6,8 +6,9 @@
     (sold in some countries as Quaderno XT-20)
 
     Main board (Pegasus Electronics, Japan; date codes 1992):
-        NEC V30HL @ 16 MHz (32 MHz XTAL / 2), switchable 16/8/4/2 MHz
-        NEC D7?20??GD large QFP (part number not readable, under a label)
+        NEC uPD70280GD V51 (V30HL core with integrated PC peripherals)
+            @ 16 MHz (32 MHz XTAL / 2), switchable 16/8/4/2 MHz,
+            emulated as V30
         Pegasus LT7-441017 gate array: system logic, DCGA LCD controller,
             power management, shadow RAM, EMS, memory windows
         2x Hitachi HM514800LTT8 (512Kx8 DRAM) = 1 MB:
