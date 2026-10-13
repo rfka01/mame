@@ -36745,6 +36745,9 @@ olivpc1
 @source:olivetti/quaderno.cpp
 quaderno
 
+@source:olivetti/quaderno33.cpp
+quaderno33
+
 @source:olympia/dday.cpp
 dday
 ddayc
