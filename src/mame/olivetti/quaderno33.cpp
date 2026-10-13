@@ -47,6 +47,7 @@
 #include "bus/pc_kbd/pc_kbdc.h"
 #include "cpu/i386/i386.h"
 #include "machine/at_keybc.h"
+#include "machine/mc146818.h"
 #include "machine/ram.h"
 #include "machine/wd7600.h"
 #include "sound/spkrdev.h"
@@ -498,6 +499,9 @@ void quaderno33_state::quaderno33(machine_config &config)
 
 	WD7600(config, m_wd7600, 40_MHz_XTAL / 2);
 	m_wd7600->set_cputag(m_maincpu);
+	// the BIOS keeps bit 1 of RTC register B as it finds it; the setup
+	// writes the time in 24 hour format
+	m_wd7600->subdevice<mc146818_device>("rtc")->set_24hrs(true);
 	m_wd7600->set_ramtag(m_ram);
 	m_wd7600->set_biostag("bios");
 	m_wd7600->set_keybctag("keybc");
