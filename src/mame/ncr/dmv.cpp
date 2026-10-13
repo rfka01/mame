@@ -682,7 +682,7 @@ void dmv_state::dmv_io(address_map &map)
 	map(0x11, 0x11).rw(FUNC(dmv_state::romsel_r), FUNC(dmv_state::romsel_w));
 	map(0x12, 0x12).w(FUNC(dmv_state::tc_set_w));
 	map(0x13, 0x13).r(FUNC(dmv_state::sys_status_r));
-	map(0x14, 0x14).w(FUNC(dmv_state::fdd_motor_w));
+	map(0x14, 0x14).rw(FUNC(dmv_state::sys_status_r), FUNC(dmv_state::fdd_motor_w));
 	map(0x20, 0x2f).rw(m_dmac, FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 	map(0x40, 0x41).rw("kb_ctrl_mcu", FUNC(upi41_cpu_device::upi41_master_r), FUNC(upi41_cpu_device::upi41_master_w));
 	map(0x50, 0x51).m(m_fdc, FUNC(i8272a_device::map));
@@ -1049,8 +1049,8 @@ void dmv_state::dmv(machine_config &config)
 	I8272A(config, m_fdc, 8'000'000, true);
 	m_fdc->intrq_wr_callback().set(FUNC(dmv_state::fdc_irq));
 	m_fdc->drq_wr_callback().set(m_dmac, FUNC(am9517a_device::dreq3_w));
-	FLOPPY_CONNECTOR(config, "i8272:0", dmv_floppies, "525dd", dmv_state::floppy_formats);
-	FLOPPY_CONNECTOR(config, "i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, "i8272:0", dmv_floppies, "525dd", dmv_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats).enable_sound(true);
 
 	PIT8253(config, m_pit);
 	m_pit->set_clk<0>(50);

@@ -114,7 +114,11 @@ protected:
 
 private:
 	int                         m_snr;
+	int                         m_await_back;
+	emu_timer *                 m_snr_reset_timer = nullptr;
 
+	TIMER_CALLBACK_MEMBER(snr_reset);
+	void snr_toggle();
 	uint8_t snr_r();
 	void snr_w(uint8_t data);
 
