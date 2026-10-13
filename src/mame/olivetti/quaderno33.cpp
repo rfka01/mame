@@ -564,7 +564,7 @@ void quaderno33_state::quaderno33(machine_config &config)
 ***************************************************************************/
 
 ROM_START( quaderno33 )
-	ROM_REGION16_LE(0x40000, "bios", 0)
+	ROM_REGION(0x40000, "bios", 0)
 	ROM_DEFAULT_BIOS("ger")
 	ROM_SYSTEM_BIOS(0, "ger", "BIOS 1.07, German (rebuilt)")
 	ROMX_LOAD("bios107.ger", 0x00000, 0x40000, BAD_DUMP CRC(bc0724a9) SHA1(1f7f0cab2647d762dfdd4a9cb61f1ee246ad1e12), ROM_BIOS(0))
