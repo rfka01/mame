@@ -131,7 +131,7 @@ dmv_k231_device::dmv_k231_device(const machine_config &mconfig, const char *tag,
 //-------------------------------------------------
 
 dmv_k234_device::dmv_k234_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: dmv_k230_device(mconfig, DMV_K234, tag, owner, clock), m_snr(0)
+	: dmv_k230_device(mconfig, DMV_K234, tag, owner, clock), m_snr(0), m_await_back(0)
 {
 }
 
@@ -161,8 +161,11 @@ void dmv_k234_device::device_start()
 	dmv_k230_device::device_start();
 	iospace().install_readwrite_handler(0xd8, 0xdf, read8smo_delegate(*this, FUNC(dmv_k234_device::snr_r)), write8smo_delegate(*this, FUNC(dmv_k234_device::snr_w)), 0);
 
+	m_snr_reset_timer = timer_alloc(FUNC(dmv_k234_device::snr_reset), this);
+
 	// register for state saving
 	save_item(NAME(m_snr));
+	save_item(NAME(m_await_back));
 }
 
 //-------------------------------------------------
@@ -179,6 +182,7 @@ void dmv_k234_device::device_reset()
 {
 	dmv_k230_device::device_reset();
 	m_snr = 0;
+	m_await_back = 0;
 }
 
 //-------------------------------------------------
@@ -323,26 +327,53 @@ void dmv_k234_device::switch16_w(int state)
 	if (m_switch16 != state)
 	{
 		m_snr = CLEAR_LINE;
+		m_await_back = 0;
 		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
 		out_thold(CLEAR_LINE);
 		m_switch16 = state;
 	}
 }
 
-uint8_t dmv_k234_device::snr_r()
+TIMER_CALLBACK_MEMBER(dmv_k234_device::snr_reset)
 {
+	// deferred 68008 release: reset() here instead of in the access handler,
+	// so the instruction that rang SNR retires first (a synchronous reset
+	// re-entered the core and caused exception $03 after the SNR store)
 	m_snr = ASSERT_LINE;
 	m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
 	m_maincpu->reset();
 	out_thold(ASSERT_LINE);
+}
+
+void dmv_k234_device::snr_toggle()
+{
+	// one SNR doorbell ($d8-$df), toggled by either CPU; m_await_back tracks
+	// which way the bus is being handed over
+	if (!m_await_back)
+	{
+		// Z80 -> 68008: start the 68008 (deferred, see snr_reset)
+		m_await_back = 1;
+		m_snr_reset_timer->adjust(attotime::zero);
+	}
+	else
+	{
+		// 68008 -> Z80: park the 68008, give the bus back to the Z80
+		m_await_back = 0;
+		m_snr = CLEAR_LINE;
+		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
+		out_thold(CLEAR_LINE);
+	}
+}
+
+uint8_t dmv_k234_device::snr_r()
+{
+	if (!machine().side_effects_disabled())  // ignore debugger reads
+		snr_toggle();
 
 	return 0xff;
 }
 
 void dmv_k234_device::snr_w(uint8_t data)
 {
-	m_snr = ASSERT_LINE;
-	m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
-	m_maincpu->reset();
-	out_thold(ASSERT_LINE);
+	snr_toggle();
 }
