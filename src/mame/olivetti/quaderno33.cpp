@@ -155,6 +155,7 @@ public:
 		, m_isabus(*this, "isabus")
 		, m_speaker(*this, "speaker")
 		, m_bios(*this, "bios")
+		, m_keybc(*this, "keybc")
 	{ }
 
 	void quaderno33(machine_config &config) ATTR_COLD;
@@ -170,6 +171,7 @@ private:
 	required_device<isa16_device> m_isabus;
 	required_device<speaker_sound_device> m_speaker;
 	required_region_ptr<u8> m_bios;
+	required_device<ps2_keyboard_controller_device> m_keybc;
 
 	void main_map(address_map &map) ATTR_COLD;
 	void main_io(address_map &map) ATTR_COLD;
@@ -202,6 +204,12 @@ private:
 	u8 pcic_r(offs_t offset);
 	void pcic_w(offs_t offset, u8 data);
 
+	// Olivetti keyboard controller extensions
+	u8 kbc_data_r();
+	void kbc_data_w(u8 data);
+	u8 kbc_status_r();
+	void kbc_command_w(u8 data);
+
 	std::array<u16, 64> m_regs;
 	u16 m_shadow_ctl;
 	u16 m_split;
@@ -215,6 +223,14 @@ private:
 	u8 m_pm[256];
 	u8 m_pcic_index;
 	u8 m_pcic[256];
+
+	u8 m_kbc_reg[256];
+	u8 m_kbc_ptr;
+	u8 m_kbc_state;
+	u8 m_kbc_reply;
+	bool m_kbc_reply_valid;
+	u8 m_kbc_cmd;
+	u8 m_kbc_data_count;
 };
 
 
@@ -400,6 +416,107 @@ void quaderno33_state::pcic_w(offs_t offset, u8 data)
 }
 
 
+/*
+    Olivetti keyboard controller extensions (the controller is not dumped)
+
+    The BIOS reaches internal registers of the controller with
+        b8h <address>    set the register pointer
+        bch              read the register (returned like any reply)
+        bdh <data>       write the register
+    Register 20h is copied into CMOS 40h bits 5-0 by the POST; bit 5 set
+    makes the BIOS load the factory default setup on every start.  Other
+    registers (21h, 22h, 2bh, 2eh) belong to power management.  All read 0
+    here unless the BIOS wrote them.
+    Further Olivetti commands without reply, with the number of parameter
+    bytes: 88h/89h 0, 8ch 1, 8fh 3, 92h-97h 1 (alarm/timer settings?),
+    a0h 1, a1h 0, a3h 1.  The IBM firmware would treat 9xh as "write output
+    port" and pull the reset and A20 lines, so they are swallowed here.
+*/
+
+u8 quaderno33_state::kbc_status_r()
+{
+	u8 status = m_keybc->status_r();
+	if (m_kbc_reply_valid)
+		status = (status & ~0x20) | 0x01;
+	return status;
+}
+
+u8 quaderno33_state::kbc_data_r()
+{
+	if (m_kbc_reply_valid)
+	{
+		if (!machine().side_effects_disabled())
+			m_kbc_reply_valid = false;
+		return m_kbc_reply;
+	}
+	return m_keybc->data_r();
+}
+
+void quaderno33_state::kbc_command_w(u8 data)
+{
+	m_kbc_state = 0;
+	m_kbc_data_count = 0;
+	switch (data)
+	{
+	case 0xb8: // set register pointer
+		m_kbc_state = 1;
+		m_kbc_data_count = 1;
+		break;
+	case 0xbc: // read register
+		m_kbc_reply = m_kbc_reg[m_kbc_ptr];
+		m_kbc_reply_valid = true;
+		LOGREGS("%s: KBC register %02X -> %02X\n", machine().describe_context(), m_kbc_ptr, m_kbc_reply);
+		break;
+	case 0xbd: // write register
+		m_kbc_state = 2;
+		m_kbc_data_count = 1;
+		break;
+
+	// Olivetti commands without reply; the parameters are only logged
+	case 0x88: case 0x89: case 0xa1:
+		LOGREGS("%s: KBC command %02X\n", machine().describe_context(), data);
+		break;
+	case 0x8c: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
+	case 0xa0: case 0xa3:
+		m_kbc_state = 3;
+		m_kbc_data_count = 1;
+		m_kbc_cmd = data;
+		break;
+	case 0x8f:
+		m_kbc_state = 3;
+		m_kbc_data_count = 3;
+		m_kbc_cmd = data;
+		break;
+
+	default:
+		m_keybc->command_w(data);
+		break;
+	}
+}
+
+void quaderno33_state::kbc_data_w(u8 data)
+{
+	switch (m_kbc_state)
+	{
+	case 1:
+		m_kbc_ptr = data;
+		break;
+	case 2:
+		LOGREGS("%s: KBC register %02X = %02X\n", machine().describe_context(), m_kbc_ptr, data);
+		m_kbc_reg[m_kbc_ptr] = data;
+		break;
+	case 3:
+		LOGREGS("%s: KBC command %02X data %02X\n", machine().describe_context(), m_kbc_cmd, data);
+		break;
+	default:
+		m_keybc->data_w(data);
+		return;
+	}
+	if (m_kbc_data_count && !--m_kbc_data_count)
+		m_kbc_state = 0;
+}
+
+
 /***************************************************************************
     Address maps
 ***************************************************************************/
@@ -454,6 +571,18 @@ void quaderno33_state::machine_start()
 	std::fill(std::begin(m_ga), std::end(m_ga), 0);
 	std::fill(std::begin(m_pm), std::end(m_pm), 0);
 	std::fill(std::begin(m_pcic), std::end(m_pcic), 0);
+	std::fill(std::begin(m_kbc_reg), std::end(m_kbc_reg), 0);
+	m_kbc_ptr = m_kbc_state = m_kbc_reply = 0;
+	m_kbc_reply_valid = false;
+	m_kbc_cmd = m_kbc_data_count = 0;
+
+	// replace the keyboard controller ports installed by the wd7600 device
+	io.install_readwrite_handler(0x0060, 0x0061,
+			read8smo_delegate(*this, FUNC(quaderno33_state::kbc_data_r)),
+			write8smo_delegate(*this, FUNC(quaderno33_state::kbc_data_w)), 0x00ff);
+	io.install_readwrite_handler(0x0064, 0x0065,
+			read8smo_delegate(*this, FUNC(quaderno33_state::kbc_status_r)),
+			write8smo_delegate(*this, FUNC(quaderno33_state::kbc_command_w)), 0x00ff);
 	m_ga_index = m_pm_index = m_pcic_index = 0;
 	m_lock_toggle = false;
 	m_split_base = m_split_size = 0;
@@ -468,6 +597,13 @@ void quaderno33_state::machine_start()
 	save_item(NAME(m_pm));
 	save_item(NAME(m_pcic_index));
 	save_item(NAME(m_pcic));
+	save_item(NAME(m_kbc_reg));
+	save_item(NAME(m_kbc_ptr));
+	save_item(NAME(m_kbc_state));
+	save_item(NAME(m_kbc_reply));
+	save_item(NAME(m_kbc_reply_valid));
+	save_item(NAME(m_kbc_cmd));
+	save_item(NAME(m_kbc_data_count));
 	machine().save().register_postload(save_prepost_delegate(FUNC(quaderno33_state::postload), this));
 }
 
@@ -540,16 +676,23 @@ void quaderno33_state::quaderno33(machine_config &config)
 
 	// on board devices
 	ISA16_SLOT(config, "board1", 0, m_isabus, quad33_onboard, "vga", true);
-	ISA16_SLOT(config, "board2", 0, m_isabus, pc_isa16_cards, "fdc_smc", true);   // WD76C20
+	// WD76C20; only one external 3.5" drive.  A second drive that is not in
+	// the CMOS setup makes the POST report "System Configuration Error".
+	ISA16_SLOT(config, "board2", 0, m_isabus, pc_isa16_cards, "fdc_smc", true)
+		.set_option_machine_config("fdc_smc", [] (device_t *device)
+		{
+			dynamic_cast<device_slot_interface &>(*device->subdevice("fdc:0")).set_default_option("35hd");
+			dynamic_cast<device_slot_interface &>(*device->subdevice("fdc:1")).set_default_option(nullptr);
+		});
 	ISA16_SLOT(config, "board3", 0, m_isabus, pc_isa16_cards, "comat", true);     // WD76C30
 	ISA16_SLOT(config, "board4", 0, m_isabus, pc_isa16_cards, "lpt", true);       // WD76C30
 	ISA16_SLOT(config, "board5", 0, m_isabus, pc_isa16_cards, "ide", true);
 
-	// FIXME: the real keyboard controller is an Olivetti part (extra commands
-	// 8ch, 8fh, a3h, b8h, bch, bdh) and not dumped.  At 12 MHz the IBM firmware
-	// needs about 150 ms for its self test, but the BIOS gives up after about
-	// 95 ms and then reports "Keyboard Controller Error : 2"; run it faster.
-	ps2_keyboard_controller_device &keybc(PS2_KEYBOARD_CONTROLLER(config, "keybc", 24_MHz_XTAL));
+	// FIXME: stand-in for the undumped Olivetti controller.  The IBM firmware
+	// needs about 150 ms for its self test at 12 MHz, but the BIOS gives up
+	// after about 95 ms ("Keyboard Controller Error : 2"); at 24 MHz its
+	// receive timeout is too short for the keyboard ("Keyboard Error : 1").
+	ps2_keyboard_controller_device &keybc(PS2_KEYBOARD_CONTROLLER(config, m_keybc, 20_MHz_XTAL));
 	keybc.hot_res().set(m_wd7600, FUNC(wd7600_device::kbrst_w));
 	keybc.gate_a20().set(m_wd7600, FUNC(wd7600_device::gatea20_w));
 	keybc.kbd_irq().set(m_wd7600, FUNC(wd7600_device::irq01_w));
