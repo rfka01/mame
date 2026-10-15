@@ -545,7 +545,11 @@ void quaderno33_state::quaderno33(machine_config &config)
 	ISA16_SLOT(config, "board4", 0, m_isabus, pc_isa16_cards, "lpt", true);       // WD76C30
 	ISA16_SLOT(config, "board5", 0, m_isabus, pc_isa16_cards, "ide", true);
 
-	ps2_keyboard_controller_device &keybc(PS2_KEYBOARD_CONTROLLER(config, "keybc", 12_MHz_XTAL));
+	// FIXME: the real keyboard controller is an Olivetti part (extra commands
+	// 8ch, 8fh, a3h, b8h, bch, bdh) and not dumped.  At 12 MHz the IBM firmware
+	// needs about 150 ms for its self test, but the BIOS gives up after about
+	// 95 ms and then reports "Keyboard Controller Error : 2"; run it faster.
+	ps2_keyboard_controller_device &keybc(PS2_KEYBOARD_CONTROLLER(config, "keybc", 24_MHz_XTAL));
 	keybc.hot_res().set(m_wd7600, FUNC(wd7600_device::kbrst_w));
 	keybc.gate_a20().set(m_wd7600, FUNC(wd7600_device::gatea20_w));
 	keybc.kbd_irq().set(m_wd7600, FUNC(wd7600_device::irq01_w));
