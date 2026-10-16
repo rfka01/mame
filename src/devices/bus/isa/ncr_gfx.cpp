@@ -55,6 +55,10 @@
     On the monochrome internal CRT the R/, G/, B/ and I/ outputs are
     mixed into one video signal through 1K, 2.2K, 4.3K and 1.2K resistors.
 
+    Blinking: a 74LS393 (U64) counts VSYNC, VSYNC/16 blinks the cursor,
+    VSYNC/32 the characters with attribute bit 7 (the BIOS programs the
+    6845 cursor as steady).
+
     TODO:
     - light pen
     - exact horizontal timing of the monochrome CRT (PROM bank 0)
@@ -324,9 +328,11 @@ MC6845_UPDATE_ROW(isa8_ncr_gfx_device::update_row)
 			unsigned const fg = att & 0x0f;
 			unsigned const bg = blink ? ((att >> 4) & 0x07) : (att >> 4);
 
+			// character blink from VSYNC/32 (U64)
 			if (blink && BIT(att, 7) && (m_screen->frame_number() & 0x10))
 				data = 0;
-			if (int(i) == cursor_x)
+			// the 6845 cursor is gated by VSYNC/16 from the 74LS393 U64 (8 frames on, 8 off)
+			if ((int(i) == cursor_x) && !(m_screen->frame_number() & 0x08))
 				data = 0xff;
 
 			for (unsigned p = 0; p < hp; p++)
