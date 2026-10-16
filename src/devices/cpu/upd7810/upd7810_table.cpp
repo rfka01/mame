@@ -2249,8 +2249,8 @@ const struct upd7810_device::opcode_s upd7810_device::s_opXX_7807[256] =
 	{&upd7810_device::MOV_A_H,       1, 4, 4,L0|L1}, /* 0e: 0000 1110                                */
 	{&upd7810_device::MOV_A_L,       1, 4, 4,L0|L1}, /* 0f: 0000 1111                                */
 
-	{&upd7810_device::illegal,       1,13, 4,L0|L1}, /* 10: 0001 0000                                */  /* 7807 */
-	{&upd7810_device::illegal,       1,13, 4,L0|L1}, /* 11: 0001 0001                                */  /* 7807 */
+	{&upd7810_device::BLOCK_D_inc,   1,13, 4,L0|L1}, /* 10: 0001 0000                                */  /* 7807 */
+	{&upd7810_device::BLOCK_D_dec,   1,13, 4,L0|L1}, /* 11: 0001 0001                                */  /* 7807 */
 	{&upd7810_device::INX_BC,        1, 7, 4,L0|L1}, /* 12: 0001 0010                                */
 	{&upd7810_device::DCX_BC,        1, 7, 4,L0|L1}, /* 13: 0001 0011                                */
 	{&upd7810_device::LXI_B_w,       3,10,10,L0|L1}, /* 14: 0001 0100 llll llll hhhh hhhh            */
@@ -2284,7 +2284,7 @@ const struct upd7810_device::opcode_s upd7810_device::s_opXX_7807[256] =
 	{&upd7810_device::LDAX_Hm,       1, 7, 4,L0|L1}, /* 2f: 0010 1111                                */
 
 	{&upd7810_device::DCRW_wa,       2,16, 7,L0|L1}, /* 30: 0011 0000 oooo oooo                      */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 31: 0011 0001 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::AND_CY_bit,    2,10, 8,L0|L1}, /* 31: 0011 0001 bbbb bbbb                      */  /* 7807 */
 	{&upd7810_device::INX_HL,        1, 7, 4,L0|L1}, /* 32: 0011 0010                                */
 	{&upd7810_device::DCX_HL,        1, 7, 4,L0|L1}, /* 33: 0011 0011                                */
 	{&upd7810_device::LXI_H_w,       3,10,10,   L1}, /* 34: 0011 0100 llll llll hhhh hhhh            */
@@ -2326,13 +2326,13 @@ const struct upd7810_device::opcode_s upd7810_device::s_opXX_7807[256] =
 	{&upd7810_device::ACI_A_xx,      2, 7, 7,L0|L1}, /* 56: 0101 0110 xxxx xxxx                      */
 	{&upd7810_device::OFFI_A_xx,     2, 7, 7,L0|L1}, /* 57: 0101 0111 xxxx xxxx                      */
 	{&upd7810_device::SETB,          2,13, 8,L0|L1}, /* 58: 0101 1000 bbbb bbbb                      */  /* 7807 */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 59: 0101 1001 bbbb bbbb                      */  /* 7807 */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 5a: 0101 1010 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::NOT_bit,       2,13, 8,L0|L1}, /* 59: 0101 1001 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::MOV_bit_CY,    2,13, 8,L0|L1}, /* 5a: 0101 1010 bbbb bbbb                      */  /* 7807 */
 	{&upd7810_device::CLR,           2,13, 8,L0|L1}, /* 5b: 0101 1011 bbbb bbbb                      */  /* 7807 */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 5c: 0101 1100 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::OR_CY_bit,     2,10, 8,L0|L1}, /* 5c: 0101 1100 bbbb bbbb                      */  /* 7807 */
 	{&upd7810_device::SK_bit,        2,10, 8,L0|L1}, /* 5d: 0101 1101 bbbb bbbb                      */  /* 7807 */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 5e: 0101 1110 bbbb bbbb                      */  /* 7807 */
-	{&upd7810_device::illegal,       2, 8, 8,L0|L1}, /* 5f: 0101 1111 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::XOR_CY_bit,    2,10, 8,L0|L1}, /* 5e: 0101 1110 bbbb bbbb                      */  /* 7807 */
+	{&upd7810_device::MOV_CY_bit,    2,10, 8,L0|L1}, /* 5f: 0101 1111 bbbb bbbb                      */  /* 7807 */
 
 	{&upd7810_device::PRE_60,        1, 0, 0,L0|L1}, /* 60: prefix                                   */
 	{&upd7810_device::DAA,           1, 4, 4,L0|L1}, /* 61: 0110 0001                                */

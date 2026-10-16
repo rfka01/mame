@@ -5216,6 +5216,8 @@ if BUSES["RS232"] then
 		MAME_DIR .. "src/devices/bus/rs232/hlemouse.h",
 		MAME_DIR .. "src/devices/bus/rs232/ie15.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/ie15.h",
+		MAME_DIR .. "src/devices/bus/rs232/iwriter2.cpp",
+		MAME_DIR .. "src/devices/bus/rs232/iwriter2.h",
 		MAME_DIR .. "src/devices/bus/rs232/keyboard.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/keyboard.h",
 		MAME_DIR .. "src/devices/bus/rs232/loopback.cpp",
@@ -5255,10 +5257,12 @@ if BUSES["RS232"] then
 	}
 
 	dependency {
+		{ MAME_DIR .. "src/devices/bus/rs232/iwriter2.cpp",     GEN_DIR .. "emu/layout/iwriter2.lh" },
 		{ MAME_DIR .. "src/devices/bus/rs232/teletex800.cpp",   GEN_DIR .. "emu/layout/teletex800.lh" },
 	}
 
 	custombuildtask {
+		layoutbuildtask("emu/layout", "iwriter2"),
 		layoutbuildtask("emu/layout", "teletex800"),
 	}
 end
