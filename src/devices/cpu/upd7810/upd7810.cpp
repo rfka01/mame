@@ -490,12 +490,27 @@ upd78c14_device::upd78c14_device(const machine_config &mconfig, const char *tag,
 
 void upd7807_device::configure_ops()
 {
+	m_has_adc = false;
+
+	// the 7807 adds CMC to the 48 prefix
+	std::copy(std::begin(s_op48), std::end(s_op48), std::begin(m_op48_7807));
+	m_op48_7807[0xaa] = { &upd7810_device::CMC, 2, 8, 8, L0|L1 };
+
+	// the 7807 adds immediate operations on port T (sr5) to the 64 prefix
+	std::copy(std::begin(s_op64), std::end(s_op64), std::begin(m_op64_7807));
+	m_op64_7807[0xae] = { &upd7810_device::GTI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xbe] = { &upd7810_device::LTI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xce] = { &upd7810_device::ONI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xde] = { &upd7810_device::OFFI_PT_xx, 3, 14, 11, L0|L1 };
+	m_op64_7807[0xee] = { &upd7810_device::NEI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xfe] = { &upd7810_device::EQI_PT_xx,  3, 14, 11, L0|L1 };
+
 	m_opXX = s_opXX_7807;
-	m_op48 = s_op48;
+	m_op48 = m_op48_7807;
 	m_op4C = s_op4C;
 	m_op4D = s_op4D;
 	m_op60 = s_op60;
-	m_op64 = s_op64;
+	m_op64 = m_op64_7807;
 	m_op70 = s_op70;
 	m_op74 = s_op74;
 }
@@ -1597,6 +1612,10 @@ void upd7810_device::handle_timers(int cycles)
 	{
 		update_sio(cycles);
 	}
+
+	// the uPD7807 has no A/D converter
+	if (!m_has_adc)
+		return;
 
 	/**** AN4-AN7 falling edge flags (INTAN4-INTAN7) ****/
 	// the pins are also sampled digitally; a high to low transition sets the flag tested by SKIT ANn

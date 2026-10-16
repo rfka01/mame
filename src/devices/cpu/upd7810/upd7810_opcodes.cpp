@@ -4820,6 +4820,81 @@ void upd7810_device::EQI_TMM_xx()
 	SKIP_Z;
 }
 
+/* 48 aa: 0100 1000 1010 1010 (7807 only) */
+void upd7810_device::CMC()
+{
+	PSW ^= CY;
+}
+
+/* 64 ae: 0110 0100 1010 1110 xxxx xxxx (7807 only) */
+void upd7810_device::GTI_PT_xx()
+{
+	uint8_t const pt = RP( UPD7807_PORTT );
+	uint8_t imm;
+	uint16_t tmp;
+
+	RDOPARG( imm );
+	tmp = pt - imm - 1;
+	ZHC_SUB( tmp, pt, 0 );
+	SKIP_NC;
+}
+
+/* 64 be: 0110 0100 1011 1110 xxxx xxxx (7807 only) */
+void upd7810_device::LTI_PT_xx()
+{
+	uint8_t const pt = RP( UPD7807_PORTT );
+	uint8_t tmp, imm;
+
+	RDOPARG( imm );
+	tmp = pt - imm;
+	ZHC_SUB( tmp, pt, 0 );
+	SKIP_CY;
+}
+
+/* 64 ce: 0110 0100 1100 1110 xxxx xxxx (7807 only) */
+void upd7810_device::ONI_PT_xx()
+{
+	uint8_t imm;
+
+	RDOPARG( imm );
+	SET_Z( RP( UPD7807_PORTT ) & imm );
+	SKIP_NZ;
+}
+
+/* 64 de: 0110 0100 1101 1110 xxxx xxxx (7807 only) */
+void upd7810_device::OFFI_PT_xx()
+{
+	uint8_t imm;
+
+	RDOPARG( imm );
+	SET_Z( RP( UPD7807_PORTT ) & imm );
+	SKIP_Z;
+}
+
+/* 64 ee: 0110 0100 1110 1110 xxxx xxxx (7807 only) */
+void upd7810_device::NEI_PT_xx()
+{
+	uint8_t const pt = RP( UPD7807_PORTT );
+	uint8_t tmp, imm;
+
+	RDOPARG( imm );
+	tmp = pt - imm;
+	ZHC_SUB( tmp, pt, 0 );
+	SKIP_NZ;
+}
+
+/* 64 fe: 0110 0100 1111 1110 xxxx xxxx (7807 only) */
+void upd7810_device::EQI_PT_xx()
+{
+	uint8_t const pt = RP( UPD7807_PORTT );
+	uint8_t tmp, imm;
+
+	RDOPARG( imm );
+	tmp = pt - imm;
+	ZHC_SUB( tmp, pt, 0 );
+	SKIP_Z;
+}
+
 /* prefix 70 */
 /* 70 0e: 0111 0000 0000 1110 llll llll hhhh hhhh */
 void upd7810_device::SSPD_w()
@@ -8660,56 +8735,76 @@ void upd7810_device::BIT_7_wa()
 		PSW |= SK;
 }
 
-/* 5d: 0101 1111 bbbb bbbb (7807 only) */
-void upd7810_device::SKN_bit()
+/*
+ * uPD7807 bit manipulation: the operand byte is b2 b1 b0 a4 a3 a2 a1 a0.
+ * a4 = 0: bit b of the working area byte at V:a3..a0
+ * a4 = 1: bit b of the special register a3..a0 (the sr code: PA, PB, PC, ...)
+ */
+int upd7810_device::bit7807_r(uint8_t imm)
 {
-	uint8_t imm;
-	int val;
+	int const bit = imm >> 5;
+	uint8_t val;
 
-	RDOPARG( imm );
+	if (!(imm & 0x10))
+		return BIT(RM((V << 8) | (imm & 0x0f)), bit);
 
-	switch( imm & 0x1f )
+	switch (imm & 0x1f)
 	{
-		case 0x10:  /* PA */
-			val = RP( UPD7810_PORTA );
-			break;
-		case 0x11:  /* PB */
-			val = RP( UPD7810_PORTB );
-			break;
-		case 0x12:  /* PC */
-			val = RP( UPD7810_PORTC );
-			break;
-		case 0x13:  /* PD */
-			val = RP( UPD7810_PORTD );
-			break;
-		case 0x15:  /* PF */
-			val = RP( UPD7810_PORTF );
-			break;
-		case 0x16:  /* MKH */
-			val = MKH;
-			break;
-		case 0x17:  /* MKL */
-			val = MKL;
-			break;
-		case 0x19:  /* SMH */
-			val = SMH;
-			break;
-		case 0x1b:  /* EOM */
-			val = EOM;
-			break;
-		case 0x1d:  /* TMM */
-			val = TMM;
-			break;
-		case 0x1e:  /* PT */
-			val = RP( UPD7807_PORTT );
-			break;
+		case 0x10: val = RP(UPD7810_PORTA); break;
+		case 0x11: val = RP(UPD7810_PORTB); break;
+		case 0x12: val = RP(UPD7810_PORTC); break;
+		case 0x13: val = RP(UPD7810_PORTD); break;
+		case 0x15: val = RP(UPD7810_PORTF); break;
+		case 0x16: val = MKH; break;
+		case 0x17: val = MKL; break;
+		case 0x19: val = SMH; break;
+		case 0x1b: val = EOM; break;
+		case 0x1d: val = TMM; break;
+		case 0x1e: val = RP(UPD7807_PORTT); break;
 		default:
-			logerror("uPD7810 '%s': illegal opcode %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
+			logerror("uPD7810 '%s': illegal bit operand %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
 			val = 0;
 			break;
 	}
+	return BIT(val, bit);
+}
 
-	if (~val & (1 << (imm >> 5)))
+void upd7810_device::bit7807_w(uint8_t imm, int state)
+{
+	uint8_t const mask = 1 << (imm >> 5);
+	auto upd = [mask, state] (uint8_t v) -> uint8_t { return state ? (v | mask) : (v & ~mask); };
+
+	if (!(imm & 0x10))
+	{
+		uint16_t const ea = (V << 8) | (imm & 0x0f);
+		WM(ea, upd(RM(ea)));
+		return;
+	}
+
+	switch (imm & 0x1f)
+	{
+		case 0x10: WP(UPD7810_PORTA, upd(RP(UPD7810_PORTA))); break;
+		case 0x11: WP(UPD7810_PORTB, upd(RP(UPD7810_PORTB))); break;
+		case 0x12: WP(UPD7810_PORTC, upd(RP(UPD7810_PORTC))); break;
+		case 0x13: WP(UPD7810_PORTD, upd(RP(UPD7810_PORTD))); break;
+		case 0x15: WP(UPD7810_PORTF, upd(RP(UPD7810_PORTF))); break;
+		case 0x16: MKH = upd(MKH); break;
+		case 0x17: MKL = upd(MKL); break;
+		case 0x19: write_smh(upd(SMH)); break;
+		case 0x1b: EOM = upd(EOM); break;
+		case 0x1d: TMM = upd(TMM); break;
+		default:   // PT is input only
+			logerror("uPD7810 '%s': illegal bit operand %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
+			break;
+	}
+}
+
+/* 50: 0101 0000 bbbb bbbb (7807 only) */
+void upd7810_device::SKN_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	if (!bit7807_r(imm))
 		PSW |= SK;
 }
 
@@ -8717,153 +8812,111 @@ void upd7810_device::SKN_bit()
 void upd7810_device::SETB()
 {
 	uint8_t imm;
-	int bit;
-
 	RDOPARG( imm );
-	bit = imm >> 5;
+	bit7807_w(imm, 1);
+}
 
-	switch( imm & 0x1f )
-	{
-		case 0x10:  /* PA */
-			WP( UPD7810_PORTA, RP( UPD7810_PORTA ) | (1 << bit));
-			break;
-		case 0x11:  /* PB */
-			WP( UPD7810_PORTB, RP( UPD7810_PORTB ) | (1 << bit));
-			break;
-		case 0x12:  /* PC */
-			WP( UPD7810_PORTC, RP( UPD7810_PORTC ) | (1 << bit));
-			break;
-		case 0x13:  /* PD */
-			WP( UPD7810_PORTD, RP( UPD7810_PORTD ) | (1 << bit));
-			break;
-		case 0x15:  /* PF */
-			WP( UPD7810_PORTF, RP( UPD7810_PORTF ) | (1 << bit));
-			break;
-		case 0x16:  /* MKH */
-			MKH |= (1 << bit);
-			break;
-		case 0x17:  /* MKL */
-			MKL |= (1 << bit);
-			break;
-		case 0x19:  /* SMH */
-			write_smh(SMH | (1 << bit));
-			break;
-		case 0x1b:  /* EOM */
-			EOM |= (1 << bit);
-			break;
-		case 0x1d:  /* TMM */
-			TMM |= (1 << bit);
-			break;
-//      case 0x1e:  /* PT */
-//          PT is input only
-//          break;
-		default:
-			logerror("uPD7810 '%s': illegal opcode %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
-			break;
-	}
+/* 59: 0101 1001 bbbb bbbb (7807 only) */
+void upd7810_device::NOT_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	bit7807_w(imm, !bit7807_r(imm));
+}
+
+/* 5a: 0101 1010 bbbb bbbb (7807 only) */
+void upd7810_device::MOV_bit_CY()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	bit7807_w(imm, (PSW & CY) ? 1 : 0);
 }
 
 /* 5b: 0101 1011 bbbb bbbb (7807 only) */
 void upd7810_device::CLR()
 {
 	uint8_t imm;
-	int bit;
-
 	RDOPARG( imm );
-	bit = imm >> 5;
-
-	switch( imm & 0x1f )
-	{
-		case 0x10:  /* PA */
-			WP( UPD7810_PORTA, RP( UPD7810_PORTA ) & ~(1 << bit));
-			break;
-		case 0x11:  /* PB */
-			WP( UPD7810_PORTB, RP( UPD7810_PORTB ) & ~(1 << bit));
-			break;
-		case 0x12:  /* PC */
-			WP( UPD7810_PORTC, RP( UPD7810_PORTC ) & ~(1 << bit));
-			break;
-		case 0x13:  /* PD */
-			WP( UPD7810_PORTD, RP( UPD7810_PORTD ) & ~(1 << bit));
-			break;
-		case 0x15:  /* PF */
-			WP( UPD7810_PORTF, RP( UPD7810_PORTF ) & ~(1 << bit));
-			break;
-		case 0x16:  /* MKH */
-			MKH &= ~(1 << bit);
-			break;
-		case 0x17:  /* MKL */
-			MKL &= ~(1 << bit);
-			break;
-		case 0x19:  /* SMH */
-			write_smh(SMH & ~(1 << bit));
-			break;
-		case 0x1b:  /* EOM */
-			EOM &= ~(1 << bit);
-			break;
-		case 0x1d:  /* TMM */
-			TMM &= ~(1 << bit);
-			break;
-//      case 0x1e:  /* PT */
-//          PT is input only
-//          break;
-		default:
-			logerror("uPD7810 '%s': illegal opcode %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
-			break;
-	}
+	bit7807_w(imm, 0);
 }
 
-/* 5d: 0101 1111 bbbb bbbb (7807 only) */
+/* 5c: 0101 1100 bbbb bbbb (7807 only) */
+void upd7810_device::OR_CY_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	if (bit7807_r(imm))
+		PSW |= CY;
+}
+
+/* 5d: 0101 1101 bbbb bbbb (7807 only) */
 void upd7810_device::SK_bit()
 {
 	uint8_t imm;
-	int val;
-
 	RDOPARG( imm );
-
-	switch( imm & 0x1f )
-	{
-		case 0x10:  /* PA */
-			val = RP( UPD7810_PORTA );
-			break;
-		case 0x11:  /* PB */
-			val = RP( UPD7810_PORTB );
-			break;
-		case 0x12:  /* PC */
-			val = RP( UPD7810_PORTC );
-			break;
-		case 0x13:  /* PD */
-			val = RP( UPD7810_PORTD );
-			break;
-		case 0x15:  /* PF */
-			val = RP( UPD7810_PORTF );
-			break;
-		case 0x16:  /* MKH */
-			val = MKH;
-			break;
-		case 0x17:  /* MKL */
-			val = MKL;
-			break;
-		case 0x19:  /* SMH */
-			val = SMH;
-			break;
-		case 0x1b:  /* EOM */
-			val = EOM;
-			break;
-		case 0x1d:  /* TMM */
-			val = TMM;
-			break;
-		case 0x1e:  /* PT */
-			val = RP( UPD7807_PORTT );
-			break;
-		default:
-			logerror("uPD7810 '%s': illegal opcode %02x %02x at PC:%04x\n", tag(), OP, imm, PC);
-			val = 0;
-			break;
-	}
-
-	if (val & (1 << (imm >> 5)))
+	if (bit7807_r(imm))
 		PSW |= SK;
+}
+
+/* 5e: 0101 1110 bbbb bbbb (7807 only) */
+void upd7810_device::XOR_CY_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	if (bit7807_r(imm))
+		PSW ^= CY;
+}
+
+/* 5f: 0101 1111 bbbb bbbb (7807 only) */
+void upd7810_device::MOV_CY_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	if (bit7807_r(imm))
+		PSW |= CY;
+	else
+		PSW &= ~CY;
+}
+
+/* 31: 0011 0001 bbbb bbbb (7807 only) */
+void upd7810_device::AND_CY_bit()
+{
+	uint8_t imm;
+	RDOPARG( imm );
+	if (!bit7807_r(imm))
+		PSW &= ~CY;
+}
+
+/* 10: 0001 0000 (7807 only) */
+void upd7810_device::BLOCK_D_inc()
+{
+	WM( DE, RM( HL ) );
+	DE++;
+	HL++;
+	C--;
+	if (C == 0xff)
+		PSW |= CY;
+	else
+	{
+		PSW &= ~CY;
+		PC--;
+	}
+}
+
+/* 11: 0001 0001 (7807 only) */
+void upd7810_device::BLOCK_D_dec()
+{
+	WM( DE, RM( HL ) );
+	DE--;
+	HL--;
+	C--;
+	if (C == 0xff)
+		PSW |= CY;
+	else
+	{
+		PSW &= ~CY;
+		PC--;
+	}
 }
 
 /* 60:*/
