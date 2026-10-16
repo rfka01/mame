@@ -56,6 +56,7 @@
 #include "bt54x.h"
 #include "dcb.h"
 #include "ncr53c400.h"
+#include "ncr_gfx.h"
 #include "tekram_dc820.h"
 #include "ultra14f.h"
 #include "ultra24f.h"
@@ -123,6 +124,8 @@ void pc_isa8_cards(device_slot_interface &device)
 	device.option_add("cga_mc1502", ISA8_CGA_MC1502);
 	device.option_add("cga_m24", ISA8_CGA_M24);
 	device.option_add("cga_cportiii", ISA8_CGA_CPORTIII);
+	device.option_add("ncr_k511", ISA8_NCR_K511);
+	device.option_add("ncr_nga", ISA8_NCR_NGA);
 	device.option_add("aga", ISA8_AGA);
 	device.option_add("aga_pc200", ISA8_AGA_PC200);
 	device.option_add("wyse700", ISA8_WYSE700);

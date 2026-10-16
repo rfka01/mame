@@ -247,7 +247,13 @@ MC6845_UPDATE_ROW( isa8_cga_pc1512_device::crtc_update_row )
 ROM_START( cga )
 	/* IBM 1501981(CGA) and 1501985(MDA) Character rom */
 	ROM_REGION(0x2000,"gfx1", 0)
-	ROM_LOAD("5788005.u33", 0x00000, 0x2000, CRC(0bf56d70) SHA1(c2a8b10808bf51a3c123ba3eb1e9dd608231916f)) /* "AMI 8412PI // 5788005 // (C) IBM CORP. 1981 // KOREA" */
+	ROM_SYSTEM_BIOS(0, "ibm", "IBM")
+	ROMX_LOAD("5788005.u33", 0x00000, 0x2000, CRC(0bf56d70) SHA1(c2a8b10808bf51a3c123ba3eb1e9dd608231916f), ROM_BIOS(0)) /* "AMI 8412PI // 5788005 // (C) IBM CORP. 1981 // KOREA" */
+	/* Intersil Systems Display Adapter Color III (30-005575-04), found in a NCR PC4i, most likely the K140 graphics card for an
+	   external monitor (it matches the "External Color Monitor Controller" schematics in the PC4i service manual): HD46505SP, 8x MB8118-12 (16 KB),
+	   2732 character ROM with a thin (0x000) and a bold (0x800) 8x8 font selected by jumper, RGBI and composite outputs */
+	ROM_SYSTEM_BIOS(1, "intersil", "Intersil Display Adapter Color III")
+	ROMX_LOAD("intersil_display_adapter_color_iii_50-0079101_rev.a.bin", 0x01000, 0x1000, CRC(07c3467a) SHA1(0f7628377108a2988cbb21334706254c4ca711aa), ROM_BIOS(1))
 ROM_END
 
 

@@ -49,6 +49,7 @@ public:
 	void ataripc1(machine_config &config) ATTR_COLD;
 	void coppc400(machine_config &config) ATTR_COLD;
 	void ncrpc4i(machine_config &config) ATTR_COLD;
+	void ncrpc6(machine_config &config) ATTR_COLD;
 	void kaypro16(machine_config &config) ATTR_COLD;
 	void kaypropc(machine_config &config) ATTR_COLD;
 	void m15(machine_config &config) ATTR_COLD;
@@ -828,11 +829,32 @@ Bus: 7x ISA:    1)  (optional) RAM expansion board
                 5)  empty
                 6)  (optional) MFM harddisk controller
                 7)  empty
-Video: K510: 4KB Alpha for internal monitor; K511: 32KB Graphics for internal monitor; K512: 32KB upgrade for K512; K140: 16KB Graphics for external monitor; K141: 4KB Alpha for external monitor
+Video: K510: 4KB Alpha for internal monitor; K511: 32KB Graphics for internal monitor; K512: 32KB upgrade for K511; K140: 16KB Graphics for external monitor; K141: 4KB Alpha for external monitor
+       Later upgrade: NGA, Graphic Adapter 3299-K201 (1987), K511/K512 integrated into a NEC D65040 gate array, up to 64KB, also for PC6 and PC8
+       The graphics cards for the internal monitor (emulated as "ncr_k511" and "ncr_nga") add 640x400 modes 8 (mono) and 9 (4 colours), see ncr_gfx.cpp.
+       An "Intersil Display Adapter Color III", a plain CGA card that matches the K140 schematics, is available as BIOS option "intersil" of the "cga" card.
 Display: Mono or color CRT 640x400 pixel
 Mass storage: 1x 5.25" 360K floppy and 1x 5.25" 360K floppy or 10 MB harddisk
 On board ports: parallel, serial, speaker, floppy
 Options: 8087 FPU, K101 memory upgrade in 64K steps, 1.2MB floppy and controller board
+
+Videotex (BTX) model: (not emulated, no dumps of the EUROM and the PAL yet)
+  Videotex Adapter Board ASSY 017-0043006, SCHM 017-0040365 G (other revisions 017-0040364C, 017-0044050), schematics A-79..A-89 of the service manual
+  Chips: Philips EUROM SAA5350 videotex controller (on the photographed board a 40 pin chip labelled M4613D/A), SAA5230/SAA5231 video sync/PLL,
+         2x SCN2661 (TRM: 2651) USART for modem and VLP (video long player), 2x HM6264LP-12 8KB SRAM, PAL16L8 "43892", empty sockets U1/U2/U17/U18
+  Function: PRESTEL and CEPT videotex terminal, alpha mosaic 40x25 (80 character and explicit fill modes possible), 4 ROM tables of 128 characters,
+            DRCS (redefinable characters, 6KB), 32 out of 4096 colours (CLUT), scroll map registers R33-R57, mixing with a composite video signal from
+            a VLP or video recorder (genlock), 15 kHz/50 Hz or 18 kHz/60 Hz; the PC display runs in character, 320x200 or 640x200 mode with
+            external monitor timing, a switch board selects between PC and videotex picture on the colour CRT
+  Memory mapped (base D0000 by default, moved by jumper X9 which straps A16-A19):
+            D0000 character codes, D03F5 line colours 25-15, D0400 attributes, D07F0 line colours 14-0 and -1, D0800 DRCS RAM,
+            DC000-DC0FF EUROM registers 0-58 (write), DC100 screen enable, DC101 videotex/PC display, DC102 manual/automatic dialling modem,
+            DC103 15/18 kHz, DC104 scroll during retrace only, DC105 VLP enable, DC200-DC207 modem USART, DC300-DC307 VLP USART
+  Jumpers: X1/X2 2KB or 8KB RAM, X3/X4/X5/X7 always installed, X6 IRQ2-IRQ7 (default IRQ2), X8 PLL filter VLP/video recorder,
+           X9 memory base, X10 modem interrupt on receive only or on transmit and receive
+  Connectors: DE-9 monitor (RGB, TCS/ composite sync, switch videotex/PC, switch VLP/videotex, FBAS in, 15/18 kHz select),
+              DB-15 modem/VLP (D1200S modems K300-K303: 1200/75 baud with auxiliary line, 1200/1200 manual or 1200/75 automatic dialling)
+  Software: NCR videotex decoder software with an interrupt interface, page editor, modem selection and VLP support
 
 Regular motherboard, an alternate board using more integrated components exists.
 Jumpers: JP1 closed: enable flex. disk drives, JP2 closed: enable standad serial I/O
@@ -850,7 +872,7 @@ DIP settings:  Sw.1  Sw.2  Sw.3  Sw.4  Sw.5  Sw.6  Sw.7  Sw.8  effect
 
 ******************************************************************************/
 
-void pc_state::ncrpc4i(machine_config & config)
+void pc_state::ncrpc6(machine_config & config)
 {
 	pccga(config);
 
@@ -860,11 +882,19 @@ void pc_state::ncrpc4i(machine_config & config)
 	subdevice<ram_device>(RAM_TAG)->set_default_size("640K").set_extra_options("64K, 128K, 256K, 512K");
 }
 
+void pc_state::ncrpc4i(machine_config & config)
+{
+	ncrpc6(config);
+
+	// K511 graphics controller for the internal 640x400 monitor, the NGA ("ncr_nga") can be selected instead
+	subdevice<isa8_slot_device>("isa1")->set_default_option("ncr_k511");
+}
+
 ROM_START( ncrpc4i )
 	ROM_REGION(0x10000,"bios", 0)
-	ROM_SYSTEM_BIOS(0, "v22", "V2.2") // this machine came with a "Intersil Display Adapter Color III", probably aftermarket, there's no card BIOS, just a chargen ROM
+	ROM_SYSTEM_BIOS(0, "v22", "V2.2") // NCR2.2, 03/26/85, this machine came with an "Intersil Display Adapter Color III" (-isa1 cga,bios=intersil), there's no card BIOS, just a chargen ROM
 	ROMX_LOAD("ncr_pc4i_43928.bin",0xc000, 0x4000, CRC(e66a46b9) SHA1(f74f8f9226325d2a8b927de3847449db4c907b1d), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "v23", "2.3") // this machine came with a NCR graphics card with a card BIOS and a chargen ROM
+	ROM_SYSTEM_BIOS(1, "v23", "2.3") // NCR2.3, 06/27/85, this machine came with a NCR K511 graphics card (chargen ROM U5 and CRTC translation PROM U42, no card BIOS)
 	ROMX_LOAD("ncr_pc4i_biosrom_1985.bin",0xc000, 0x4000, CRC(b9732648) SHA1(0d5d96fbc36089ca4d893b0db84faffa8043a5e4), ROM_BIOS(1))
 ROM_END
 
@@ -2433,7 +2463,7 @@ COMP( 198?, ledgmodm,       ibm5150, 0,      siemens,        pccga,    pc_state,
 COMP( 198?, mpx16,          ibm5150, 0,      pccga,          pccga,    pc_state, empty_init,    "Micromint",                       "MPX-16",                MACHINE_NOT_WORKING )
 COMP( 198?, mpu9088vf,      ibm5150, 0,      pccga,          pccga,    pc_state, empty_init,    "MY-COM",                          "MPU-9088-VF",           MACHINE_NOT_WORKING )
 COMP( 1985, ncrpc4i,        ibm5150, 0,      ncrpc4i,        pccga,    pc_state, empty_init,    "NCR",                             "PC4i",                  MACHINE_NOT_WORKING )
-COMP( 1985, ncrpc6,         ibm5150, 0,      ncrpc4i,        pccga,    pc_state, empty_init,    "NCR",                             "PC6",                   MACHINE_NOT_WORKING )
+COMP( 1985, ncrpc6,         ibm5150, 0,      ncrpc6,         pccga,    pc_state, empty_init,    "NCR",                             "PC6",                   MACHINE_NOT_WORKING )
 COMP( 198?, nixpc01,        ibm5150, 0,      pccga,          pccga,    pc_state, empty_init,    "Nixdorf Computer AG",             "8810/25 CPC - PC01",    MACHINE_NOT_WORKING )
 COMP( 198?, olivm15,        ibm5150, 0,      m15,            pccga,    pc_state, empty_init,    "Olivetti",                        "M15",                   0 )
 COMP( 198?, nms9100,        ibm5150, 0,      pccga,          pccga,    pc_state, empty_init,    "Philips",                         "NMS 9100",              MACHINE_NOT_WORKING )
