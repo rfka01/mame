@@ -159,7 +159,8 @@ void isa8_ncr_gfx_device::device_add_mconfig(machine_config &config)
 	m_screen->set_raw(NCR_DOT_CLOCK, 848, 0, 640, 432, 0, 400);
 	m_screen->set_screen_update(m_crtc, FUNC(mc6845_device::screen_update));
 
-	MC6845(config, m_crtc, NCR_DOT_CLOCK / 16);
+	// HD6845S behaviour: no split cursor when start > end (Norton Commander hides the cursor this way)
+	HD6845S(config, m_crtc, NCR_DOT_CLOCK / 16);
 	m_crtc->set_screen(m_screen);
 	m_crtc->set_show_border_area(false);
 	m_crtc->set_char_width(16);
