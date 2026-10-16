@@ -857,6 +857,16 @@ Videotex (BTX) model: (not emulated, no dumps of the EUROM and the PAL yet)
   Software: NCR videotex decoder software with an interrupt interface, page editor, modem selection and VLP support
 
 Regular motherboard, an alternate board using more integrated components exists.
+Main board (photographed regular board, BIOS EPROM 27128 labelled 43928 = BIOS v2.2):
+  AMD P8088, empty 8087 socket, NEC D8259AC, D8237AC-5, D8255AC-5, P8272A floppy controller (U25), serial port with MC1489/75188 line drivers and a
+  1.8432 MHz oscillator (U3), 14.31818 MHz crystal (Y1), 256KB RAM in 4 banks of 9x TMS4164-15 (with parity), 8 position DIP switch, speaker,
+  7 slots J1A-J7A
+Memory expansion board (SCHM 017-0042841 A, NCR 1985): 6 banks of 9x 64Kx1 DRAM (MB8264, D4164, M5K4164, MK4564 mixed) = 384KB with parity,
+  so 256KB on board + 384KB = 640KB; 4 position DIP switch S1 (start address/size), PAL U63, 74LS158 address multiplexers, MPE 21199 delay line
+
+Known issue: the interval timer test of the NCR diagnostics (PC4i user diagnostics 01.05, PC6 user diagnostics 1.01) fails because it calibrates a
+software delay loop (260x LOOP per unit) against the 8253 with a +-0.5% window; the emulated 8088 runs this loop about 8% too fast (no DRAM refresh
+wait states and prefetch queue refill). The PC6 diagnostics also test the VLSI CPU controller of the PC6 (port 219h) which the PC4i doesn't have.
 Jumpers: JP1 closed: enable flex. disk drives, JP2 closed: enable standad serial I/O
 JP3 closed: enable parallel interface OR just JP5: closed, enable standard serial I/O
 
