@@ -40,6 +40,8 @@ enum
 
 class upd7810_device : public cpu_device
 {
+	friend class upd7807_device;
+
 public:
 	// construction/destruction
 	upd7810_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
@@ -345,6 +347,7 @@ protected:
 	int     m_adin;   /* currently selected A/D converter input */
 	int     m_adrange;/* in scan mode, A/D converter range (AN0-AN3 or AN4-AN7) */
 
+	bool m_has_adc = true;            /* false on the uPD7807 */
 	const struct opcode_s *m_opXX;    /* opcode table */
 	const struct opcode_s *m_op48;
 	const struct opcode_s *m_op4C;
@@ -1297,8 +1300,25 @@ protected:
 	void BIT_7_wa();
 	void SKN_bit();
 	void SETB();
+	void NOT_bit();
+	void MOV_bit_CY();
 	void CLR();
+	void OR_CY_bit();
 	void SK_bit();
+	void XOR_CY_bit();
+	void MOV_CY_bit();
+	void AND_CY_bit();
+	void CMC();
+	void GTI_PT_xx();
+	void LTI_PT_xx();
+	void NEI_PT_xx();
+	void EQI_PT_xx();
+	void ONI_PT_xx();
+	void OFFI_PT_xx();
+	void BLOCK_D_inc();
+	void BLOCK_D_dec();
+	int bit7807_r(uint8_t imm);
+	void bit7807_w(uint8_t imm, int state);
 	void PRE_60();
 	void DAA();
 	void RETI();
@@ -1415,6 +1435,10 @@ public:
 protected:
 	virtual std::unique_ptr<util::disasm_interface> create_disassembler() override;
 	virtual void configure_ops() override;
+
+private:
+	opcode_s m_op48_7807[256];  // the 48 prefix table with CMC
+	opcode_s m_op64_7807[256];  // the 64 prefix table with the port T immediate operations
 };
 
 

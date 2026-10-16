@@ -5219,10 +5219,10 @@ const upd7810_base_disassembler::dasm_s upd78c05_disassembler::XX_78c05[256] = {
 // register names for bit manipulation instructions
 const char *const upd7810_base_disassembler::regname[32] =
 {
-	"illegal", "illegal", "illegal", "illegal",
-	"illegal", "illegal", "illegal", "illegal",
-	"illegal", "illegal", "illegal", "illegal",
-	"illegal", "illegal", "illegal", "illegal",
+	"VV:00",   "VV:01",   "VV:02",   "VV:03",
+	"VV:04",   "VV:05",   "VV:06",   "VV:07",
+	"VV:08",   "VV:09",   "VV:0A",   "VV:0B",
+	"VV:0C",   "VV:0D",   "VV:0E",   "VV:0F",
 	"PA",      "PB",      "PC",      "PD",
 	"illegal", "PF",      "MKH",     "MKL",
 	"illegal", "SMH",     "illegal", "EOM",
