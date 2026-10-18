@@ -1748,6 +1748,8 @@ if BUSES["CBMIEC"] then
 		MAME_DIR .. "src/devices/bus/cbmiec/mcs810.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/mcs820.cpp",
 		MAME_DIR .. "src/devices/bus/cbmiec/mcs820.h",
+		MAME_DIR .. "src/devices/bus/cbmiec/okimate20.cpp",
+		MAME_DIR .. "src/devices/bus/cbmiec/okimate20.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/dps1101.cpp",
 		MAME_DIR .. "src/devices/bus/cbmiec/dps1101.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1000.cpp",
@@ -1766,6 +1768,7 @@ if BUSES["CBMIEC"] then
 		{ MAME_DIR .. "src/devices/bus/cbmiec/cmdhd.cpp", GEN_DIR .. "emu/layout/cmdhd.lh" },
 		{ MAME_DIR .. "src/devices/bus/cbmiec/fd2000.cpp", GEN_DIR .. "emu/layout/fd2000.lh" },
 		{ MAME_DIR .. "src/devices/bus/cbmiec/indusgt.cpp", GEN_DIR .. "emu/layout/indusgt.lh" },
+		{ MAME_DIR .. "src/devices/bus/cbmiec/okimate20.cpp", GEN_DIR .. "emu/layout/okimat20.lh" },
 		{ MAME_DIR .. "src/devices/bus/cbmiec/serialbox.cpp", GEN_DIR .. "emu/layout/serialbox.lh" },
 	}
 
@@ -1773,6 +1776,7 @@ if BUSES["CBMIEC"] then
 		layoutbuildtask("emu/layout", "cmdhd"),
 		layoutbuildtask("emu/layout", "fd2000"),
 		layoutbuildtask("emu/layout", "indusgt"),
+		layoutbuildtask("emu/layout", "okimat20"),
 		layoutbuildtask("emu/layout", "serialbox"),
 	}
 end
