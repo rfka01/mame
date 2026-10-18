@@ -331,6 +331,9 @@ protected:
 	uint8_t   m_txcnt;  /* transmitter shift register bit count */
 	uint8_t   m_rxcnt;  /* receiver shift register bit count */
 	uint8_t   m_txbuf;  /* transmitter buffer was written */
+	int32_t   m_rxovc;  /* receiver oversampling clock count (x16/x64 asynchronous mode) */
+	uint8_t   m_rxwait; /* oversampling clocks until the next receiver sample */
+	uint8_t   m_rxprev; /* RxD at the previous oversampling clock */
 	int32_t   m_ovc0;   /* overflow counter for timer 0 (for clock div 12/384) */
 	int32_t   m_ovc1;   /* overflow counter for timer 0 (for clock div 12/384) */
 	int32_t   m_ovce;   /* overflow counter for ecnt */
@@ -367,6 +370,7 @@ protected:
 	void upd7810_write_TXB();
 	void upd7810_sio_output();
 	void upd7810_sio_input();
+	void upd7810_sio_rx_clock(int prescale);
 	void illegal();
 	void illegal2();
 	void SLRC_A();
