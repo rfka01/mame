@@ -95,7 +95,7 @@ constexpr double PAPER_WIDTH = 10.0;    // inches
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr int HDPI = 320;               // 9 units per pixel
 constexpr int VDPI = 144;               // paper feed step
-constexpr double LEFT_OFFSET = 0.4;     // paper edge to the carriage zero position, inches (guess)
+constexpr double LEFT_OFFSET = 0.05;    // mechanism edge to the carriage zero position, inches: an 8" line lies centred on an A4 sheet
 
 class iwriter2_device : public device_t, public device_rs232_port_interface
 {
@@ -320,6 +320,7 @@ void iwriter2_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::impact_9pin());
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_paper_formats(0x0f, bitmap_printer_device::PAPER_FANFOLD_11);
 
 	config.set_default_layout(layout_iwriter2);
 }
@@ -396,7 +397,8 @@ void iwriter2_device::set_power(bool on)
 
 u8 iwriter2_device::pt_r()
 {
-	return (m_panel->read() & 0x0f) | (m_sensors->read() & 0xf0);
+	// PT5 high: no paper (setting, or the end of a single sheet)
+	return (m_panel->read() & 0x0f) | (m_sensors->read() & 0xf0) | (m_bitmap_printer->paper_present() ? 0x00 : 0x20);
 }
 
 void iwriter2_device::pa_w(u8 data)
