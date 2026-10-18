@@ -909,6 +909,89 @@ void dmv_state::floppy_formats(format_registration &fr)
 }
 
 
+/***************************************************************************
+
+    Peripheral kits not emulated yet
+
+    NCR's "Overview of peripheral kits" (System Information HW1 3.1/3.2,
+    06.11.84) lists the following kits for which there is no slot option
+    below.  K018 (second floppy drive), K214 (blank adapter PCB with bus
+    connector), K225 (diagnostic diskette), K240 (tilt device) and K880
+    (cartridge lock) are not electronic adapters; K232 (8087 numeric
+    coprocessor) is part of the K230/K231 options.
+
+    K215 - Buffered sync/async RS-232C adapter
+        No documentation or ROM dump yet.  NCR's interface configuration
+        table places it on IFSEL 1A (70-77), with the note that any
+        software for it must be able to select all IO port addresses.
+
+    K216 - SCC communication adapter, 2 x RS-232C (017-0033564 Rev. B)
+        Z8530 SCC (D1) with MC1488/MC1489 line drivers and receivers, two
+        full-duplex channels on one 2-channel cable ending in two DB25
+        plugs (10 m, shielded).
+        - S1-4..S1-8 connect IFSEL0/..IFSEL4/ to a 25LS2521 comparator
+          (D2), which matches BA3 against S1-1 and BA2 against S1-2, so
+          the card occupies four ports: A1 = x0-x3, A2 = x4-x7,
+          B1 = x8-xB, B2 = xC-xF (S1-1/S1-2 closed = address bit 0).
+        - BA1 drives A/B through a 74LS04, BA0 drives D/C through a
+          74LS00 used as inverter: +0 ch. A data, +1 ch. A control,
+          +2 ch. B data, +3 ch. B control.
+        - SCC PCLK is the bus PCLK/ (4 MHz) inverted; a crystal
+          oscillator with 74LS74 divider (H1, D3, D4) is drawn but not
+          mounted.  RTxC/TRxC of both channels come from the cable
+          (DB25 pins 17/15), TRxCS goes out on pin 16, SYNC in on pin 9.
+        - SCC /INT drives INT/ (c31) open collector via inverter and
+          transistor, INTACK/ (a12) goes to /INTACK, IEI pulled high.
+        - Strap "MP/M operation" vs. "two channel RS-232" (K216-V001:
+          MPM, MPM/, S1-3; K216-V002: S2-1..S2-3): for MP/M the TRxC
+          receiver input of channel A is fed from the TRxC driver of
+          channel B instead of the cable.
+        - The cable crosses TxD/RxD, RTS/CTS and DTR/DCD and pulls DSR
+          high through 330 ohms, so the plugs present a DCE.
+
+    K219 - Integrated modem (USA only)
+        No documentation or ROM dump yet.
+
+    K223 - DLC inhouse interface (017-0033972 Rev. C)
+        Two boards: the DLC inhouse controller on the bus and the DLC
+        inhouse I/F with the line circuits, joined by a 14-pin cable (J3).
+        - Controller: U11 is a custom NCR "NDLC" chip (6-1005876) clocked
+          by a 2.304 MHz oscillator (U12); U13 is an 82S123 PROM in the
+          address decode (not dumped), plus 74LS245/74LS368 bus buffers.
+          It uses DRQ0/DACK0 and DRQ1/DACK1, EOP/, WAIT/ (a31), PCLK and
+          INT/ (c31, via 74LS05).
+        - Headers W1-W3 select the ports: IFSEL2 (all A-B) = 30-3F,
+          IFSEL3 (W3 B-C) = B0-BF.
+        - Line interface: transformer-coupled twisted pair with shield
+          (TA/TB transmit, RA/RB receive); 75450 drivers for TDM/TDM/,
+          LM301 + LM319 receiver for RDM, a 555 generating -12 V and a
+          second 555 as 2 ms timer (TSTART/, 2MSINT, 2MSSTOP/).
+        - Kit list calls it "DLC Einbauinterface" (built-in); which
+          connector it uses is not stated in the documentation.
+        - Emulation needs a dump or description of the NDLC chip.
+
+    K600 - Omninet transporter interface, "Decision Net"
+           (controller 017-0032434 Rev. B, isolator 017-0032222 Rev. A)
+        Three boards: interface PCB on the bus, controller PCB and
+        isolator PCB.  Double width, occupies two slots.
+        - Interface: S1/S2 pick IFSEL2/ or IFSEL3/, BA3 is strapped
+          (NCR's configuration table puts K600 on 3B = B8-BF); a 74LS155
+          decodes IOR/, IOW/, BA0 and BA1 into RDCMD/, STROBE/ and RSEL/.
+          The transporter is a bus master: it requests the bus through
+          THOLD/ (a14), drives MEMR/, MEMW/ and BA0-BA19 itself and uses
+          DRQ1/DACK1; interrupt on INT/ (c31).
+        - Controller: MC6801 (U5) with internal mask ROM (not dumped),
+          MC68A54 ADLC (U7), custom array U8 with 10 MHz crystal, SW1
+          sets the 6-bit transporter (unit) address 0-63 through a 74LS05
+          (U4).  The isolator board couples TXD/RXD to the network line.
+        - Emulation needs the 6801 ROM and a description of array U8.
+
+    K804 - IEEE-488 (IEC-625) adapter
+        No documentation or ROM dump yet (photos only).  NCR's interface
+        configuration table places it on IFSEL 2B (38-3F).
+
+***************************************************************************/
+
 static void dmv_slot1(device_slot_interface &device)
 {
 	device.option_add("k200", DMV_K200);        // K200 64K RAM expansion
@@ -927,6 +1010,9 @@ static void dmv_slot2_6(device_slot_interface &device)
 	device.option_add("k803", DMV_K803);        // K803 RTC module
 	device.option_add("k806", DMV_K806);        // K806 Mouse module
 	device.option_add("c3282", DMV_C3282);      // C3282 External HD Interface
+	// not emulated yet, see notes above:
+	// K215 Buffered sync/async RS-232C, K216 SCC 2 x RS-232C, K219 Integrated modem (USA),
+	// K223 DLC inhouse interface, K600 Omninet transporter (Decision Net), K804 IEEE-488
 }
 
 static void dmv_slot7(device_slot_interface &device)
