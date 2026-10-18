@@ -6,50 +6,49 @@
     K238 External Z8001 processor module (homebrew, not an NCR product)
 
     A fictional alternative to the K234: plugs into slot J7 like the K234,
-    has no ROM of its own, and expects a K235 in J7A for the 8259A PIC.
-    (Earlier drafts called it "K240"; that number is NCR's real tilt
+    has no ROM of its own, and needs a K235 in J7A.  The K235 is needed for
+    the same reason as with the K234: a K230 decodes D0h-DFh without BA3,
+    so ringing the doorbell at D8h would also switch the K230; the K235
+    separates D0h-D7h (SWITCH16) from D8h-DFh (this card) on BA3.  The
+    8259A of the K235 sits on the 8088's local bus; ports 90h/91h never
+    reach the system bus, so the Z8001 cannot see it.
+    (Earlier drafts called the card "K240"; that number is NCR's real tilt
     mechanism kit, so the card was renamed.)
 
-    Modelled directly on the K234 68008 module in k230.cpp.  Read that
-    file and k234_notes.md alongside this one; the handoff mechanism is
-    identical and the comments there explain the DMV side.
+    Modelled on the K234 68008 module in k230.cpp.
 
-    ---- HOW THE HANDOFF WORKS (same as K234) --------------------------
+    ---- STARTING AND STOPPING THE Z8001 --------------------------------
 
-    The DMV host is a Z80.  It boots normally.  To use the coprocessor:
+    The doorbell at D8h-DFh is decided by WHO rings it:
 
-      1. Host copies the Z8001 program image (including its reset PSA:
-         FCW + PC that the CPU will fetch) into shared DMV RAM.
+      * Any other bus master (the Z80 with OUT (0DFh),A, or the 8088 of a
+        K235 with OUT 0D8h,AL) STARTS the Z8001: HALT is released and the
+        Z8001 is reset on a zero-delay timer, so the ringing instruction
+        retires first.  THOLD then holds the Z80.  Every start is a reset:
+        the Z8001 re-reads its PSA (FCW at 0002h, segmented PC at
+        0004h-0007h of segment 0) from shared RAM.
+      * The Z8001 itself ringing D8h-DFh through its own I/O space HANDS
+        THE BUS BACK: it is parked (HALT) at once and THOLD is released,
+        so the Z80 resumes after its OUT.
 
-      2. Host rings the SNR doorbell (OUT to port 0xDF; the card decodes
-         0xD8-0xDF).  The Z8001 is released and reset on a zero-delay
-         timer, so the Z80's OUT retires first; THOLD then freezes the
-         Z80.  The Z8001 fetches its PSA from RAM and owns the bus.
+    Deciding by origin instead of toggling a direction flag keeps both
+    uses working:
+      - CP/M style: Z80 starts, Z8001 hands back, Z80 starts again.
+      - Job style, as DMVRACE and DMVDEMO drive the K234 from MS-DOS:
+        the 8088 puts the reset context over its vectors 0/1, rings D8h
+        for every job, and the coprocessor stops itself at the end of each
+        job (HALT on the Z8001, STOP on the 68008) without ringing back.
+        A toggle would take the second job's start for a hand-back.
 
-      3. To hand the bus back, the Z8001 rings the SAME doorbell (OUT to
-         0xD8-0xDF from Z8001 I/O space, which this card forwards to the
-         DMV I/O space).  The Z8001 is parked (HALT) immediately and THOLD
-         is released, so the Z80 resumes after its OUT.
-
-    One doorbell, two directions: m_await_back records which way the next
-    ring goes.  This follows NCR's own K234 formatter (FORMAT68.S rings
-    SNR from the 68008 to hand back, "* must end before 911a"; FORM68.Z80
-    rings it from the Z80 to start the 68008).
-
-    Every Z80 -> Z8001 start is a RESET, exactly like the K234: the Z8001
-    re-reads its PSA each time.  State that must survive a round trip to
-    the Z80 lives in a shared-RAM mailbox, not in live CPU registers;
-    the Z80 points the PSA at the resume entry before ringing.
-
-    A change of SWITCH16/ (DMV I/O 0xD0-0xD7) also parks the Z8001 and
-    re-arms the doorbell for a fresh Z80 -> Z8001 start.
+    A change of SWITCH16/ (DMV I/O D0h-D7h) also parks the Z8001.
 
     While the Z8001 runs, every program/data/stack access is forwarded
-    through prog_read/prog_write into the DMV shared memory space, and
-    every Z8001 I/O access is forwarded into the DMV I/O space where the
-    motherboard peripherals live (uPD765 floppy, 8741 keyboard, uPD7220
-    CRTC, 8259A PIC at 0x90, etc).  This card provides NO peripherals of
-    its own -- it is a pure bus master, exactly like the K234.
+    through prog_read/prog_write into the DMV memory space (segment n =
+    RAM bank n, banks 1-7 from the expansion in slot 1), and every Z8001
+    I/O access is forwarded into the DMV I/O space where the mainboard
+    peripherals live (uPD765, AM9517A, 8741, uPD7220, 8253).  This card
+    provides NO peripherals of its own.  No interrupts are wired yet;
+    software polls, as on the K234.
 
     ---- OPEN ITEMS (flagged, verify on the bench) ---------------------
 
@@ -69,7 +68,10 @@
       Z80 stages in shared RAM must place a valid PSA where the Z8001
       expects it.  That is a BIOS/loader concern, not a card concern,
       but it is why "no boot EPROM" works: the reset vector lives in the
-      RAM the Z80 filled.
+      RAM the Z80 filled.  The host must have RAM switched in over
+      0000h-1FFFh (OUT 10h) before ringing: while the mainboard ROM is
+      mapped there, reads below 2000h return ROM for every bus master,
+      the Z8001 included.
 
 ***************************************************************************/
 
@@ -124,7 +126,6 @@ dmv_k238_device::dmv_k238_device(const machine_config &mconfig, device_type type
 	, m_switch16(0)
 	, m_hold(0)
 	, m_snr(0)
-	, m_await_back(0)
 {
 }
 
@@ -146,11 +147,10 @@ void dmv_k238_device::device_add_mconfig(machine_config &config)
 	// only AS_PROGRAM, so data and stack cycles alias onto it. That matches
 	// the DMV, which has a single shared RAM and no ST-line decoding.
 
-	// Interrupts: route the DMV 8259A (motherboard) into the Z8001's
-	// vectored-interrupt input once the console/floppy path works.
-	// The Z8001 takes /VI and /NVI; wiring is done via the irqN_w slot
-	// hooks below feeding an inputline. Left unwired in this skeleton --
-	// bring it up only after polled console+disk are proven.
+	// Interrupts: none wired.  The 8259A of the K235 is not reachable
+	// from slot J7 (it sits on the 8088's local bus).  Candidates, as on
+	// the K234, are TIMINT (8253 channel 2) and the bus INT/ line, which
+	// could drive the Z8001's /VI or /NVI later.  Software polls for now.
 }
 
 
@@ -161,7 +161,8 @@ void dmv_k238_device::device_add_mconfig(machine_config &config)
 void dmv_k238_device::device_start()
 {
 	// SNR doorbell in the DMV I/O space at 0xd8-0xdf, as on the K234.
-	// Both CPUs reach it: the Z80 directly, the Z8001 through io_r/io_w.
+	// Rings from the Z80 or the K235's 8088 land here and start the Z8001;
+	// the Z8001's own rings are caught in io_r/io_w and hand the bus back.
 	iospace().install_readwrite_handler(0xd8, 0xdf,
 			read8smo_delegate(*this, FUNC(dmv_k238_device::snr_r)),
 			write8smo_delegate(*this, FUNC(dmv_k238_device::snr_w)), 0);
@@ -171,7 +172,6 @@ void dmv_k238_device::device_start()
 	save_item(NAME(m_switch16));
 	save_item(NAME(m_hold));
 	save_item(NAME(m_snr));
-	save_item(NAME(m_await_back));
 }
 
 void dmv_k238_device::device_reset()
@@ -179,7 +179,6 @@ void dmv_k238_device::device_reset()
 	m_switch16 = 0;
 	m_hold = 0;
 	m_snr = 0;
-	m_await_back = 0;
 }
 
 
@@ -210,9 +209,9 @@ void dmv_k238_device::hold_w(int state)
 //-------------------------------------------------
 //  switch16_w - SWITCH16/ toggled by DMV I/O 0xD0-0xD7
 //
-//  On a change we PARK the Z8001: clear the surrender flag, halt it, hand
-//  the bus back to the host (THOLD low) and re-arm the doorbell so the
-//  next ring is a fresh Z80 -> Z8001 start.  Identical to K234.
+//  On a change we PARK the Z8001: clear the surrender flag, halt it and
+//  hand the bus back to the host (THOLD low).  The next ring from the
+//  host starts the Z8001 afresh.
 //-------------------------------------------------
 
 void dmv_k238_device::switch16_w(int state)
@@ -220,7 +219,6 @@ void dmv_k238_device::switch16_w(int state)
 	if (m_switch16 != state)
 	{
 		m_snr = CLEAR_LINE;
-		m_await_back = 0;
 		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
 		out_thold(CLEAR_LINE);
 		m_switch16 = state;
@@ -229,53 +227,48 @@ void dmv_k238_device::switch16_w(int state)
 
 
 //-------------------------------------------------
-//  SNR doorbell - 0xD8-0xDF, rung by either CPU
+//  SNR doorbell - 0xD8-0xDF
 //
-//  Same model as K234::snr_toggle (see k234_notes.md):
-//    Z80 -> Z8001: release and reset the Z8001 on a zero-delay timer, so
-//                  the Z80's OUT retires before the reset happens.
-//    Z8001 -> Z80: park the Z8001 at once and release the Z80, so the
-//                  Z8001 does not run past the instruction that rang.
+//  snr_r / snr_w are reached by every OTHER bus master (Z80, K235 8088):
+//  they start the Z8001.  The Z8001's own accesses to D8h-DFh never get
+//  here; io_r / io_w catch them and call snr_hand_back().
 //-------------------------------------------------
 
 TIMER_CALLBACK_MEMBER(dmv_k238_device::snr_reset)
 {
-	// deferred release: reset() here rather than inside the access handler
+	// deferred start: reset() here rather than inside the access handler,
+	// so the instruction that rang the doorbell retires first
 	m_snr = ASSERT_LINE;
 	m_maincpu->set_input_line(INPUT_LINE_HALT, CLEAR_LINE);
 	m_maincpu->reset();
 	out_thold(ASSERT_LINE);
 }
 
-void dmv_k238_device::snr_toggle()
+void dmv_k238_device::snr_start()
 {
-	if (!m_await_back)
-	{
-		// Z80 -> Z8001: start the Z8001 (deferred, see snr_reset)
-		m_await_back = 1;
-		m_snr_reset_timer->adjust(attotime::zero);
-	}
-	else
-	{
-		// Z8001 -> Z80: park the Z8001, give the bus back to the Z80
-		m_await_back = 0;
-		m_snr = CLEAR_LINE;
-		m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
-		out_thold(CLEAR_LINE);
-	}
+	// host -> Z8001: (re)start with a reset, whatever state the Z8001 is in
+	m_snr_reset_timer->adjust(attotime::zero);
+}
+
+void dmv_k238_device::snr_hand_back()
+{
+	// Z8001 -> host: park the Z8001 at once, release the Z80
+	m_snr = CLEAR_LINE;
+	m_maincpu->set_input_line(INPUT_LINE_HALT, ASSERT_LINE);
+	out_thold(CLEAR_LINE);
 }
 
 uint8_t dmv_k238_device::snr_r()
 {
 	if (!machine().side_effects_disabled())   // ignore debugger reads
-		snr_toggle();
+		snr_start();
 
 	return 0xff;
 }
 
 void dmv_k238_device::snr_w(uint8_t data)
 {
-	snr_toggle();
+	snr_start();
 }
 
 
@@ -300,10 +293,23 @@ void dmv_k238_device::program_w(offs_t offset, uint8_t data)
 
 uint8_t dmv_k238_device::io_r(offs_t offset)
 {
+	if ((offset & 0xf8) == 0xd8)                // own doorbell: hand back
+	{
+		if (!machine().side_effects_disabled())
+			snr_hand_back();
+		return 0xff;
+	}
+
 	return iospace().read_byte(offset);
 }
 
 void dmv_k238_device::io_w(offs_t offset, uint8_t data)
 {
+	if ((offset & 0xf8) == 0xd8)                // own doorbell: hand back
+	{
+		snr_hand_back();
+		return;
+	}
+
 	iospace().write_byte(offset, data);
 }
