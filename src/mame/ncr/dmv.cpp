@@ -30,6 +30,7 @@
 #include "bus/dmv/k220.h"
 #include "bus/dmv/k230.h"
 #include "bus/dmv/k233.h"
+#include "bus/dmv/k238.h"
 #include "bus/dmv/k801.h"
 #include "bus/dmv/k803.h"
 #include "bus/dmv/k806.h"
@@ -1020,6 +1021,7 @@ static void dmv_slot7(device_slot_interface &device)
 	device.option_add("k220", DMV_K220);        // K220 Diagnostic Module
 	device.option_add("k231", DMV_K231);        // K231 External 8088 module without interrupt controller
 	device.option_add("k234", DMV_K234);        // K234 External 68008 module
+	device.option_add("k238", DMV_K238);        // K238 External Z8001 module (homebrew, needs K235)
 }
 
 
