@@ -1473,6 +1473,21 @@ void upd7810_device::update_sio(int cycles)
 	const int prescale[] = { 1, 1, 16, 64 };
 	const int interval = divider[SMH & 0x03] * prescale[SML & 0x03];
 
+	// In the x16 and x64 asynchronous modes the receiver runs from the undivided clock: it finds the
+	// falling edge of the start bit and samples every bit in its middle, independent of the phase of
+	// the transmit clock.
+	const bool oversample = (SML & 0x03) >= 2;
+	if (oversample)
+	{
+		const int rxclk = divider[SMH & 0x03];
+		m_rxovc += cycles;
+		while (m_rxovc >= rxclk)
+		{
+			m_rxovc -= rxclk;
+			upd7810_sio_rx_clock(prescale[SML & 0x03]);
+		}
+	}
+
 	OVCS += cycles;
 
 	while (OVCS >= interval / 2)
@@ -1480,10 +1495,42 @@ void upd7810_device::update_sio(int cycles)
 		OVCS -= (interval / 2);
 
 		if (0 == (EDGES ^= 1))
-			upd7810_sio_input(); // rising edge
+		{
+			if (!oversample)
+				upd7810_sio_input(); // rising edge
+		}
 		else
 			upd7810_sio_output(); // falling edge
 	}
+}
+
+void upd7810_device::upd7810_sio_rx_clock(int prescale)
+{
+	const uint8_t line = m_rxd_func() & 1;
+	if (m_rxwait)
+	{
+		if (0 == --m_rxwait)
+		{
+			if (0 == m_rxcnt)
+			{
+				// middle of the start bit: a high line was a glitch
+				if (!line && (SMH & 0x08))
+				{
+					m_rxs = 0x8000;
+					upd7810_sio_input();
+				}
+			}
+			else
+				upd7810_sio_input();
+			if (m_rxcnt)
+				m_rxwait = prescale;
+		}
+	}
+	else if (0 == m_rxcnt && (SMH & 0x08) && m_rxprev && !line)
+	{
+		m_rxwait = prescale / 2;
+	}
+	m_rxprev = line;
 }
 
 void upd7810_device::handle_timers(int cycles)
@@ -1819,6 +1866,9 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_txcnt));
 	save_item(NAME(m_rxcnt));
 	save_item(NAME(m_txbuf));
+	save_item(NAME(m_rxovc));
+	save_item(NAME(m_rxwait));
+	save_item(NAME(m_rxprev));
 	save_item(NAME(m_ovc0));
 	save_item(NAME(m_ovc1));
 	save_item(NAME(m_ovce));
@@ -2062,6 +2112,9 @@ void upd7810_device::device_reset()
 	m_txcnt = 0;
 	m_rxcnt = 0;
 	m_txbuf = 0;
+	m_rxovc = 0;
+	m_rxwait = 0;
+	m_rxprev = 1;
 	m_ovc0 = 0;
 	m_ovc1 = 0;
 	m_ovce = 0;
