@@ -210,13 +210,45 @@ INPUT_PORTS_START( iwriter2 )
 	PORT_DIPSETTING(    0x00, "0" )
 	PORT_DIPSETTING(    0x80, "1" )
 
-	PORT_START("SW1")   // 1 = ON
-	PORT_DIPNAME( 0xff, 0x00, "SW1" ) PORT_DIPLOCATION("SW1:1,2,3,4,5,6,7,8")
-	PORT_DIPSETTING(    0x00, "all OFF" )
+	// DIP switches as in the Technical Reference Manual, table 2-1 (1 = closed/ON, as printed by
+	// the self test); defaults are the US factory settings, DIPSW1(00000100) DIPSW2(1100)
+	PORT_START("SW1")
+	PORT_DIPNAME( 0x07, 0x00, "Language" )                      PORT_DIPLOCATION("SW1:!1,!2,!3")
+	PORT_DIPSETTING(    0x00, "American" )
+	PORT_DIPSETTING(    0x01, "Italian" )
+	PORT_DIPSETTING(    0x02, "Danish" )
+	PORT_DIPSETTING(    0x03, "British" )
+	PORT_DIPSETTING(    0x04, "German" )
+	PORT_DIPSETTING(    0x05, "Swedish" )
+	PORT_DIPSETTING(    0x06, "French" )
+	PORT_DIPSETTING(    0x07, "Spanish" )
+	PORT_DIPNAME( 0x08, 0x00, "Form length" )                   PORT_DIPLOCATION("SW1:!4")
+	PORT_DIPSETTING(    0x00, "11 inches" )
+	PORT_DIPSETTING(    0x08, "12 inches" )
+	PORT_DIPNAME( 0x10, 0x00, "Perforation skip" )              PORT_DIPLOCATION("SW1:!5")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x10, DEF_STR( On ) )
+	PORT_DIPNAME( 0x60, 0x20, "Character pitch" )               PORT_DIPLOCATION("SW1:!6,!7")
+	PORT_DIPSETTING(    0x00, "10 cpi (Pica)" )
+	PORT_DIPSETTING(    0x20, "12 cpi (Elite)" )
+	PORT_DIPSETTING(    0x40, "17 cpi (Ultracondensed)" )
+	PORT_DIPSETTING(    0x60, "160 dpi (Elite proportional)" )
+	PORT_DIPNAME( 0x80, 0x00, "Line feed after CR" )            PORT_DIPLOCATION("SW1:!8")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
-	PORT_START("SW2")   // 1 = ON
-	PORT_DIPNAME( 0x0f, 0x00, "SW2" ) PORT_DIPLOCATION("SW2:1,2,3,4")
-	PORT_DIPSETTING(    0x00, "all OFF" )
+	PORT_START("SW2")   // 2-5 and 2-6 (hammer timing) are not read through fe04
+	PORT_DIPNAME( 0x03, 0x03, "Baud rate" )                     PORT_DIPLOCATION("SW2:!1,!2")
+	PORT_DIPSETTING(    0x00, "300" )
+	PORT_DIPSETTING(    0x01, "1200" )
+	PORT_DIPSETTING(    0x02, "2400" )
+	PORT_DIPSETTING(    0x03, "9600" )
+	PORT_DIPNAME( 0x04, 0x00, "Protocol" )                      PORT_DIPLOCATION("SW2:!3")
+	PORT_DIPSETTING(    0x00, "Hardware handshake" )
+	PORT_DIPSETTING(    0x04, "XON/XOFF" )
+	PORT_DIPNAME( 0x08, 0x00, "Option card" )                   PORT_DIPLOCATION("SW2:!4")   // no option card is emulated, enabling it hangs the firmware
+	PORT_DIPSETTING(    0x00, "Disabled" )
+	PORT_DIPSETTING(    0x08, "Enabled" )
 INPUT_PORTS_END
 
 ioport_constructor iwriter2_device::device_input_ports() const
