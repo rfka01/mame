@@ -10,11 +10,11 @@
 
     Like the K234 it is a PARASITE on the DMV bus:
       - it has NO local boot EPROM
-      - the host Z80 loads the Z8001 image into shared DMV RAM, then
-        rings this card's SNR doorbell to release the Z8001, which fetches
-        its reset context from shared RAM
+      - the host (Z80, or the 8088 of a K235) puts the Z8001 image and its
+        reset context into shared DMV RAM, then rings this card's SNR
+        doorbell; every ring from the host starts the Z8001 with a reset
       - the Z8001 rings the same doorbell to hand the bus back
-    The two CPUs never drive the bus simultaneously.
+    The Z80 is held via THOLD while the Z8001 runs.
 
 ***************************************************************************/
 
@@ -68,8 +68,6 @@ private:
 	int  m_switch16;     // SWITCH16/ latch, as in K234
 	int  m_hold;         // bus hold request from host DMA / Z80
 	int  m_snr;          // 1 while the Z8001 owns the bus
-	int  m_await_back;   // SNR direction: 0 = next ring starts the Z8001,
-	                     //                1 = next ring hands the bus back
 	emu_timer *m_snr_reset_timer = nullptr;
 
 	// shared-bus program/data access (byte lanes as the DMV sees them)
@@ -80,9 +78,11 @@ private:
 	uint8_t  io_r(offs_t offset);
 	void     io_w(offs_t offset, uint8_t data);
 
-	// SNR doorbell (0xD8-0xDF), rung by either CPU
+	// SNR doorbell (0xD8-0xDF): a ring from another bus master starts the
+	// Z8001, a ring from the Z8001 itself hands the bus back
 	TIMER_CALLBACK_MEMBER(snr_reset);
-	void     snr_toggle();
+	void     snr_start();
+	void     snr_hand_back();
 	uint8_t  snr_r();
 	void     snr_w(uint8_t data);
 };
