@@ -36,7 +36,9 @@
       set selection is not emulated.
 
     I/O ports used by the boot ROM and SB-80:
-      01   W  CCM indicator LEDs (POST step / error codes)
+      01  RW  CCM indicator LEDs (POST step / error codes); also the data
+              port of the byte link to a DMV (data inverted, see below)
+      02  RW  byte link status: bits 1-0 = 3 byte received, 2 ready to send
       04   W  memory control: bit 0 boot ROM enable, bit 2 arm MMU write
       05  RW  interrupt / status (used by the TRAP monitor, not emulated)
       12   W  written 00 at reset
@@ -68,10 +70,37 @@
     reads cylinder 72 sectors 1-26 and cylinder 73 sectors 1-6 to 0100h and
     requires a zero 8-bit sum over 0100h-20FFh.
 
+    Fixed disk controller (SBIOS 1.8 / 1.7, boot ROM load device "1"):
+      FC61 command/status, FC62 status 2, FC64 reset service request.
+      The CPU writes four bytes, waiting for bit 7 (busy) to clear between
+      them: command (00 restore, 04 write, 05 read), unit (0/1), block
+      number low, block number high.  Blocks are 512 bytes, addressed
+      linearly (BIOS: track * 24 + sector - 1), so the controller handles
+      the drive geometry itself.  Completion sets bit 6 (service request),
+      result = status & 1F (02 ok, 08 not ready).  DMA on FCA4-FCA7 with
+      the same layout as the flex disk DMA.  SB-80 drives C: and D: are one
+      unit each: 24 x 512 bytes per track, 4 KB blocks, 1200 blocks
+      (4.8 MB), 512 directory entries, 1 reserved track.  Block 11 holds
+      an alternate track table (6 entries, lookup disabled in SBIOS 1.8).
+      The boot ROM loads blocks 12-19 to 0100h and 20-27 to 1100h (same
+      checksum rule as the flex disk); CONFIG bit 7 selects the unit.
+      The controller hardware is unknown (no board in the photos).  Its
+      protocol matches the I/O Processor style of the flex disk controller,
+      not a WD1001 task file and not the Corvus disk command set.
+
+    DMV link (SB-80 "Fix Disk Version 1.7 WITH INTERRUPT"): no hardware
+    interrupts; the BIOS hooks the BDOS entry and the console wait loops
+    and polls port 02.  When a byte is pending (status 3) it receives a
+    disk request block over port 01 (inverted data), runs it on the local
+    fixed disk and transfers 512 byte sectors over the link, making the
+    9010 a fixed disk server for a DMV (see SEND9010/EMPF9010 and
+    SENDDMV/EMPFDMV, DMV side on ports C0-C3).  The link is reported idle.
+
     TODO:
     - dump character generator, video PROMs, IOP microcode, Flex IF PROMs
     - real video timing, attributes, cursor shape
     - keyboard is HLE (ASCII + 80h-9Fh function codes from the SB-80 key table)
+    - DMV byte link (ports 01/02)
     - interrupts (TRAP monitor, keyboard, disk), serial port, fixed disk,
       load device 2, third ROM socket ("EXTFW" extension firmware at 1000h)
 
@@ -394,6 +423,9 @@ u8 ncr9010_state::io_r(offs_t offset)
 		return m_kbd_count ? 0x10 : 0x00;
 
 	case 0x31: // printer 1 status, 0 = no error
+		return 0x00;
+
+	case 0x02: // DMV link status: idle (nothing received, not ready to send)
 		return 0x00;
 
 	case 0x41: // load device 2 status
