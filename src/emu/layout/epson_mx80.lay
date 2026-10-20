@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Epson MX-80: paper and control panel, after a photo of the printer
+(light case, dark panel at the right front: POWER, READY and PAPER OUT lamps,
+ ON LINE key with its lamp, FF and LF keys; paper knob at the right side)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.88" green="0.86" blue="0.78" /></rect></element>
+	<element name="case_dark"><rect><color red="0.78" green="0.76" blue="0.68" /></rect></element>
+	<element name="panel"><rect><color red="0.20" green="0.20" blue="0.22" /></rect></element>
+	<element name="knob">
+		<rect><color red="0.88" green="0.86" blue="0.78" /></rect>
+		<disk><color red="0.30" green="0.29" blue="0.27" /></disk>
+		<disk><bounds x="0.15" y="0.15" width="0.7" height="0.7" /><color red="0.40" green="0.39" blue="0.36" /></disk>
+	</element>
+
+	<element name="led_power"><rect><color red="0.35" green="1.00" blue="0.35" /></rect></element>
+	<element name="led_green" defstate="0">
+		<rect state="0"><color red="0.14" green="0.26" blue="0.17" /></rect>
+		<rect state="1"><color red="0.35" green="1.00" blue="0.35" /></rect>
+	</element>
+	<element name="led_red" defstate="0">
+		<rect state="0"><color red="0.30" green="0.12" blue="0.12" /></rect>
+		<rect state="1"><color red="1.00" green="0.22" blue="0.18" /></rect>
+	</element>
+	<element name="key" defstate="0">
+		<rect state="0"><color red="0.90" green="0.88" blue="0.80" /></rect>
+		<rect state="1"><color red="0.70" green="0.68" blue="0.60" /></rect>
+	</element>
+
+	<element name="t_power"><text string="POWER"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_ready"><text string="READY"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_paper"><text string="PAPER OUT"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_online"><text string="ON LINE"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_ff"><text string="FF"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_lf"><text string="LF"><color red="0.85" green="0.86" blue="0.88" /></text></element>
+	<element name="t_name"><text string="EPSON MX-80"><color red="0.35" green="0.34" blue="0.31" /></text></element>
+
+	<group name="controls">
+		<element ref="panel"><bounds x="0" y="0" width="420" height="200" /></element>
+
+		<element ref="t_power"><bounds x="10" y="14" width="120" height="20" /></element>
+		<element ref="led_power"><bounds x="60" y="40" width="20" height="10" /></element>
+		<element ref="t_ready"><bounds x="150" y="14" width="120" height="20" /></element>
+		<element name="mx80_ready_led" ref="led_green"><bounds x="200" y="40" width="20" height="10" /></element>
+		<element ref="t_paper"><bounds x="290" y="14" width="120" height="20" /></element>
+		<element name="mx80_paper_led" ref="led_red"><bounds x="340" y="40" width="20" height="10" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="30" y="80" width="80" height="70" /></element>
+		<element name="mx80_online_led" ref="led_green"><bounds x="116" y="84" width="10" height="20" /></element>
+		<element ref="t_online"><bounds x="10" y="160" width="120" height="20" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x08"><bounds x="170" y="80" width="80" height="70" /></element>
+		<element ref="t_ff"><bounds x="170" y="160" width="80" height="20" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="310" y="80" width="80" height="70" /></element>
+		<element ref="t_lf"><bounds x="310" y="160" width="80" height="20" /></element>
+	</group>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<element ref="case"><bounds x="0" y="360" width="1240" height="260" /></element>
+		<element ref="case_dark"><bounds x="0" y="360" width="1240" height="6" /></element>
+		<element ref="case"><bounds x="1140" y="0" width="100" height="360" /></element>
+		<element ref="knob"><bounds x="1160" y="150" width="60" height="60" /></element>
+		<element ref="t_name"><bounds x="40" y="400" width="300" height="30" /></element>
+		<group ref="controls"><bounds x="780" y="400" width="420" height="200" /></group>
+	</view>
+
+	<view name="Control panel">
+		<group ref="controls"><bounds x="0" y="0" width="420" height="200" /></group>
+	</view>
+</mamelayout>

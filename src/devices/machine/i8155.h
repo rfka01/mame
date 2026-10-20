@@ -65,6 +65,10 @@ public:
 	uint8_t data_r();
 	void data_w(uint8_t data);
 
+	// strobe inputs of the ALT 3 and ALT 4 handshake modes (PC2 and PC5)
+	void stb_a_w(int state) { strobe_w(0, state); }
+	void stb_b_w(int state) { strobe_w(1, state); }
+
 protected:
 	i8155_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
@@ -92,6 +96,8 @@ private:
 	uint8_t m_command;          // command register
 	uint8_t m_status;           // status register
 	uint8_t m_output[3];        // output latches
+	uint8_t m_input[2];         // strobed input latches
+	int m_stb[2];               // STB input levels
 
 	// RAM
 	std::unique_ptr<uint8_t[]> m_ram;
@@ -114,8 +120,12 @@ private:
 	inline void timer_stop_count();
 	inline void timer_reload_count();
 	inline int get_port_mode(int port);
+	inline bool port_strobed(int port);
 	inline uint8_t read_port(int port);
 	inline void write_port(int port, uint8_t data);
+	inline uint8_t pc_pins() const;
+	void update_pc();
+	void strobe_w(int port, int state);
 	void write_command(uint8_t data);
 
 	void register_w(int offset, uint8_t data);
