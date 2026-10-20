@@ -20,7 +20,6 @@
 
     TODO:
 
-    - ALT 3 and ALT 4 strobed port modes
     - optional NVRAM backup for CMOS versions
 
 */
@@ -66,8 +65,8 @@ enum
 {
 	PORT_MODE_INPUT = 0,
 	PORT_MODE_OUTPUT,
-	PORT_MODE_STROBED_PORT_A,   // not supported
-	PORT_MODE_STROBED           // not supported
+	PORT_MODE_STROBED_PORT_A,   // ALT 3: PC0-PC2 port A handshake, PC3-PC5 output
+	PORT_MODE_STROBED           // ALT 4: PC0-PC2 port A, PC3-PC5 port B handshake
 };
 
 enum
@@ -81,22 +80,22 @@ enum
 #define COMMAND_PC_MASK             0x0c
 #define COMMAND_PC_ALT_1            0x00
 #define COMMAND_PC_ALT_2            0x0c
-#define COMMAND_PC_ALT_3            0x04    // not supported
-#define COMMAND_PC_ALT_4            0x08    // not supported
-#define COMMAND_IEA                 0x10    // not supported
-#define COMMAND_IEB                 0x20    // not supported
+#define COMMAND_PC_ALT_3            0x04
+#define COMMAND_PC_ALT_4            0x08
+#define COMMAND_IEA                 0x10
+#define COMMAND_IEB                 0x20
 #define COMMAND_TM_MASK             0xc0
 #define COMMAND_TM_NOP              0x00
 #define COMMAND_TM_STOP             0x40
 #define COMMAND_TM_STOP_AFTER_TC    0x80
 #define COMMAND_TM_START            0xc0
 
-#define STATUS_INTR_A               0x01    // not supported
-#define STATUS_A_BF                 0x02    // not supported
-#define STATUS_INTE_A               0x04    // not supported
-#define STATUS_INTR_B               0x08    // not supported
-#define STATUS_B_BF                 0x10    // not supported
-#define STATUS_INTE_B               0x20    // not supported
+#define STATUS_INTR_A               0x01
+#define STATUS_A_BF                 0x02
+#define STATUS_INTE_A               0x04
+#define STATUS_INTR_B               0x08
+#define STATUS_B_BF                 0x10
+#define STATUS_INTE_B               0x20
 #define STATUS_TIMER                0x40
 
 #define TIMER_MODE_MASK             0xc0
@@ -220,6 +219,17 @@ inline int i8155_device::get_port_mode(int port)
 	return mode;
 }
 
+inline bool i8155_device::port_strobed(int port)
+{
+	// port A is strobed in ALT 3 and ALT 4, port B only in ALT 4
+	switch (m_command & COMMAND_PC_MASK)
+	{
+	case COMMAND_PC_ALT_3: return port == PORT_A;
+	case COMMAND_PC_ALT_4: return port == PORT_A || port == PORT_B;
+	default: return false;
+	}
+}
+
 inline uint8_t i8155_device::read_port(int port)
 {
 	uint8_t data = 0;
@@ -227,16 +237,29 @@ inline uint8_t i8155_device::read_port(int port)
 	switch (get_port_mode(port))
 	{
 	case PORT_MODE_INPUT:
-		data = (port == PORT_A) ? m_in_pa_cb(0) : ((port == PORT_B) ? m_in_pb_cb(0) : m_in_pc_cb(0));
+		if (port_strobed(port))
+		{
+			// strobed input: the data latched by STB; reading clears INTR and BF
+			data = m_input[port];
+			if (!machine().side_effects_disabled())
+			{
+				uint8_t const shift = (port == PORT_A) ? 0 : 3;
+				m_status &= ~((STATUS_INTR_A | STATUS_A_BF) << shift);
+				update_pc();
+			}
+		}
+		else
+			data = (port == PORT_A) ? m_in_pa_cb(0) : ((port == PORT_B) ? m_in_pb_cb(0) : m_in_pc_cb(0));
 		break;
 
 	case PORT_MODE_OUTPUT:
 		data = m_output[port];
 		break;
 
-	default:
-		// strobed mode not implemented yet
-		logerror("8155 Unsupported Port C mode!\n");
+	case PORT_MODE_STROBED_PORT_A:
+	case PORT_MODE_STROBED:
+		// handshake lines and the PC3-PC5 output latch
+		data = pc_pins();
 		break;
 	}
 
@@ -249,14 +272,83 @@ inline void i8155_device::write_port(int port, uint8_t data)
 	switch (get_port_mode(port))
 	{
 	case PORT_MODE_OUTPUT:
+		if (port_strobed(port) && !machine().side_effects_disabled())
+		{
+			// strobed output: writing clears INTR and sets BF until the peripheral strobes
+			uint8_t const shift = (port == PORT_A) ? 0 : 3;
+			m_status = (m_status & ~(STATUS_INTR_A << shift)) | (STATUS_A_BF << shift);
+		}
 		if (port == PORT_A)
 			m_out_pa_cb((offs_t)0, m_output[port]);
 		else if (port == PORT_B)
 			m_out_pb_cb((offs_t)0, m_output[port]);
 		else
 			m_out_pc_cb((offs_t)0, m_output[port]);
+		if (port_strobed(port))
+			update_pc();
+		break;
+
+	case PORT_MODE_STROBED_PORT_A:
+		// PC3-PC5 are outputs
+		update_pc();
 		break;
 	}
+}
+
+inline uint8_t i8155_device::pc_pins() const
+{
+	// handshake outputs INTR (PC0/PC3) and BF (PC1/PC4), strobe inputs (PC2/PC5)
+	uint8_t data = (m_status & (STATUS_INTR_A | STATUS_A_BF)) | (m_stb[0] ? 0x04 : 0x00);
+	if ((m_command & COMMAND_PC_MASK) == COMMAND_PC_ALT_4)
+		data |= ((m_status >> 3) & (STATUS_INTR_A | STATUS_A_BF)) << 3 | (m_stb[1] ? 0x20 : 0x00);
+	else
+		data |= m_output[PORT_C] & 0x38;
+	return data;
+}
+
+void i8155_device::update_pc()
+{
+	switch (m_command & COMMAND_PC_MASK)
+	{
+	case COMMAND_PC_ALT_3:
+	case COMMAND_PC_ALT_4:
+		m_out_pc_cb((offs_t)0, pc_pins());
+		break;
+	}
+}
+
+void i8155_device::strobe_w(int port, int state)
+{
+	if (state == m_stb[port])
+		return;
+	m_stb[port] = state;
+
+	if (!port_strobed(port))
+		return;
+
+	uint8_t const shift = (port == PORT_A) ? 0 : 3;
+	uint8_t const inte = ((port == PORT_A) ? COMMAND_IEA : COMMAND_IEB) & m_command;
+	if (get_port_mode(port) == PORT_MODE_INPUT)
+	{
+		// strobed input: STB low loads the port and sets BF, its rising edge sets INTR
+		if (!state)
+		{
+			m_input[port] = (port == PORT_A) ? m_in_pa_cb(0) : m_in_pb_cb(0);
+			m_status |= STATUS_A_BF << shift;
+		}
+		else if (inte)
+			m_status |= STATUS_INTR_A << shift;
+	}
+	else
+	{
+		// strobed output: STB low (the peripheral took the data) clears BF, its rising edge sets INTR
+		if (!state)
+			m_status &= ~(STATUS_A_BF << shift);
+		else if (inte)
+			m_status |= STATUS_INTR_A << shift;
+	}
+	LOGMASKED(LOG_PORT, "Port %c STB %d, status %02x\n", 'A' + port, state, m_status);
+	update_pc();
 }
 
 
@@ -284,6 +376,7 @@ i8155_device::i8155_device(const machine_config &mconfig, device_type type, cons
 	m_out_to_cb(*this),
 	m_command(0),
 	m_status(0),
+	m_stb{ 1, 1 },
 	m_count_length(0),
 	m_count_loaded(0),
 	m_to(0),
@@ -321,6 +414,8 @@ void i8155_device::device_start()
 	save_item(NAME(m_command));
 	save_item(NAME(m_status));
 	save_item(NAME(m_output));
+	save_item(NAME(m_input));
+	save_item(NAME(m_stb));
 	save_pointer(NAME(m_ram), 256);
 	save_item(NAME(m_count_length));
 	save_item(NAME(m_count_loaded));
@@ -338,6 +433,11 @@ void i8155_device::device_reset()
 	m_output[PORT_A] = 0;
 	m_output[PORT_B] = 0;
 	m_output[PORT_C] = 0;
+	m_input[PORT_A] = 0;
+	m_input[PORT_B] = 0;
+
+	// clear the handshake flags
+	m_status &= ~(STATUS_INTR_A | STATUS_A_BF | STATUS_INTE_A | STATUS_INTR_B | STATUS_B_BF | STATUS_INTE_B);
 
 	// set ports to input mode
 	register_w(REGISTER_COMMAND, m_command & ~(COMMAND_PA | COMMAND_PB | COMMAND_PC_MASK));
@@ -489,6 +589,10 @@ void i8155_device::write_command(uint8_t data)
 		LOGMASKED(LOG_PORT, "Port C Mode: Alt 4 (PC0-PC2 A handshake, PC3-PC5 B handshake)\n");
 		break;
 	}
+
+	// the interrupt enable flags are visible in the status register
+	m_status = (m_status & ~(STATUS_INTE_A | STATUS_INTE_B)) | ((data & COMMAND_IEA) ? STATUS_INTE_A : 0) | ((data & COMMAND_IEB) ? STATUS_INTE_B : 0);
+	update_pc();
 
 	switch (data & COMMAND_TM_MASK)
 	{

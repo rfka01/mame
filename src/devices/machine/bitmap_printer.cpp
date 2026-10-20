@@ -492,6 +492,8 @@ void bitmap_printer_device::device_reset_after_children()
 
 	if (m_continuous_feed)
 		reset_feed_marks();
+	else
+		m_clear_pos = std::max(m_clear_pos, m_ypos + m_distfrombottom + 1);  // the paper up to the head is in place: ink printed before the first feed stays
 }
 
 void bitmap_printer_device::device_reset()
