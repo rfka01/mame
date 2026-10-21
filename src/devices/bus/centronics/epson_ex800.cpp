@@ -122,8 +122,9 @@ Power LED is green, selectype LED is orange, paper out LED is red.
 
 Findings from the firmware (rfka01):
 
- - Memory: 0000-7fff ROM, 8000-bfff RAM, c000-dfff colour option, e000 gate
-   array 5a, e800 interface option, f000 gate array 7a
+ - Memory: 0000-7fff ROM, 8000-bfff RAM, c000-dfff device select (not used
+   by this firmware), e000 gate array 5a, e800 interface option, f000 gate
+   array 7a
  - Gate array 5a: e000 r Centronics data (clears the strobe flag and BUSY),
    e001 r bit 0 = strobe flag, e002/e003 w needle latches, e005 w ?,
    e004 r settings of a serial option (used when 7a PB5 = 0)
@@ -144,7 +145,14 @@ Findings from the firmware (rfka01):
    PB6 /ACK, PB7 PAPER OUT lamp (0 = on)
  - CO0 (PC6): FIRE; CO1 (PC7): buzzer
  - AN4 printhead temperature (above 2Ah), AN6 supply supervision (B9h-F9h),
-   AN2/AN3 printhead timing adjustment, AN5/AN7 colour option
+   AN2/AN3 printhead timing adjustment, AN5/AN7 colour option home sensor
+ - Colour option: the ribbon shift motor on PC5:PC4 (Gray code), energised
+   by PC2 = 0, driven from timer interrupts.  At power on the firmware
+   moves the ribbon until the home sensor (AN5 above 80h) sees its flag, for
+   up to 200 steps; without the option it is never found and ESC r is
+   ignored.
+   The bands lie 36 steps apart (37 to and from yellow) in the order black,
+   blue (cyan), red (magenta), yellow; mixed colours take two passes.
  - Serial interface: the uPD7810 UART; interface type and baud rate on
    SW2-5 to SW2-8, XON/XOFF and BUSY (DTR)
 
@@ -187,6 +195,15 @@ constexpr int CR_RIGHT = 560;           // right stop
 
 // 2-bit Gray code phase index (00 01 11 10)
 constexpr int gray_phase[4] = { 0, 1, 3, 2 };
+
+// colour option ribbon, in shift motor steps from the black band towards the yellow band.  The
+// firmware moves from the black side until the home sensor sees the flag, runs on for 14 steps and
+// comes back 29 steps to the black band, then moves 36 steps per band (37 to and from yellow)
+constexpr u32 ribbon_color[4] = { 0x000000, 0x2c74c8, 0xd8306c, 0xf0d028 };   // black, blue, red, yellow
+constexpr int RIB_BAND = 36;
+constexpr int RIB_FLAG = 15;            // the home sensor flag covers the travel from here to the yellow end
+constexpr int RIB_MIN = -10;            // ends of the shift travel
+constexpr int RIB_MAX = 150;
 
 
 //**************************************************************************
@@ -254,6 +271,8 @@ private:
 	void carriage_step(int delta);
 	double head_x() const;
 	void fire();
+	u8 colour_sensor_r();
+	u32 ink_color() const;
 	u8 keys_held() const;
 
 	required_device<upd7810_device> m_maincpu;
@@ -298,6 +317,10 @@ private:
 
 	attotime m_power_on;
 	bool m_power_cycled;
+
+	// colour option
+	int m_rib_pos;          // ribbon shift motor steps from the black band
+	int m_rib_phase;
 };
 
 
@@ -396,7 +419,10 @@ const tiny_rom_entry *epson_ex800_base::device_rom_region() const
 	PORT_CONFSETTING(   0x00, "None") \
 	PORT_CONFSETTING(   0x02, "LINE FEED (self test, draft)") \
 	PORT_CONFSETTING(   0x04, "FORM FEED (self test, NLQ)") \
-	PORT_CONFSETTING(   0x06, "LINE FEED + FORM FEED (data dump)")
+	PORT_CONFSETTING(   0x06, "LINE FEED + FORM FEED (data dump)") \
+	PORT_CONFNAME(0x08, 0x00, "Colour option") \
+	PORT_CONFSETTING(   0x00, DEF_STR(No)) \
+	PORT_CONFSETTING(   0x08, DEF_STR(Yes))
 
 INPUT_PORTS_START( epson_ex800 )
 	EX800_INPUT_PORTS(0x00)
@@ -444,7 +470,9 @@ epson_ex800_base::epson_ex800_base(const machine_config &mconfig, device_type ty
 	m_cr_step(2),
 	m_cr_dir(1),
 	m_pf_phase(-1),
-	m_power_cycled(false)
+	m_power_cycled(false),
+	m_rib_pos(0),
+	m_rib_phase(-1)
 {
 }
 
@@ -479,7 +507,7 @@ void epson_ex800_base::device_add_mconfig(machine_config &config)
 	m_maincpu->an2_func().set_constant(0x80);   // printhead timing adjustment
 	m_maincpu->an3_func().set_constant(0x80);
 	m_maincpu->an4_func().set_constant(0x80);   // printhead temperature, normal
-	m_maincpu->an5_func().set_constant(0x00);   // colour option home sensor
+	m_maincpu->an5_func().set(FUNC(epson_ex800_base::colour_sensor_r));   // colour option home sensor
 	m_maincpu->an6_func().set_constant(0xd0);   // supply voltage, in range
 	m_maincpu->an7_func().set_constant(0x80);   // colour option home sensor adjustment
 
@@ -519,6 +547,8 @@ void epson_ex800_base::device_start()
 	save_item(NAME(m_pf_phase));
 	save_item(NAME(m_power_on));
 	save_item(NAME(m_power_cycled));
+	save_item(NAME(m_rib_pos));
+	save_item(NAME(m_rib_phase));
 }
 
 void epson_ex800_base::device_reset()
@@ -695,6 +725,34 @@ u8 epson_ex800_base::pc_r()
 
 void epson_ex800_base::pc_w(u8 data)
 {
+	// colour option: ribbon shift motor, Gray code on PC5:PC4, energised by PC2 = 0
+	int const phase = gray_phase[(data >> 4) & 3];
+	if (phase != m_rib_phase)
+	{
+		if ((m_rib_phase >= 0) && !BIT(data, 2) && BIT(m_config->read(), 3))
+		{
+			int const delta = (phase - m_rib_phase) & 3;
+			if (delta == 1 || delta == 3)   // the motor slips at the ends of the travel
+				m_rib_pos = std::clamp(m_rib_pos + ((delta == 3) ? 1 : -1), RIB_MIN, RIB_MAX);
+		}
+		m_rib_phase = phase;
+	}
+}
+
+u8 epson_ex800_base::colour_sensor_r()
+{
+	// the flag's edge lies between the black and the blue band
+	if (!BIT(m_config->read(), 3))
+		return 0x00;
+	return (m_rib_pos >= RIB_FLAG) ? 0xff : 0x00;
+}
+
+u32 epson_ex800_base::ink_color() const
+{
+	if (!BIT(m_config->read(), 3))
+		return 0x000000;
+	int const band = std::clamp(int(std::lround(m_rib_pos / double(RIB_BAND))), 0, 3);
+	return ribbon_color[band];
 }
 
 void epson_ex800_base::co0_w(int state)
@@ -885,10 +943,23 @@ void epson_ex800_base::fire()
 	if (x < 0 || x >= int(PAPER_WIDTH * HDPI))
 		return;
 
-	// needles are 1/72" = 3 paper steps apart
+	// needles are 1/72" = 3 paper steps apart; the inks of the colour ribbon mix on the paper
+	u32 const ink = ink_color();
 	for (int needle = 0; needle < 9; needle++)
+	{
 		if (BIT(m_head, needle))
-			m_bitmap_printer->draw_pixel(x, m_bitmap_printer->m_ypos + needle * (VDPI / 72), 0x000000);
+		{
+			int const y = m_bitmap_printer->m_ypos + needle * (VDPI / 72);
+			u32 color = 0;
+			if (ink)
+			{
+				u32 const paper = m_bitmap_printer->get_pixel(x, y) & 0xffffff;
+				for (int shift = 0; shift < 24; shift += 8)
+					color |= ((((paper >> shift) & 0xff) * ((ink >> shift) & 0xff)) / 255) << shift;
+			}
+			m_bitmap_printer->draw_pixel(x, y, color);
+		}
+	}
 }
 
 
