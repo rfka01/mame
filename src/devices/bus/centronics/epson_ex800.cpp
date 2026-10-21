@@ -184,7 +184,9 @@ constexpr int HDPI = 240;               // horizontal resolution of the paper bi
 constexpr int VDPI = 432;               // vertical resolution: one paper motor step
 constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 11.0;
-constexpr double LEFT_OFFSET = 1.0 / 3 + 0.75 - 0.392;    // paper edge to the home sensor edge: column 1 at 3/4"
+// paper edge to the home sensor edge: column 1 at 3/4"; the last term puts the dot columns on
+// the bitmap's pixel centres, else rounding to the pixels splits the passes of a colour mix
+constexpr double LEFT_OFFSET = 1.0 / 3 + 0.75 - 0.392 - 0.47 / HDPI;
 
 // the head lags the rotor by CR_LAG (s) plus CR_SHIFT (steps); both found from
 // bidirectional printing in draft (full steps) and NLQ (half steps, half speed)
