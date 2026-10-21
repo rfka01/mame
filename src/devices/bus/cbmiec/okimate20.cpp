@@ -369,8 +369,9 @@ TIMER_CALLBACK_MEMBER(okimate20_device::step_tick)
 	// it interrupts after every step, or after every 12th step (one character cell) while c006 bits 0-1 are set
 	if (!BIT(m_io[6], 5))
 	{
-		// stopped: the step in progress completes with one more interrupt, then the generator halts
-		m_cr_pos += m_cr_dir;
+		// stopped: the generator halts with one more interrupt but no further step; the firmware
+		// counts the steps of a move from these interrupts and returns from the last pass of a
+		// colour line by count, so a step here shifts every following line to the right
 		m_maincpu->set_input_line(MCS51_INT1_LINE, ASSERT_LINE);
 		m_cr_count = 0;
 		return;
