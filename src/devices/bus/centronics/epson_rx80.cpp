@@ -49,6 +49,9 @@
 
 #include "speaker.h"
 
+#include <cmath>
+#include <numbers>
+
 #include "epson_rx80.lh"
 
 //#define VERBOSE 1
@@ -638,7 +641,7 @@ double epson_rx80_device::carriage_torque() const
 
 	// the phase pattern 00 01 11 10 moves the carriage to the right, one step each
 	int const eq = gray_phase[m_pb & 3];
-	return current * CR_TORQUE * sin(M_PI / 2 * (eq - m_cr_pos));
+	return current * CR_TORQUE * std::sin(std::numbers::pi / 2 * (eq - m_cr_pos));
 }
 
 void epson_rx80_device::carriage_update()
@@ -678,7 +681,7 @@ void epson_rx80_device::carriage_update()
 
 	m_bitmap_printer->setheadpos(int((m_cr_pos / CR_DPI + LEFT_OFFSET) * HDPI), m_bitmap_printer->m_ypos);
 
-	double const frac = m_cr_pos - floor(m_cr_pos);
+	double const frac = m_cr_pos - std::floor(m_cr_pos);
 	int const pts = (frac >= PTS_ON && frac < PTS_ON + PTS_WIDTH) ? 1 : 0;
 	if (pts != m_pts)
 		set_pts(pts);
