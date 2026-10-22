@@ -11,7 +11,8 @@
     Boards (from photos of a machine at Schroeder):
       M210-02  Common Control Module: P8085A-2, 27.648 MHz oscillator,
                2716 EPROMs "1023" (ROM 1, J1) and "1024" (ROM 2, F1),
-               empty third socket G1, 93419 64x9 bipolar RAM, CCM indicator LEDs
+               empty third socket G1, 93419 64x9 bipolar RAM (MMU map),
+               CCM indicator board (8 LEDs "17".."10" = bits 7-0, RUN LED)
       M217-02  memory board, 36 x 64Kx1 DRAM (4 of 8 rows fitted, parity)
       M215-01  discrete DMA board
       M223-06  video board, no CRTC (TTL timing), Intel D2608 "6-1043026" and
@@ -20,6 +21,26 @@
       Flex Disk IF: discrete drive interface, PROMs "502" and "177"
 
     The two boot EPROMs are stored with inverted data lines.
+
+    Front panel (right of the screen, NCR GmbH Augsburg, class 3274,
+    model 1201-4301; the drive cabinet is class 7646, model 0201-2390):
+    FLEX DRIVE STATUS with a green READY and a red BUSY lamp per drive 0-3,
+    a MONIT key, COMM and POWER lamps, power switch and brightness wheel.
+    READY follows a mounted disk, BUSY lights while the flex controller
+    works on the drive and for a short head unload delay afterwards.  The
+    COMM lamp stays dark (no communication hardware is emulated); RUN on
+    the CCM indicator is lit while the machine is on.
+
+    MONIT: the key sets bit 6 of port 05 and pulls TRAP.  The boot ROM has
+    no RAM vector for TRAP (SB-80 leaves 0024h alone), so the TRAP
+    acknowledge is assumed to switch the boot ROM in, which the emulation
+    does.  The ROM handler (0024h -> 0742h) saves the registers to 3FE1h-
+    3FEAh; with bit 6 set it acknowledges with OUT 05 and enters the ROM
+    monitor ("MONITOR?", commands M R G I E F C T L Z), with bit 7 set it
+    shows 18h on the CCM LEDs and stops (power fail?), otherwise it
+    restarts.  The monitor keeps its command table and work area at
+    3F80h-3FFFh, which is only set up at power on: before an operating
+    system is loaded it works; after SB-80 has used that memory it may not.
 
     Memory map as seen by the 8085 (derived from the boot ROM and SBIOS 1.8):
       0000-0FFF  boot ROM while bit 0 of port 04 is set (writes always go to RAM)
@@ -40,12 +61,13 @@
               port of the byte link to a DMV (data inverted, see below)
       02  RW  byte link status: bits 1-0 = 3 byte received, 2 ready to send
       04   W  memory control: bit 0 boot ROM enable, bit 2 arm MMU write
-      05  RW  interrupt / status (used by the TRAP monitor, not emulated)
+      05  RW  TRAP cause: bit 6 MONIT key, bit 7 power fail? (OUT acknowledges)
       12   W  written 00 at reset
       21   R  mode switches (bit 7 = 0 selects ROM test modes)
       23   R  configuration switches (default boot device, screen format)
       28-2F   keyboard (data, status 10=data 20=not accepted 40=break, control)
-      30-37   parallel printer 1 (data 30, status 31, disable int 33, reset 37)
+      30-37   parallel printer 1 (data 30, status 31 bits C6 = error, disable
+              int 33, reset 37); SBIOS 1.8 polls it, LST: = P1 by default
       41-47   load device "2" (unknown; not emulated)
       60-67   fixed disk controller (not emulated, reports "not ready")
       8C-8F   flex disk DMA: address L/H, count L, count H (bits 3-0) + direction
@@ -95,13 +117,19 @@
     fixed disk and transfers 512 byte sectors over the link, making the
     9010 a fixed disk server for a DMV (see SEND9010/EMPF9010 and
     SENDDMV/EMPFDMV, DMV side on ports C0-C3).  The link is reported idle.
+    The link software writes and reads port 01 (OUT 1 / IN 1, data
+    complemented) with OUT 2 / IN 2 as handshake, so it is a byte wide
+    parallel link, presumably on the CCM header J1 that carries the port 01
+    latch to the indicator board.  Neither the boot ROM nor SB-80 executes
+    SIM, and RIM only appears in the TRAP handler (IE recovery), so the
+    8085 SID/SOD pins are unused by the known software.
 
     TODO:
     - dump character generator, video PROMs, IOP microcode, Flex IF PROMs
     - real video timing, attributes, cursor shape
     - keyboard is HLE (ASCII + 80h-9Fh function codes from the SB-80 key table)
     - DMV byte link (ports 01/02)
-    - interrupts (TRAP monitor, keyboard, disk), serial port, fixed disk,
+    - interrupts (keyboard, disk), serial port, fixed disk,
       load device 2, third ROM socket ("EXTFW" extension firmware at 1000h)
 
 ****************************************************************************/
@@ -118,6 +146,8 @@
 #include "screen.h"
 
 #include "formats/imd_dsk.h"
+
+#include "ncr9010.lh"
 
 #define LOG_MMU     (1U << 1)
 #define LOG_FLEX    (1U << 2)
@@ -218,8 +248,15 @@ public:
 		, m_chargen(*this, "chargen")
 		, m_mode(*this, "MODE")
 		, m_config(*this, "CONFIG")
-		, m_leds(*this, "led%u", 0U)
+		, m_ccm_leds(*this, "ccm_led%u", 0U)
+		, m_ccm_run(*this, "ccm_run")
+		, m_ready_leds(*this, "flex_ready%u", 0U)
+		, m_busy_leds(*this, "flex_busy%u", 0U)
+		, m_comm_led(*this, "comm_led")
+		, m_power_led(*this, "power_led")
 	{ }
+
+	DECLARE_INPUT_CHANGED_MEMBER(monit_pressed);
 
 	void ncr9010(machine_config &config);
 
@@ -263,12 +300,18 @@ private:
 	required_region_ptr<u8> m_chargen;
 	required_ioport m_mode;
 	required_ioport m_config;
-	output_finder<8> m_leds;
+	output_finder<8> m_ccm_leds;
+	output_finder<> m_ccm_run;
+	output_finder<4> m_ready_leds;
+	output_finder<4> m_busy_leds;
+	output_finder<> m_comm_led;
+	output_finder<> m_power_led;
 
 	std::unique_ptr<u8[]> m_ram;
 	u8 m_map[4][16];
 	u8 m_memctrl;
 	bool m_map_arm;
+	u8 m_trap_cause;
 
 	// video
 	u8 m_vram[2048];
@@ -298,6 +341,8 @@ private:
 	unsigned m_fx_idpos;
 	floppy_image_device *m_fx_floppy;
 	emu_timer *m_fx_timer;
+	emu_timer *m_hld_timer;
+	emu_timer *m_panel_timer;
 
 	void mem_map(address_map &map) ATTR_COLD;
 	void io_map(address_map &map) ATTR_COLD;
@@ -328,6 +373,9 @@ private:
 	void fdc_intrq_w(int state);
 	void fdc_drq_w(int state);
 	TIMER_CALLBACK_MEMBER(flex_step);
+	TIMER_CALLBACK_MEMBER(head_unload);
+	TIMER_CALLBACK_MEMBER(panel_update);
+	IRQ_CALLBACK_MEMBER(irq_ack);
 };
 
 
@@ -400,6 +448,9 @@ u8 ncr9010_state::io_r(offs_t offset)
 {
 	switch (offset)
 	{
+	case 0x05: // TRAP cause
+		return m_trap_cause;
+
 	case 0x21:
 		return m_mode->read();
 
@@ -459,7 +510,12 @@ void ncr9010_state::io_w(offs_t offset, u8 data)
 	{
 	case 0x01: // CCM indicator
 		for (int i = 0; i < 8; i++)
-			m_leds[i] = BIT(data, i);
+			m_ccm_leds[i] = BIT(data, i);
+		break;
+
+	case 0x05: // acknowledge TRAP
+		m_trap_cause = 0;
+		m_maincpu->set_input_line(I8085_TRAP_LINE, CLEAR_LINE);
 		break;
 
 	case 0x04: // memory control
@@ -672,6 +728,10 @@ void ncr9010_state::flex_command()
 
 	m_fx_status = 0x80;
 	flex_select();
+
+	m_hld_timer->adjust(attotime::never);
+	for (unsigned i = 0; i < 4; i++)
+		m_busy_leds[i] = (i == m_fx_unit) && m_fx_floppy && m_fx_floppy->exists();
 
 	if (!m_fx_floppy || !m_fx_floppy->exists())
 	{
@@ -942,6 +1002,45 @@ void ncr9010_state::flex_finish(u8 result)
 	LOGFLEX("flex result %02X\n", result);
 	m_fx_state = FX_IDLE;
 	m_fx_status = 0x40 | result;
+	m_hld_timer->adjust(attotime::from_msec(300)); // head unload delay
+}
+
+TIMER_CALLBACK_MEMBER(ncr9010_state::head_unload)
+{
+	if (m_fx_state == FX_IDLE)
+		for (auto &led : m_busy_leds)
+			led = 0;
+}
+
+
+/***************************************************************************
+    FRONT PANEL
+***************************************************************************/
+
+TIMER_CALLBACK_MEMBER(ncr9010_state::panel_update)
+{
+	for (unsigned i = 0; i < 4; i++)
+	{
+		floppy_image_device *const floppy = m_floppy[i]->get_device();
+		m_ready_leds[i] = floppy && floppy->exists();
+	}
+}
+
+INPUT_CHANGED_MEMBER(ncr9010_state::monit_pressed)
+{
+	if (newval && !BIT(m_trap_cause, 6))
+	{
+		m_trap_cause |= 0x40;
+		m_maincpu->set_input_line(I8085_TRAP_LINE, ASSERT_LINE);
+	}
+}
+
+IRQ_CALLBACK_MEMBER(ncr9010_state::irq_ack)
+{
+	// assumed: taking TRAP switches the boot ROM in (its handler is at 0024h)
+	if (irqline == I8085_TRAP_LINE)
+		m_memctrl |= 0x01;
+	return 0xff;
 }
 
 
@@ -958,6 +1057,9 @@ static INPUT_PORTS_START( ncr9010 )
 	PORT_DIPSETTING(    0x00, "Memory test, keep memory" )
 	PORT_DIPSETTING(    0x04, "Clear memory / RESTORE? prompt" )
 	PORT_BIT( 0x7b, 0x00, IPT_UNUSED )
+
+	PORT_START("PANEL")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("MONIT") PORT_CODE(KEYCODE_MENU) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(ncr9010_state::monit_pressed), 0)
 
 	PORT_START("CONFIG")
 	PORT_DIPNAME( 0x5e, 0x04, "Default load device" )
@@ -985,6 +1087,13 @@ void ncr9010_state::machine_start()
 {
 	m_ram = make_unique_clear<u8[]>(0x40000);
 	m_fx_timer = timer_alloc(FUNC(ncr9010_state::flex_step), this);
+	m_hld_timer = timer_alloc(FUNC(ncr9010_state::head_unload), this);
+	m_panel_timer = timer_alloc(FUNC(ncr9010_state::panel_update), this);
+	m_panel_timer->adjust(attotime::from_hz(20), 0, attotime::from_hz(20));
+
+	m_power_led = 1;
+	m_ccm_run = 1;
+	m_comm_led = 0;
 
 	std::fill(std::begin(m_vram), std::end(m_vram), 0x20);
 	std::fill(std::begin(m_vattr), std::end(m_vattr), 0x00);
@@ -993,6 +1102,7 @@ void ncr9010_state::machine_start()
 	save_item(NAME(m_map));
 	save_item(NAME(m_memctrl));
 	save_item(NAME(m_map_arm));
+	save_item(NAME(m_trap_cause));
 	save_item(NAME(m_vram));
 	save_item(NAME(m_vattr));
 	save_item(NAME(m_cur_x));
@@ -1031,6 +1141,10 @@ void ncr9010_state::machine_reset()
 			set[i] = i;
 	m_memctrl = 0x01;
 	m_map_arm = false;
+	m_trap_cause = 0;
+	m_maincpu->set_input_line(I8085_TRAP_LINE, CLEAR_LINE);
+	for (auto &led : m_busy_leds)
+		led = 0;
 
 	m_cur_x = m_cur_y = 0;
 	m_crt_ctrl = 0;
@@ -1067,6 +1181,7 @@ void ncr9010_state::ncr9010(machine_config &config)
 	I8085A(config, m_maincpu, 27.648_MHz_XTAL / 4); // divider not verified
 	m_maincpu->set_addrmap(AS_PROGRAM, &ncr9010_state::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &ncr9010_state::io_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(ncr9010_state::irq_ack));
 
 	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_color(rgb_t::green());
@@ -1091,6 +1206,8 @@ void ncr9010_state::ncr9010(machine_config &config)
 	FLOPPY_CONNECTOR(config, m_floppy[3], ncr9010_floppies, nullptr, ncr9010_state::floppy_formats);
 
 	PRINTER(config, m_printer, 0);
+
+	config.set_default_layout(layout_ncr9010);
 }
 
 
