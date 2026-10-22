@@ -867,6 +867,10 @@ Memory expansion board (SCHM 017-0042841 A, NCR 1985): 6 banks of 9x 64Kx1 DRAM 
 Known issue: the interval timer test of the NCR diagnostics (PC4i user diagnostics 01.05, PC6 user diagnostics 1.01) fails because it calibrates a
 software delay loop (260x LOOP per unit) against the 8253 with a +-0.5% window; the emulated 8088 runs this loop about 8% too fast (no DRAM refresh
 wait states and prefetch queue refill). The PC6 diagnostics also test the VLSI CPU controller of the PC6 (port 219h) which the PC4i doesn't have.
+Known incompatibility (also on real hardware): the BIOS (v2.2 and v2.3) doesn't initialise the AT keyboard buffer limits at 40:80h/40:82h, they stay 0.
+Programs with their own INT 9 handler that use them, e.g. MS-Kermit 2.32, let the buffer tail run past 40:3Eh while the BIOS INT 16h wraps at 3Ch,
+so old keys are replayed endlessly and the floppy data at 40:3Eh ff. gets overwritten. Workaround: set 40:80h=001Eh and 40:82h=003Eh before starting such a
+program. A patch fits into the unused area C5B9h-D7FFh of both BIOS versions (call from the buffer initialisation at E630h (v2.3) / E61Ah (v2.2)).
 Jumpers: JP1 closed: enable flex. disk drives, JP2 closed: enable standad serial I/O
 JP3 closed: enable parallel interface OR just JP5: closed, enable standard serial I/O
 
