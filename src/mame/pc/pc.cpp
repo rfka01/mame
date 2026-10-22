@@ -868,9 +868,11 @@ Known issue: the interval timer test of the NCR diagnostics (PC4i user diagnosti
 software delay loop (260x LOOP per unit) against the 8253 with a +-0.5% window; the emulated 8088 runs this loop about 8% too fast (no DRAM refresh
 wait states and prefetch queue refill). The PC6 diagnostics also test the VLSI CPU controller of the PC6 (port 219h) which the PC4i doesn't have.
 Known incompatibility (also on real hardware): the BIOS (v2.2 and v2.3) doesn't initialise the AT keyboard buffer limits at 40:80h/40:82h, they stay 0.
-Programs with their own INT 9 handler that use them, e.g. MS-Kermit 2.32, let the buffer tail run past 40:3Eh while the BIOS INT 16h wraps at 3Ch,
-so old keys are replayed endlessly and the floppy data at 40:3Eh ff. gets overwritten. Workaround: set 40:80h=001Eh and 40:82h=003Eh before starting such a
-program. A patch fits into the unused area C5B9h-D7FFh of both BIOS versions (call from the buffer initialisation at E630h (v2.3) / E61Ah (v2.2)).
+Programs with their own INT 9 handler that use them let the buffer tail run past 40:3Eh while the BIOS INT 16h wraps at 3Ch, so old keys are replayed
+endlessly and the floppy data at 40:3Eh ff. gets overwritten. KEYB.COM of (NCR-)DOS 3.3, e.g. KEYB GR, only falls back to the fixed buffer 1Eh-3Eh if the
+BIOS year at F000:FFFBh is "81", the PC4i BIOS says "85"; the KEYB of DR-DOS 3.41 uses them unconditionally. The KEYBxx.COM programs of
+NCR-DOS 2.11 use the fixed buffer and work. Workaround: set 40:80h=001Eh, 40:82h=003Eh and flush the buffer before KEYB is loaded.
+A patch fits into the unused area C5B9h-D7FFh of both BIOS versions (call from the buffer initialisation at E630h (v2.3) / E61Ah (v2.2)).
 Jumpers: JP1 closed: enable flex. disk drives, JP2 closed: enable standad serial I/O
 JP3 closed: enable parallel interface OR just JP5: closed, enable standard serial I/O
 
