@@ -1275,8 +1275,8 @@ void ncr9010_state::ncr9010(machine_config &config)
 	m_fdc->set_disable_motor_control(true);
 	m_fdc->intrq_wr_callback().set(FUNC(ncr9010_state::fdc_intrq_w));
 	m_fdc->drq_wr_callback().set(FUNC(ncr9010_state::fdc_drq_w));
-	FLOPPY_CONNECTOR(config, m_floppy[0], ncr9010_floppies, "8dsdd", ncr9010_state::floppy_formats).enable_sound(true);
-	FLOPPY_CONNECTOR(config, m_floppy[1], ncr9010_floppies, "8dsdd", ncr9010_state::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, m_floppy[0], ncr9010_floppies, "8dsdd", ncr9010_state::floppy_formats);
+	FLOPPY_CONNECTOR(config, m_floppy[1], ncr9010_floppies, "8dsdd", ncr9010_state::floppy_formats);
 	FLOPPY_CONNECTOR(config, m_floppy[2], ncr9010_floppies, nullptr, ncr9010_state::floppy_formats);
 	FLOPPY_CONNECTOR(config, m_floppy[3], ncr9010_floppies, nullptr, ncr9010_state::floppy_formats);
 
