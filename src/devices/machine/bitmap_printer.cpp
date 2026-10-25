@@ -720,8 +720,15 @@ void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &d
 {
 	rectangle const &clip = dst.cliprect();
 
-	int const rx = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0) : 0;
-	int const ry = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0) : 0;
+	bool const rect = m_dot_style_set && (m_dot_style.height > 0.0);
+	int rx = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0) : 0;
+	int ry = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0) : 0;
+	if (rect)
+	{
+		// a rectangle covers its own pixel and as many more on each side as fit
+		rx = std::max(int(std::lround((m_dot_style.diameter * m_hdpi - 1.0) / 2.0)), 0);
+		ry = std::max(int(std::lround((m_dot_style.height * m_vdpi - 1.0) / 2.0)), 0);
+	}
 
 	for (int y = clip.min_y; y <= clip.max_y; y++)
 	{
@@ -739,7 +746,7 @@ void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &d
 				if ((py < clip.min_y) || (py > clip.max_y))
 					continue;
 				double const f = ry ? double(dy) / (ry + 0.5) : 0.0;
-				int const w = int((rx + 0.5) * std::sqrt(std::max(0.0, 1.0 - f * f)));
+				int const w = rect ? rx : int((rx + 0.5) * std::sqrt(std::max(0.0, 1.0 - f * f)));
 				int const x0 = std::max(x - w, clip.min_x), x1 = std::min(x + w, clip.max_x);
 				u32 *const out = &dst.pix(py, 0);
 				for (int px = x0; px <= x1; px++)

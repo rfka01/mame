@@ -2,7 +2,7 @@
 // copyright-holders:Curt Coder
 /**********************************************************************
 
-    Commodore MCS 810 Color Printer emulation
+    Commodore MCS 810 Color Printer (Okidata Okimate 20, okimate20.cpp)
 
 **********************************************************************/
 
@@ -13,33 +13,6 @@
 
 #include "cbmiec.h"
 
-
-
-//**************************************************************************
-//  TYPE DEFINITIONS
-//**************************************************************************
-
-// ======================> mcs810_device
-
-class mcs810_device : public device_t, public device_cbm_iec_interface
-{
-public:
-	// construction/destruction
-	mcs810_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
-
-	static constexpr flags_type emulation_flags() { return flags::NOT_WORKING; }
-
-protected:
-	// device-level overrides
-	virtual void device_start() override ATTR_COLD;
-
-	// optional information overrides
-	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
-};
-
-
-// device type definition
-DECLARE_DEVICE_TYPE(MCS810, mcs810_device)
-
+DECLARE_DEVICE_TYPE(MCS810, device_cbm_iec_interface)
 
 #endif // MAME_BUS_CBMIEC_MCS810_H

@@ -15,7 +15,9 @@
     the print head solenoid.
     Other Plug 'n Print modules carry a PROM at f000 (P1.7 low) which takes
     INT0; not emulated.
-    The Commodore MCS 820 (mcs820.cpp) is the same printer.
+    The Commodore MCS 810 is the same printer with firmware CO 02.5 (CO2.5G1
+    differs in a few bytes); the MCS 820 is the Okimate 20 with the IBM PC
+    parallel and serial module.
 
       program 0000-3fff  ROM
       data    0000-1fff  M60306
@@ -62,6 +64,7 @@
 
 #include "emu.h"
 #include "okimate20.h"
+#include "mcs810.h"
 
 #include "cpu/mcs51/i8051.h"
 #include "machine/bitmap_printer.h"
@@ -90,7 +93,7 @@ constexpr double PAPER_WIDTH = 10.0;    // inches
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr int HDPI = 240;
 constexpr int VDPI = 144;
-constexpr int DOT_WIDTH = 2;          // pixels at HDPI               // head element pitch and paper feed step
+constexpr int DOT_WIDTH = 2;            // pixels at HDPI: a heat pulse covers one carriage step
 constexpr double STEP_INCH = 1.0 / 120; // carriage step (guess)
 constexpr double LEFT_OFFSET = 0.3;     // paper edge to the home position, inches (guess)
 
@@ -111,6 +114,8 @@ public:
 	static constexpr flags_type emulation_flags() { return flags::NOT_WORKING; }
 
 protected:
+	okimate20_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
@@ -135,7 +140,9 @@ private:
 	void paper_step(u8 data);
 	double head_pos() const;
 	bool marker() const;
-	u32 ink() const;
+	int ink() const;
+	static u32 ink_mix(int inks);
+	static u32 add_ink(u32 paper, int ink);
 
 	required_device<i8031_device> m_maincpu;
 	required_device<bitmap_printer_device> m_bitmap_printer;
@@ -164,14 +171,38 @@ private:
 };
 
 
+// Commodore MCS 810: the Okimate 20 with Commodore's firmware revision CO 02.5
+class mcs810_device : public okimate20_device
+{
+public:
+	mcs810_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+		okimate20_device(mconfig, MCS810, tag, owner, clock)
+	{
+	}
+
+protected:
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+};
+
+
 ROM_START( okimat20 )
 	ROM_REGION(0x4000, "maincpu", 0)
 	ROM_LOAD("co25g1.bin", 0x0000, 0x4000, CRC(050b4590) SHA1(a7558326cb0c7879424f9a5d861ed4e6da5d189f))
 ROM_END
 
+ROM_START( mcs810 )
+	ROM_REGION(0x4000, "maincpu", 0)
+	ROM_LOAD("mcs810-65-1115.bin", 0x0000, 0x4000, CRC(7d88d6f5) SHA1(b62396eba1910bc809979dd5444a16c7ffd431c5))
+ROM_END
+
 const tiny_rom_entry *okimate20_device::device_rom_region() const
 {
 	return ROM_NAME( okimat20 );
+}
+
+const tiny_rom_entry *mcs810_device::device_rom_region() const
+{
+	return ROM_NAME( mcs810 );
 }
 
 
@@ -223,7 +254,12 @@ ioport_constructor okimate20_device::device_input_ports() const
 
 
 okimate20_device::okimate20_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	device_t(mconfig, OKIMATE20, tag, owner, clock),
+	okimate20_device(mconfig, OKIMATE20, tag, owner, clock)
+{
+}
+
+okimate20_device::okimate20_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+	device_t(mconfig, type, tag, owner, clock),
 	device_cbm_iec_interface(mconfig, *this),
 	m_maincpu(*this, "maincpu"),
 	m_bitmap_printer(*this, "bitmap_printer"),
@@ -286,6 +322,7 @@ void okimate20_device::device_add_mconfig(machine_config &config)
 
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_paper_view(3.0);
+	m_bitmap_printer->set_dot_style(printer_dot_style::thermal(1.0 / HDPI, 1.0 / VDPI));
 
 	config.set_default_layout(layout_okimat20);
 }
@@ -329,20 +366,16 @@ void okimate20_device::fire()
 {
 	int const x = int((head_pos() * STEP_INCH + LEFT_OFFSET) * HDPI);
 	LOGMASKED(LOG_IO, "FIRE rib %d pos %.1f head %06x c004 %02x c006 %02x t %s y %d\n", m_rib_pos, head_pos(), m_head & 0xffffff, m_io[4], m_io[6], machine().time().as_string(6), m_bitmap_printer->m_ypos);
-	u32 const color = ink();
-	if (color == 0xffffff)
+	int const color = ink();
+	if (color < 0)
 		return;
 	for (int e = 0; e < 24; e++)
 	{
 		if (BIT(m_head, (2 - e / 8) * 8 + (e & 7)))     // first byte = top elements, lsb first
 		{
-			// the thermal transfer inks mix on the paper
 			int const y = m_bitmap_printer->m_ypos + e;
-			u32 const paper = m_bitmap_printer->get_pixel(x, y);
-			u32 mix = 0;
-			for (int shift = 0; shift < 24; shift += 8)
-				mix |= ((((paper >> shift) & 0xff) * ((color >> shift) & 0xff)) / 255) << shift;
-			m_bitmap_printer->draw_pixel(x, y, mix);
+			for (int dx = 0; dx < DOT_WIDTH; dx++)
+				m_bitmap_printer->draw_pixel(x + dx, y, add_ink(m_bitmap_printer->get_pixel(x + dx, y), color));
 		}
 	}
 }
@@ -417,22 +450,49 @@ bool okimate20_device::marker() const
 	}
 }
 
-u32 okimate20_device::ink() const
+int okimate20_device::ink() const
 {
+	// the ribbon panel under the head: 0 yellow, 1 magenta, 2 cyan, 3 black, -1 none
 	if (!BIT(m_q4_ctrl, 0))
-		return 0xffffff;        // head up
+		return -1;              // head up
 	if ((m_conf->read() & 0x03) != 1)
-		return 0x202020;
+		return 3;
 	int const p = ((m_rib_pos - RIB_HEAD) % RIB_PERIOD + RIB_PERIOD) % RIB_PERIOD;
 	if (p < RIB_MARK)
-		return 0x202020;
-	switch ((p - RIB_MARK) / RIB_PANEL)
+		return 3;
+	int const panel = (p - RIB_MARK) / RIB_PANEL;
+	return (panel < 3) ? panel : -1;    // past the cyan panel: clear strip
+}
+
+u32 okimate20_device::ink_mix(int inks)
+{
+	// colour of the wax inks in the set (bit 0 yellow .. bit 3 black) on white paper
+	static constexpr u32 colors[4] = { 0xfff200, 0xec008c, 0x00aeef, 0x202020 };
+	u32 mix = 0xffffff;
+	for (int i = 0; i < 4; i++)
 	{
-	case 0:  return 0xfff200;   // yellow
-	case 1:  return 0xec008c;   // magenta
-	case 2:  return 0x00aeef;   // cyan
-	default: return 0xffffff;   // clear strip
+		if (BIT(inks, i))
+		{
+			u32 m = 0;
+			for (int shift = 0; shift < 24; shift += 8)
+				m |= ((((mix >> shift) & 0xff) * ((colors[i] >> shift) & 0xff)) / 255) << shift;
+			mix = m;
+		}
 	}
+	return mix;
+}
+
+u32 okimate20_device::add_ink(u32 paper, int ink)
+{
+	// the head melts the wax off the ribbon onto the paper; inks of different panels mix, but
+	// a dot transferred again in the same ink (the band overlap some programs print) stays as it was
+	paper &= 0xffffff;
+	for (int inks = 0; inks < 16; inks++)
+	{
+		if (ink_mix(inks) == paper)
+			return BIT(inks, ink) ? paper : ink_mix(inks | (1 << ink));
+	}
+	return ink_mix(1 << ink);
 }
 
 double okimate20_device::head_pos() const
@@ -536,3 +596,4 @@ void okimate20_device::io_w(offs_t offset, u8 data)
 
 
 DEFINE_DEVICE_TYPE_PRIVATE(OKIMATE20, device_cbm_iec_interface, okimate20_device, "okimat20", "Okidata Okimate 20 (Commodore)")
+DEFINE_DEVICE_TYPE_PRIVATE(MCS810,    device_cbm_iec_interface, mcs810_device,    "mcs810",   "Commodore MCS 810 Color Printer")

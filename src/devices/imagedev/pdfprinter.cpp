@@ -70,6 +70,20 @@ printer_dot_style printer_dot_style::inkjet(double diameter)
 	return s;
 }
 
+printer_dot_style printer_dot_style::thermal(double width, double height)
+{
+	// thermal transfer: the element melts the wax ink off the ribbon onto the paper in full,
+	// giving solid, sharp-edged rectangles that join up with their neighbours
+	printer_dot_style s;
+	s.diameter = width;
+	s.height = height;
+	s.density = 1.0f;
+	s.density_jitter = 0.0f;
+	s.softness = 0.3f;
+	s.texture = 0.0f;
+	return s;
+}
+
 printer_dot_style printer_dot_style::pixel(double hdpi, double vdpi)
 {
 	printer_dot_style s;
@@ -123,13 +137,14 @@ void printer_page_canvas::dot(double x, double y, const printer_dot_style &style
 	}
 
 	double const r = std::max(0.5, style.diameter * m_dpi * 0.5);
+	double const rh = (style.height > 0.0) ? std::max(0.5, style.height * m_dpi * 0.5) : r;
 	float const density = std::clamp(style.density * (1.0f + style.density_jitter * (rnd() * 2.0f - 1.0f)), 0.0f, 1.0f);
 	float const soft = std::max(0.05f, style.softness);
 
 	int const x0 = std::max(0, int(std::floor(cx - r - 1.5)));
 	int const x1 = std::min(m_width - 1, int(std::ceil(cx + r + 1.5)));
-	int const y0 = std::max(0, int(std::floor(cy - r - 1.5)));
-	int const y1 = std::min(m_height - 1, int(std::ceil(cy + r + 1.5)));
+	int const y0 = std::max(0, int(std::floor(cy - rh - 1.5)));
+	int const y1 = std::min(m_height - 1, int(std::ceil(cy + rh + 1.5)));
 	if ((x0 > x1) || (y0 > y1))
 		return;
 
@@ -143,7 +158,9 @@ void printer_page_canvas::dot(double x, double y, const printer_dot_style &style
 		for (int px = x0; px <= x1; px++)
 		{
 			double const dx = px + 0.5 - cx;
-			float edge = float(r - std::sqrt(dx * dx + dy * dy));
+			float edge = (style.height > 0.0)
+					? float(std::min(r - std::abs(dx), rh - std::abs(dy)))
+					: float(r - std::sqrt(dx * dx + dy * dy));
 			if (style.spread > 0.0f)
 				edge += style.spread * float(r) * 0.5f * (float(hash(px, py) & 0xffff) / 65535.0f - 0.5f);
 			float a = std::clamp(edge / soft + 0.5f, 0.0f, 1.0f);
