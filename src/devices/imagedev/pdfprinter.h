@@ -47,6 +47,7 @@
 struct printer_dot_style
 {
 	double diameter = 0.0110;       // in inches (0.28 mm, typical 9-pin needle)
+	double height = 0.0;            // > 0: a rectangle diameter wide and this high (thermal head elements)
 	float density = 0.80f;          // 0..1, darkness of a single dot
 	float density_jitter = 0.08f;   // random dot-to-dot variation of the density
 	float softness = 0.45f;         // width of the soft edge, in pixels
@@ -59,6 +60,7 @@ struct printer_dot_style
 	static printer_dot_style impact_24pin();
 	static printer_dot_style inkjet(double diameter);
 	static printer_dot_style pixel(double hdpi, double vdpi);
+	static printer_dot_style thermal(double width, double height);
 };
 
 
