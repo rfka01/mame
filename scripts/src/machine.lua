@@ -5628,6 +5628,25 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/machine/okimate20.h,MACHINES["OKIMATE20"] = true
+---------------------------------------------------
+if MACHINES["OKIMATE20"] then
+	files {
+		MAME_DIR .. "src/devices/machine/okimate20.cpp",
+		MAME_DIR .. "src/devices/machine/okimate20.h",
+	}
+
+	dependency {
+		{ MAME_DIR .. "src/devices/machine/okimate20.cpp", GEN_DIR .. "emu/layout/okimat20.lh" },
+	}
+
+	custombuildtask {
+		layoutbuildtask("emu/layout", "okimat20"),
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/machine/bitmap_printer.h,MACHINES["BITMAP_PRINTER"] = true
 ---------------------------------------------------
 if MACHINES["BITMAP_PRINTER"] then

@@ -131,6 +131,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "hasp_savquest.h"
 #include "neomania_adapter.h"
 #include "mz1p16.h"
+#include "mcs820.h"
 #include "nec_p72.h"
 #include "nixdorf_md16.h"
 #include "nlq401.h"
@@ -155,6 +156,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("ap2000", EPSON_AP2000);
 	device.option_add("rx80", EPSON_RX80);
 	device.option_add("p72", NEC_P72);
+	device.option_add("mcs820", MCS820);
 	device.option_add("printer", CENTRONICS_PRINTER);
 	device.option_add("digiblst", CENTRONICS_DIGIBLASTER);
 	device.option_add("covox", CENTRONICS_COVOX);
