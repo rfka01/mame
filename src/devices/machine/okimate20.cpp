@@ -29,8 +29,8 @@
              bits 4-5: motor current (?), bit 1: falling edge starts the step generator
       5 w    bits 0-1: paper motor phases (Gray code, 1/144 inch per step),
              bits 2-3: line feed / carriage motor drive, bit 6: ready lamp
-      6 w    bit 5: step generator running, bits 0-1 both set: one interrupt per
-             character cell of 12 steps instead of one per step
+      6 w    bit 5: step generator running, bits 0-3: carriage steps per interrupt
+             minus one
     M60306 (timer and head):
       0      status (bit 1: interval elapsed), a write clears it
       3      bit 0: head down (solenoid hold)
@@ -67,7 +67,6 @@ namespace {
 constexpr XTAL STEP_CLOCK = 11.0592_MHz_XTAL / 192;
 // M60306 interval timer clock (guess: ALE / 16, about 22 ms for the firmware's count of 2500)
 constexpr XTAL Q4_CLOCK = 11.0592_MHz_XTAL / 96;
-constexpr int STEPS_PER_CELL = 12;      // carriage steps of 1/120 inch per interrupt while printing
 
 // paper and resolution
 constexpr double PAPER_WIDTH = 10.0;    // inches
@@ -86,6 +85,11 @@ constexpr int RIB_MARK = 60;
 constexpr int RIB_PANEL = 1020;
 constexpr int RIB_PERIOD = 3192;
 constexpr int RIB_HEAD = 138;           // ribbon between the head and the point seen by the sensor
+
+// the frame stops the carriage a few steps past the home sensor (guess); the colour line start
+// is found either by counting from the ribbon marker or by creeping onto the home sensor, and
+// both end here
+constexpr int HOME_STOP = -4;
 
 } // anonymous namespace
 
@@ -224,7 +228,8 @@ void okimate20_base_device::paper_step(u8 data)
 TIMER_CALLBACK_MEMBER(okimate20_base_device::step_tick)
 {
 	// carriage step generator: one step of 1/120 inch per period of c002 clocks while c006 bit 5 is set;
-	// it interrupts after every step, or after every 12th step (one character cell) while c006 bits 0-1 are set
+	// it interrupts after every (c006 bits 0-3) + 1 steps: the firmware writes the steps per interrupt
+	// minus one there (1 while moving, 2 for IBM graphics columns, 4 for IBM text, 12 for Commodore)
 	if (!BIT(m_io[6], 5))
 	{
 		// stopped: the generator halts with one more interrupt but no further step; the firmware
@@ -235,7 +240,7 @@ TIMER_CALLBACK_MEMBER(okimate20_base_device::step_tick)
 		return;
 	}
 	int const dir = BIT(m_io[4], 6) ? 1 : -1;   // c004 bit 6 = away from home
-	if (BIT(m_io[4], 7))                        // c004 bit 7 clear: phases held (start of a move)
+	if (BIT(m_io[4], 7) && ((dir > 0) || (m_cr_pos > HOME_STOP)))   // c004 bit 7 clear: phases held (start of a move)
 	{
 		bool const old = marker();
 		m_cr_pos += dir;
@@ -247,10 +252,7 @@ TIMER_CALLBACK_MEMBER(okimate20_base_device::step_tick)
 	m_cr_dir = dir;
 	m_cr_start = machine().time();
 	m_bitmap_printer->setheadpos(int((m_cr_pos * STEP_INCH + LEFT_OFFSET) * HDPI), m_bitmap_printer->m_ypos);
-	int divide = 1;
-	if ((m_io[6] & 0x03) == 0x03)
-		divide = BIT(m_io[6], 3) ? STEPS_PER_CELL : STEPS_PER_CELL / 3;
-	if (++m_cr_count >= divide)
+	if (++m_cr_count > (m_io[6] & 0x0f))
 	{
 		m_cr_count = 0;
 		m_maincpu->set_input_line(MCS51_INT1_LINE, ASSERT_LINE);
@@ -410,7 +412,7 @@ void okimate20_base_device::io_w(offs_t offset, u8 data)
 		paper_step(data);
 		m_ready_led = BIT(data, 6);
 	}
-	else if ((offset == 6) && ((old ^ data) & 0x03))
+	else if ((offset == 6) && ((old ^ data) & 0x0f))
 		m_cr_count = 0;                     // the interrupt divider restarts
 	if ((offset == 4) && BIT(old, 1) && !BIT(data, 1))
 	{
