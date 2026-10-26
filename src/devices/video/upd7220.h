@@ -76,6 +76,11 @@ public:
 	// character cell is not 8 dots wide (e.g. the Wang PC TIG uses 10)
 	void set_char_dots(int dots) { m_char_dots = dots; }
 
+	// Boards that clear the character line counter at the start of every
+	// display area instead of running it in one continuous LR grid over the
+	// whole screen. See update_graphics() for what this changes.
+	void set_text_partition_restart(bool state) { m_text_partition_restart = state; }
+
 	auto drq_wr_callback() { return m_write_drq.bind(); }
 	auto hsync_wr_callback() { return m_write_hsync.bind(); }
 	auto vsync_wr_callback() { return m_write_vsync.bind(); }
@@ -216,6 +221,7 @@ private:
 	int m_gchr;                       // zoom factor for graphics character writing and area filling
 
 	int m_char_dots;                  // dots per character clock in character mode
+	bool m_text_partition_restart;    // character line counter restarts with every display area
 
 	uint8_t m_bitmap_mod;
 

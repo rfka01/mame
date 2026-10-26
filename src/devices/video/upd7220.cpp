@@ -591,9 +591,14 @@ inline void upd7220_device::wdat(uint8_t type, uint8_t mod)
 		//printf("%04x %04x %02x %04x\n",m_ead,result,mod,m_figs.m_dc);
 	}
 
+	// WDAT only changes the bits set in the mask register (data sheet, MASK).
+	// Without the mask, replace mode would clear every other bit of the word.
+	// Verified on a real NCR Decision Mate V: writing single dots with
+	// WDAT 20h and a one bit mask leaves the neighbouring dots in the same
+	// word untouched.
 	for(int i = 0; i < m_figs.m_dc + 1; i++)
 	{
-		write_vram(type, mod, result);
+		write_vram(type, mod, result, m_mask);
 		m_ead += x_dir[m_figs.m_dir] + (y_dir[m_figs.m_dir] * get_pitch());
 		m_ead &= 0x3ffff;
 	}
@@ -691,6 +696,7 @@ upd7220_device::upd7220_device(const machine_config &mconfig, device_type type, 
 	m_disp(0),
 	m_gchr(0),
 	m_char_dots(8),
+	m_text_partition_restart(false),
 	m_bitmap_mod(0),
 	m_space_config("videoram", ENDIANNESS_LITTLE, 16, 18, -1, address_map_constructor(FUNC(upd7220_device::upd7220_vram), this))
 {
@@ -1938,16 +1944,28 @@ void upd7220_device::update_graphics(bitmap_rgb32 &bitmap, const rectangle &clip
 		{
 			if(m_lr)
 			{
-				int tline = tsy % m_lr;
+				// By default the character line counter runs in one continuous
+				// LR grid over the whole screen, so a text area that does not
+				// start on a character boundary shows only the lower part of
+				// its first character row.
+				// Some boards clear the counter at the start of every display
+				// area instead, so every character row is shown complete and
+				// the last one is cut off at the end of the area. The NCR
+				// Decision Mate V does this: with a graphics area of 104 lines
+				// followed by a text area, real hardware shows row 0 complete
+				// from line 104 on. There the line counter is an external
+				// 74LS163 cleared by the GDC, not the counter inside the chip.
+				int const toffs = m_text_partition_restart ? 0 : (tsy % m_lr);
+				int tline = toffs;
 				for(y = 0; y < len; y += m_lr - tline, tline = 0)
 				{
-					uint32_t const addr = (sad & 0x3ffff) + (((y + (tsy % m_lr)) / m_lr) * m_pitch);
+					uint32_t const addr = (sad & 0x3ffff) + (((y + toffs) / m_lr) * m_pitch);
 					int yval = (tsy + y) * zoom + m_vbp;
 					int bline = m_lr;
 					bool done = false;
 					if((y + m_lr) > len)
 					{
-						bline = m_lr - ((tsy + len) % m_lr);
+						bline = m_text_partition_restart ? (len - y) : (m_lr - ((tsy + len) % m_lr));
 						y = len;
 						done = true;
 					}
