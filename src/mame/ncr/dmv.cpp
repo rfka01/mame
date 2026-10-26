@@ -424,6 +424,8 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 			// R1-R3 and R5-R9 as not mounted, so the HI drivers are left open and
 			// every colour is shown at full intensity. The System Technical Manual
 			// also only names eight colours and blinking for the colour text mode.
+			// Confirmed on a real colour machine: E9h looks exactly like E8h and
+			// EDh like ECh, so bit 0 has no effect at all.
 			bg = rgb_t(attr & 0x20 ? 0 : 255, attr & 0x40 ? 0 : 255, attr & 0x80 ? 0 : 255);
 			fg = rgb_t(attr & 0x04 ? 255 : 0, attr & 0x08 ? 255 : 0, attr & 0x10 ? 255 : 0);
 		}
@@ -436,25 +438,36 @@ UPD7220_DRAW_TEXT_LINE_MEMBER( dmv_state::hgdc_draw_text )
 			//   bits 3-7            not used (firmware writes E8h, i.e. full intensity)
 			// Half intensity is applied to whatever is lit in the cell, so an inverse
 			// half-intensity cell shows dark characters on a dimmed background.
+			// Confirmed on a real monochrome machine: EDh has a visibly dimmer bar
+			// than E9h, and in a matrix of all 64 foreground/background combinations
+			// only bit 2 changes anything, the same way in every column.
 			rgb_t const lit = BIT(attr, 2) ? MONO_HALF : MONO_FULL;
 			bg = BIT(attr, 0) ? lit : MONO_OFF;
 			fg = BIT(attr, 0) ? MONO_OFF : lit;
 		}
 
-		for( int yi = 0; yi < lr; yi++)
+		for( int yi = topline; yi < botline; yi++)
 		{
 			uint8_t tile_data = m_chargen->base()[(tile*16+yi) & 0x7ff];
 
-			// blink attribute, timed by the GDC attribute blink output (A16)
+			// Blink attribute, timed by the GDC attribute blink output (A16).
+			// The blink signal inverts the cell, it does not blank the character:
+			// the dot stream runs through one exclusive-or that is fed by the
+			// inverse attribute, the blink signal and the cursor alike.
+			// Confirmed on real hardware, monochrome and colour: in the blink
+			// phase EAh shows dark characters on a lit background while EBh,
+			// which has the inverse bit set as well, turns into normal video.
 			if((attr & 2) && !m_hgdc->attr_blink_on())
-				tile_data = 0;
+				tile_data ^= 0xff;
 
 			// Cursor: the GDC only asserts its cursor output (A17) on the raster
 			// lines CTOP..CBOT set with CCHAR, blinking according to SC and BR.
 			// Both mainboard firmwares program CTOP = CBOT = 14 with blinking
 			// enabled (CCHAR 8F CE 72), i.e. a one line blinking underline.
 			// Note that upd7220_device passes CTOP in cursor_bot and CBOT in
-			// cursor_top.
+			// cursor_top. The data sheet note that CTOP may be treated as 0 in
+			// the top character row does not apply here: on real hardware the
+			// cursor in row 0 is an ordinary underline like everywhere else.
 			if(cursor_on && cursor_addr == addr+x && yi >= cursor_bot && yi <= cursor_top && m_hgdc->cursor_blink_on())
 				tile_data^=0xff;
 
@@ -736,8 +749,13 @@ void dmv_state::kb_mcu_port2_w(uint8_t data)
     For the display refresh all three planes are fetched in parallel
     (see hgdc_display_pixels); character mode only uses the green plane.
 
-    TODO: the mono mirroring and the open bus value at C000h-FFFFh are
-    assumptions until verified against the graphics board schematics.
+    The mono mirroring is confirmed on real hardware: two lines written to
+    4000h and 8000h both appear on the screen at their low 14 bits, and the
+    same program on a colour machine shows nothing there because the writes
+    land in the red and blue planes.
+
+    TODO: the open bus value at C000h-FFFFh is still an assumption until
+    verified against the graphics board schematics.
 */
 
 uint16_t dmv_state::vram_r(offs_t offset)
@@ -1086,9 +1104,13 @@ void dmv_state::dmv(machine_config &config)
 	// Color: with the mono clock used here the color timing results in
 	// 824 x 433, 24.27 kHz, 56.06 Hz. Using the 24 MHz crystal directly as
 	// pixel clock would need 2xWCLK = 6 MHz, beyond the D7220D-1 rating, so
-	// the color board must derive its clocks differently. This is unverified
-	// (needs a measurement of HSYNC, P113 pin 8c), so the color board still
-	// uses the mono clock.
+	// the color board must derive its clocks differently.
+	// Both rates were measured on real machines by counting the vertical
+	// retraces of the GDC status register against PIT channel 2: 56.19 Hz on
+	// a monochrome and 56.09 Hz on a color machine, each within the
+	// resolution of the measurement. The color board therefore runs on a
+	// 20 MHz pixel clock as well, and 67.27 Hz (24 MHz pixel clock) is ruled
+	// out. One clock for both boards is correct.
 	//
 	// CCHAR (4B) is programmed with 8F CE 72 by both firmwares: 16 raster lines
 	// per character row, cursor displayed, blinking, blink rate BR = 11, cursor
@@ -1096,8 +1118,12 @@ void dmv_state::dmv(machine_config &config)
 	// 22 frames off (0.78 s period) and an attribute blink of 66 frames on,
 	// 22 frames off (1.57 s period). In mixed mode the GDC outputs the cursor
 	// indication on A17 and the attribute blink timing on A16 during active
-	// display (Design Manual 2.4.2, data sheet pin utilization). That the DMV
-	// boards use A16 for the blink attribute is assumed, not verified.
+	// display (Design Manual 2.4.2, data sheet pin utilization).
+	// Measured frame by frame from a 30 fps video of a real monochrome
+	// machine: the attribute blink has a period of 47 camera frames (1.567 s)
+	// and spends 12 of them (0.40 s) in the inverted state, the cursor runs at
+	// half that period with equal on and off times. That is exactly the 66/22
+	// and 22/22 frames above, so the boards do use A16 and A17.
 	// PRAM (70) is programmed with 00 00 F0 3F: one character area (IM = 0,
 	// WD = 0) starting at address 0.
 	SCREEN(config, m_screen);
@@ -1116,6 +1142,11 @@ void dmv_state::dmv(machine_config &config)
 	m_hgdc->set_addrmap(0, &dmv_state::upd7220_map);
 	m_hgdc->set_display_pixels(FUNC(dmv_state::hgdc_display_pixels));
 	m_hgdc->set_draw_text(FUNC(dmv_state::hgdc_draw_text));
+	// The character line counter sits on the graphics board, not inside the
+	// GDC, and starts over with every display area. Verified with a graphics
+	// area of 104 lines followed by text: real hardware shows the first
+	// character row complete from line 104 on and cuts the last one short.
+	m_hgdc->set_text_partition_restart(true);
 
 	AM9517A(config, m_dmac, 4_MHz_XTAL);
 	m_dmac->out_hreq_callback().set(FUNC(dmv_state::dma_hrq_changed));
@@ -1139,7 +1170,14 @@ void dmv_state::dmv(machine_config &config)
 	FLOPPY_CONNECTOR(config, "i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats).enable_sound(true);
 
 	PIT8253(config, m_pit);
-	m_pit->set_clk<0>(50);
+	// CLK0 is the vertical retrace of the graphics board, which NCR documents
+	// as "56 Hz". Measured on two machines, CLK0 and the frame rate always
+	// agree: 56.19 Hz on a monochrome, 56.09 Hz on a color machine. No
+	// division of the 24 MHz system crystal gives those values. Taking the
+	// clock from the GDC keeps the floppy motor time-out right for both
+	// boards; with the firmware count it runs the documented 15 seconds
+	// instead of the 16.9 seconds a fixed 50 Hz used to give.
+	m_hgdc->vsync_wr_callback().set(m_pit, FUNC(pit8253_device::write_clk0));
 	m_pit->out_handler<0>().set(FUNC(dmv_state::pit_out0));
 	m_pit->set_clk<2>(XTAL(24'000'000) / 3 / 16);
 	m_pit->out_handler<2>().set(FUNC(dmv_state::timint_w));
