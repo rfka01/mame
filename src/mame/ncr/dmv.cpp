@@ -27,6 +27,7 @@
 #include "bus/dmv/dmvbus.h"
 #include "bus/dmv/k012.h"
 #include "bus/dmv/k210.h"
+#include "bus/dmv/k215.h"
 #include "bus/dmv/k220.h"
 #include "bus/dmv/k230.h"
 #include "bus/dmv/k233.h"
@@ -938,11 +939,6 @@ void dmv_state::floppy_formats(format_registration &fr)
     (cartridge lock) are not electronic adapters; K232 (8087 numeric
     coprocessor) is part of the K230/K231 options.
 
-    K215 - Buffered sync/async RS-232C adapter
-        No documentation or ROM dump yet.  NCR's interface configuration
-        table places it on IFSEL 1A (70-77), with the note that any
-        software for it must be able to select all IO port addresses.
-
     K216 - SCC communication adapter, 2 x RS-232C (017-0033564 Rev. B)
         Z8530 SCC (D1) with MC1488/MC1489 line drivers and receivers, two
         full-duplex channels on one 2-channel cable ending in two DB25
@@ -952,8 +948,10 @@ void dmv_state::floppy_formats(format_registration &fr)
           the card occupies four ports: A1 = x0-x3, A2 = x4-x7,
           B1 = x8-xB, B2 = xC-xF (S1-1/S1-2 closed = address bit 0).
         - BA1 drives A/B through a 74LS04, BA0 drives D/C through a
-          74LS00 used as inverter: +0 ch. A data, +1 ch. A control,
-          +2 ch. B data, +3 ch. B control.
+          gate of D5: +0 control, +1 data, +2 control, +3 data of the
+          other channel.  NCR's V1K216 writes the reset commands to
+          70h and 72h, which settles the control/data order; which
+          channel sits at +0 is only read from the schematic.
         - SCC PCLK is the bus PCLK/ (4 MHz) inverted; a crystal
           oscillator with 74LS74 divider (H1, D3, D4) is drawn but not
           mounted.  RTxC/TRxC of both channels come from the cable
@@ -1023,13 +1021,14 @@ static void dmv_slot2_6(device_slot_interface &device)
 	device.option_add("k211", DMV_K211);        // K211 RS-232 Communications Interface
 	device.option_add("k212", DMV_K212);        // K212 RS-232 Printer Interface
 	device.option_add("k213", DMV_K213);        // K213 RS-232 Plotter Interface
+	device.option_add("k215", DMV_K215);        // K215 Buffered RS-232C (HLE from NCR's V1K215)
 	device.option_add("k233", DMV_K233);        // K233 16K Shared RAM
 	device.option_add("k801", DMV_K801);        // K801 RS-232 Switchable Interface
 	device.option_add("k803", DMV_K803);        // K803 RTC module
 	device.option_add("k806", DMV_K806);        // K806 Mouse module
 	device.option_add("c3282", DMV_C3282);      // C3282 External HD Interface
 	// not emulated yet, see notes above:
-	// K215 Buffered sync/async RS-232C, K216 SCC 2 x RS-232C, K219 Integrated modem (USA),
+	// K216 SCC 2 x RS-232C, K219 Integrated modem (USA),
 	// K223 DLC inhouse interface, K600 Omninet transporter (Decision Net), K804 IEEE-488
 }
 

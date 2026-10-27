@@ -2185,6 +2185,8 @@ if BUSES["DMV"] then
 		MAME_DIR .. "src/devices/bus/dmv/k012.h",
 		MAME_DIR .. "src/devices/bus/dmv/k210.cpp",
 		MAME_DIR .. "src/devices/bus/dmv/k210.h",
+		MAME_DIR .. "src/devices/bus/dmv/k215.cpp",
+		MAME_DIR .. "src/devices/bus/dmv/k215.h",
 		MAME_DIR .. "src/devices/bus/dmv/k220.cpp",
 		MAME_DIR .. "src/devices/bus/dmv/k220.h",
 		MAME_DIR .. "src/devices/bus/dmv/k230.cpp",
