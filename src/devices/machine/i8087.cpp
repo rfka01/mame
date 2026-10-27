@@ -446,7 +446,10 @@ void i8087_device::write_cw(u16 cw)
 
 void i8087_device::device_reset()
 {
-	write_cw(0x0037f);
+	// FINIT on the 8087 leaves CW = 03FFh: bit 7 (IEM) is set, interrupts
+	// masked. 037Fh is the 80287/80387 value (bit 7 reserved, reads 0).
+	// Measured on a real NCR Decision Mate V with 8087.
+	write_cw(0x003ff);
 
 	m_sw = 0;
 	m_tw = 0xffff;
