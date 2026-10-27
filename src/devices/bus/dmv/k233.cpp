@@ -61,7 +61,9 @@ void dmv_k233_device::device_reset()
 
 void dmv_k233_device::io_write(int ifsel, offs_t offset, uint8_t data)
 {
-	if (ifsel == 1)
+	// the flip-flop is clocked by writes to 7Eh/7Fh only (PAL term WR7EH/+WR7FH/);
+	// NCR's V1K233 test toggles with OUT 7Fh
+	if (ifsel == 1 && (offset & 0x0e) == 0x0e)
 		m_enabled = !m_enabled;
 }
 
@@ -88,8 +90,9 @@ bool dmv_k233_device::write(offs_t offset, uint8_t data)
 {
 	if (m_enabled && offset >= 0xc000 && offset < 0x10000)
 	{
+		// TRAMD/ only disables the output latch of the main board RAM, the
+		// DRAM write strobe is not gated: writes reach card and main RAM
 		m_ram[offset & 0x3fff] = data;
-		return true;
 	}
 
 	return false;
