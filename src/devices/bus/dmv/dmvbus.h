@@ -45,6 +45,7 @@ public:
 
 	// reading and writing
 	bool read(offs_t offset, uint8_t &data);
+	bool drives_irq() const;
 	bool write(offs_t offset, uint8_t data);
 	void ram_read(uint8_t cas, offs_t offset, uint8_t &data);
 	void ram_write(uint8_t cas, offs_t offset, uint8_t data);
@@ -103,6 +104,9 @@ public:
 
 	// slot 7 and 7A
 	virtual bool av16bit() { return false; }
+	// true if the card drives the slot's own interrupt line (pin a2);
+	// otherwise the line is left to the pull-ups on the K235 (RR1)
+	virtual bool drives_irq() const { return false; }
 	virtual void hold_w(int state) { }
 	virtual void switch16_w(int state) { }
 	virtual void timint_w(int state) { }

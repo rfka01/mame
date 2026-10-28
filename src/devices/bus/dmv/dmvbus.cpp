@@ -232,6 +232,12 @@ void dmvcart_slot_device::device_start()
     read
 -------------------------------------------------*/
 
+bool dmvcart_slot_device::drives_irq() const
+{
+	device_dmvslot_interface *const cart = get_card_device();
+	return cart && cart->drives_irq();
+}
+
 bool dmvcart_slot_device::read(offs_t offset, uint8_t &data)
 {
 	if (m_cart)

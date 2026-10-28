@@ -94,7 +94,10 @@ ioport_constructor dmv_k012_device::device_input_ports() const
 void dmv_k012_device::device_add_mconfig(machine_config &config)
 {
 	WD1000(config, m_hdc, 20_MHz_XTAL / 4);         // WD1010
-	m_hdc->intrq_wr_callback().set(FUNC(dmv_k012_device::out_int));
+	// NCR's description of the 8088 interrupt system: the integrated
+	// Winchester disk interrupts on its slot's own line (a2 of J2A, IRQ2A),
+	// which the K235 takes to IR5 (switch S2 at 1-2), not on the bus INT/
+	m_hdc->intrq_wr_callback().set(FUNC(dmv_k012_device::out_irq));
 
 	// default drive is 10MB (306,4,17)
 	HARDDISK(config, "hdc:0", 0);
