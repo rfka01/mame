@@ -24,8 +24,11 @@
     as complete as that program's use of the card.  Software that uses
     further commands will not work.
 
-    - Data at x0, command (write) and status (read) at x1.  Default
-      IFSEL 1A (70h); the program offers 70, 78, 30, 38, B0, B8 and C8.
+    - Data at x0, command (write) and status (read) at x1.  NCR's
+      factory setting is IFSEL 1A (70h), but the K211 that most machines
+      carry takes all of IFSEL 1, so the emulation defaults to 3A (B0h),
+      the free half that the program also offers (70, 78, 30, 38, B0,
+      B8 and C8).  Pick B0 in V1K215 or set the DIP to 1A.
     - Status as in any UPI-41: bit 0 = output buffer full (a result is
       waiting at x0), bit 1 = input buffer full (wait before writing),
       bit 3 = F1, address bit 0 of the last write.  An idle card reads
@@ -63,14 +66,14 @@
 
 static INPUT_PORTS_START( dmv_k215 )
 	PORT_START("DSW")
-	PORT_DIPNAME( 0x0f, 0x02, "K215 IFSEL" )
+	PORT_DIPNAME( 0x0f, 0x06, "K215 IFSEL" )
 	PORT_DIPSETTING( 0x00, "0A" )
 	PORT_DIPSETTING( 0x01, "0B" )
-	PORT_DIPSETTING( 0x02, "1A" )   // default (V1K215)
+	PORT_DIPSETTING( 0x02, "1A" )   // NCR factory setting, V1K215 default
 	PORT_DIPSETTING( 0x03, "1B" )
 	PORT_DIPSETTING( 0x04, "2A" )
 	PORT_DIPSETTING( 0x05, "2B" )
-	PORT_DIPSETTING( 0x06, "3A" )
+	PORT_DIPSETTING( 0x06, "3A" )   // default here: free next to a K211
 	PORT_DIPSETTING( 0x07, "3B" )
 	PORT_DIPSETTING( 0x08, "4A" )
 	PORT_DIPSETTING( 0x09, "4B" )
