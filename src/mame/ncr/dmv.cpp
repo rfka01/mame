@@ -122,6 +122,8 @@ private:
 	void busint7a_w(int state)   { update_busint(7, state); }
 
 	void update_irqs(int slot, int state);
+	int irq_level(int slot) const;
+	void send_irq(int slot);
 	void irq2_w(int state)       { update_irqs(0, state); }
 	void irq2a_w(int state)      { update_irqs(1, state); }
 	void irq3_w(int state)       { update_irqs(2, state); }
@@ -313,13 +315,13 @@ uint8_t dmv_state::sys_status_r()
 	if (m_fdc->get_irq())
 		data |= 0x08;
 
-	if (m_irqs[3])
+	if (irq_level(3))
 		data |= 0x10;   // IRQ 4
 
-	if (m_irqs[2])
+	if (irq_level(2))
 		data |= 0x20;   // IRQ 3
 
-	if (m_irqs[0])
+	if (irq_level(0))
 		data |= 0x40;   // IRQ 2
 
 	return data;
@@ -606,9 +608,35 @@ void dmv_state::update_busint(int slot, int state)
 	m_maincpu->set_input_line(0, new_state);
 }
 
+/*
+    Slot interrupt lines (pin a2 of slots 2, 2a, 3, 4, 5, 6)
+
+    Active high.  The K235 pulls IRQ2, IRQ2A and IRQ3..IRQ6 up through the
+    10K network RR1 (schematic 017-0033502 Rev. A, sheet 3), and NCR's
+    description of the 8088 interrupt system warns that an enabled input
+    without a peripheral behind it interrupts "by pull up".  So a slot
+    that is empty, or holds a card that does not use its own line
+    (K803, K806, K215, K233, ...), reads as an active request.  The
+    CONFIG switch below can turn this off for software that unmasks
+    every input.
+*/
+int dmv_state::irq_level(int slot) const
+{
+	dmvcart_slot_device *const slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6 };
+	if (slot < 6 && (ioport("CONFIG")->read() & 0x02) && !slots[slot]->drives_irq())
+		return ASSERT_LINE;
+	return m_irqs[slot];
+}
+
 void dmv_state::update_irqs(int slot, int state)
 {
 	m_irqs[slot] = state;
+	send_irq(slot);
+}
+
+void dmv_state::send_irq(int slot)
+{
+	int const state = irq_level(slot);
 
 	switch(slot)
 	{
@@ -790,6 +818,9 @@ INPUT_PORTS_START( dmv )
 	PORT_CONFNAME( 0x01, 0x01, "Video Board" )
 	PORT_CONFSETTING( 0x00, "Monochrome" )
 	PORT_CONFSETTING( 0x01, "Color" )
+	PORT_CONFNAME( 0x02, 0x02, "Slot IRQ lines without a driving card" )
+	PORT_CONFSETTING( 0x00, "Inactive" )
+	PORT_CONFSETTING( 0x02, "Active (K235 pull-ups, as hardware)" )
 INPUT_PORTS_END
 
 void dmv_state::machine_start()
@@ -832,6 +863,8 @@ void dmv_state::machine_reset()
 	m_dma_hrq = 0;
 	memset(m_busint, 0, sizeof(m_busint));
 	memset(m_irqs, 0, sizeof(m_irqs));
+	for (int slot = 0; slot < 6; slot++)
+		send_irq(slot);
 	m_zoom_latch = 0;   // not reset in hardware, the firmware writes 0 at boot
 
 	update_halt_line();

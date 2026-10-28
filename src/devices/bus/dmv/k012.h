@@ -37,6 +37,7 @@ protected:
 	// dmvcart_interface overrides
 	virtual void io_read(int ifsel, offs_t offset, uint8_t &data) override;
 	virtual void io_write(int ifsel, offs_t offset, uint8_t data) override;
+	virtual bool drives_irq() const override { return true; }
 
 	void hdc_intrq_w(int state);
 
