@@ -1790,6 +1790,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/ctronics.h",
 		MAME_DIR .. "src/devices/bus/centronics/chessmec.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/chessmec.h",
+		MAME_DIR .. "src/devices/bus/centronics/citizen_200gx.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/citizen_200gx.h",
 		MAME_DIR .. "src/devices/bus/centronics/comxpl80.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/comxpl80.h",
 		MAME_DIR .. "src/devices/bus/centronics/covox.cpp",
@@ -1839,6 +1841,7 @@ if BUSES["CENTRONICS"] then
 	}
 
 	dependency {
+		{ MAME_DIR .. "src/devices/bus/centronics/citizen_200gx.cpp", GEN_DIR .. "emu/layout/citizen_200gx.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",  GEN_DIR .. "emu/layout/ex800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_fx80.cpp",   GEN_DIR .. "emu/layout/epson_fx80.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_fx80.cpp",   GEN_DIR .. "emu/layout/epson_jx80.lh" },
@@ -1853,6 +1856,7 @@ if BUSES["CENTRONICS"] then
 	}
 
 	custombuildtask {
+		layoutbuildtask("emu/layout", "citizen_200gx"),
 		layoutbuildtask("emu/layout", "epson_fx80"),
 		layoutbuildtask("emu/layout", "epson_jx80"),
 		layoutbuildtask("emu/layout", "epson_ap2000"),
