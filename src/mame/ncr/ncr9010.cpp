@@ -169,7 +169,8 @@
     TODO:
     - dump character generator, video PROMs, IOP microcode, Flex IF PROMs
     - real video timing, attributes, cursor shape
-    - keyboard is HLE (ASCII + 80h-9Fh function codes from the SB-80 key table)
+    - keyboard interface is HLE (key matrix scanned by the driver, codes from
+      the I-8100 pocket reference; real scan hardware and timing unknown)
     - DMV byte link (ports 01/02)
     - interrupts (keyboard, disk), serial port, fixed disk,
       load device 2, third ROM socket ("EXTFW" extension firmware at 1000h)
@@ -181,7 +182,6 @@
 #include "cpu/i8085/i8085.h"
 #include "imagedev/floppy.h"
 #include "imagedev/printer.h"
-#include "machine/keyboard.h"
 #include "machine/wd_fdc.h"
 #include "sound/beep.h"
 
@@ -293,6 +293,8 @@ public:
 		, m_chargen(*this, "chargen")
 		, m_mode(*this, "MODE")
 		, m_config(*this, "CONFIG")
+		, m_keys(*this, "KEY%u", 0U)
+		, m_kbmods(*this, "KBMODS")
 		, m_ccm_leds(*this, "ccm_led%u", 0U)
 		, m_ccm_run(*this, "ccm_run")
 		, m_ready_leds(*this, "flex_ready%u", 0U)
@@ -356,6 +358,8 @@ private:
 	required_region_ptr<u8> m_chargen;
 	required_ioport m_mode;
 	required_ioport m_config;
+	required_ioport_array<11> m_keys;
+	required_ioport m_kbmods;
 	output_finder<8> m_ccm_leds;
 	output_finder<> m_ccm_run;
 	output_finder<4> m_ready_leds;
@@ -379,6 +383,10 @@ private:
 	// keyboard
 	u8 m_kbd_fifo[16];
 	u8 m_kbd_head, m_kbd_count;
+	u8 m_kbd_prev[11];
+	u8 m_kbd_last;     // last key (row * 8 + bit) for REP
+	u8 m_kbd_reptime;
+	emu_timer *m_kbd_timer;
 
 	// flex disk
 	u8 m_fx_cmdbuf[4];
@@ -420,6 +428,7 @@ private:
 	u32 screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void kbd_put(u8 data);
+	TIMER_CALLBACK_MEMBER(kbd_scan);
 
 	u8 flex_r(offs_t offset);
 	void flex_w(offs_t offset, u8 data);
@@ -632,20 +641,95 @@ void ncr9010_state::io_w(offs_t offset, u8 data)
 
 
 /***************************************************************************
-    KEYBOARD (HLE)
+    KEYBOARD
 ***************************************************************************/
+
+/*
+    NCR 4503 keyboard, codes from the "Latin keyboard code chart" of the
+    I-8100 pocket reference.  Every key has a control, a shift and an
+    unshift code (and a fourth one for non-Latin keyboards, not used here).
+    Unshifted letters give UPPER case, shifted ones lower case; SB-80 can
+    swap the case of its translation table with control + the top left
+    keypad key (code 90h).  FF = no code.  SB-80 translates 80 ESC, 81 ^R,
+    82 ^S, 83 ^X, 84 ^E, 85 ^D, 86 TAB, 88 CR, 89 ",", 8A ".", 8B BS,
+    8C ^C.  REP repeats the held key.  The lit key left of A is taken to be
+    a shift lock (assumption).
+*/
+struct ncr9010_kb_code { u8 ctrl, shift, unshift; };
+
+static const ncr9010_kb_code ncr9010_kb_table[11][8] =
+{
+	// _/DEL                1                     2                     3                     4                     5                     6                     7
+	{ { 0x1f, 0x7f, 0x5f }, { 0xaa, 0x21, 0x31 }, { 0xab, 0x22, 0x32 }, { 0xa3, 0x23, 0x33 }, { 0xa4, 0x24, 0x34 }, { 0xa5, 0x25, 0x35 }, { 0xac, 0x26, 0x36 }, { 0xa7, 0x27, 0x37 } },
+	// 8                    9                     0 `                   - =                   ^ ~                   backslash |           backspace
+	{ { 0xa8, 0x28, 0x38 }, { 0xa9, 0x29, 0x39 }, { 0xad, 0x60, 0x30 }, { 0x9e, 0x3d, 0x2d }, { 0x1e, 0x7e, 0x5e }, { 0x1c, 0x7c, 0x5c }, { 0x9b, 0x8b, 0x8b }, { 0xff, 0xff, 0xff } },
+	// Q                    W                     E                     R                     T                     Y                     U                     I
+	{ { 0x11, 0x71, 0x51 }, { 0x17, 0x77, 0x57 }, { 0x05, 0x65, 0x45 }, { 0x12, 0x72, 0x52 }, { 0x14, 0x74, 0x54 }, { 0x19, 0x79, 0x59 }, { 0x15, 0x75, 0x55 }, { 0x09, 0x69, 0x49 } },
+	// O                    P                     @ `                   [ {
+	{ { 0x0f, 0x6f, 0x4f }, { 0x10, 0x70, 0x50 }, { 0x00, 0x60, 0x40 }, { 0x1b, 0x7b, 0x5b }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff } },
+	// A                    S                     D                     F                     G                     H                     J                     K
+	{ { 0x01, 0x61, 0x41 }, { 0x13, 0x73, 0x53 }, { 0x04, 0x64, 0x44 }, { 0x06, 0x66, 0x46 }, { 0x07, 0x67, 0x47 }, { 0x08, 0x68, 0x48 }, { 0x0a, 0x6a, 0x4a }, { 0x0b, 0x6b, 0x4b } },
+	// L                    ; +                   : *                   ] }
+	{ { 0x0c, 0x6c, 0x4c }, { 0x2b, 0x2b, 0x3b }, { 0x2a, 0x2a, 0x3a }, { 0x1d, 0x7d, 0x5d }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff } },
+	// < >                  Z                     X                     C                     V                     B                     N                     M
+	{ { 0xff, 0x3e, 0x3c }, { 0x1a, 0x7a, 0x5a }, { 0x18, 0x78, 0x58 }, { 0x03, 0x63, 0x43 }, { 0x16, 0x76, 0x56 }, { 0x02, 0x62, 0x42 }, { 0x0e, 0x6e, 0x4e }, { 0x0d, 0x6d, 0x4d } },
+	// ,                    .                     / ?                   space                 FT                    BREAK
+	{ { 0x3c, 0x2c, 0x2c }, { 0x3e, 0x2e, 0x2e }, { 0x9f, 0x3f, 0x2f }, { 0x20, 0x20, 0x20 }, { 0x98, 0x88, 0x88 }, { 0x9c, 0x8c, 0x8c }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff } },
+	// keypad: clear        diagonal              left                  down                  up                    right                 C                     7
+	{ { 0x90, 0x80, 0x80 }, { 0x91, 0x81, 0x81 }, { 0x92, 0x82, 0x82 }, { 0x93, 0x83, 0x83 }, { 0x94, 0x84, 0x84 }, { 0x95, 0x85, 0x85 }, { 0x96, 0x86, 0x86 }, { 0xa7, 0x37, 0x37 } },
+	// 8                    9                     R                     4                     5                     6                     (blank)               1
+	{ { 0xa8, 0x38, 0x38 }, { 0xa9, 0x39, 0x39 }, { 0xff, 0x8e, 0x8e }, { 0xa4, 0x34, 0x34 }, { 0xa5, 0x35, 0x35 }, { 0xac, 0x36, 0x36 }, { 0xff, 0x8f, 0x8f }, { 0xaa, 0x31, 0x31 } },
+	// 2                    3                     0                     00                    .                     FT (keypad)
+	{ { 0xab, 0x32, 0x32 }, { 0xa3, 0x33, 0x33 }, { 0xad, 0x30, 0x30 }, { 0x99, 0x89, 0x89 }, { 0x8a, 0x8a, 0x8a }, { 0x98, 0x88, 0x88 }, { 0xff, 0xff, 0xff }, { 0xff, 0xff, 0xff } }
+};
+
+TIMER_CALLBACK_MEMBER(ncr9010_state::kbd_scan)
+{
+	u8 const mods = m_kbmods->read();
+	bool const shift = BIT(mods, 0) || BIT(mods, 3);
+	bool const ctrl = BIT(mods, 1);
+	bool const rep = BIT(mods, 2);
+
+	auto code_of = [&] (unsigned key) -> u8
+	{
+		ncr9010_kb_code const &k = ncr9010_kb_table[key >> 3][key & 7];
+		return ctrl ? k.ctrl : shift ? k.shift : k.unshift;
+	};
+
+	bool held_last = false;
+	for (unsigned row = 0; row < std::size(m_keys); row++)
+	{
+		u8 const state = m_keys[row]->read();
+		u8 const pressed = state & ~m_kbd_prev[row];
+		m_kbd_prev[row] = state;
+		for (unsigned bit = 0; bit < 8; bit++)
+		{
+			unsigned const key = row * 8 + bit;
+			if (BIT(pressed, bit))
+			{
+				u8 const code = code_of(key);
+				if (code != 0xff)
+					kbd_put(code);
+				m_kbd_last = key;
+				m_kbd_reptime = 0;
+			}
+			if (BIT(state, bit) && (key == m_kbd_last))
+				held_last = true;
+		}
+	}
+
+	// REP: repeat the last key while both are held (rate not verified)
+	if (rep && held_last && (++m_kbd_reptime >= 6))
+	{
+		m_kbd_reptime = 0;
+		u8 const code = code_of(m_kbd_last);
+		if ((code != 0xff) && !m_kbd_count)
+			kbd_put(code);
+	}
+}
 
 void ncr9010_state::kbd_put(u8 data)
 {
-	switch (data)
-	{
-	case 0x0d: data = 0x88; break; // RETURN
-	case 0x08: data = 0x8b; break; // backspace
-	case 0x1b: data = 0x80; break; // ESC
-	case 0x09: data = 0x86; break; // TAB
-	default: break;
-	}
-
 	if (m_kbd_count < std::size(m_kbd_fifo))
 	{
 		m_kbd_fifo[(m_kbd_head + m_kbd_count) % std::size(m_kbd_fifo)] = data;
@@ -1116,6 +1200,116 @@ IRQ_CALLBACK_MEMBER(ncr9010_state::irq_ack)
 ***************************************************************************/
 
 static INPUT_PORTS_START( ncr9010 )
+	// NCR 4503 keyboard (see ncr9010_kb_table), PC keys chosen by position
+	PORT_START("KEY0")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("_  DEL") PORT_CODE(KEYCODE_TILDE) PORT_CHAR('_') PORT_CHAR(0x7f)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("1  !") PORT_CODE(KEYCODE_1) PORT_CHAR('1') PORT_CHAR('!')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("2  \"") PORT_CODE(KEYCODE_2) PORT_CHAR('2') PORT_CHAR('"')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("3  #") PORT_CODE(KEYCODE_3) PORT_CHAR('3') PORT_CHAR('#')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("4  $") PORT_CODE(KEYCODE_4) PORT_CHAR('4') PORT_CHAR('$')
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("5  %") PORT_CODE(KEYCODE_5) PORT_CHAR('5') PORT_CHAR('%')
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("6  &") PORT_CODE(KEYCODE_6) PORT_CHAR('6') PORT_CHAR('&')
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("7  '") PORT_CODE(KEYCODE_7) PORT_CHAR('7') PORT_CHAR('\'')
+
+	PORT_START("KEY1")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("8  (") PORT_CODE(KEYCODE_8) PORT_CHAR('8') PORT_CHAR('(')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("9  )") PORT_CODE(KEYCODE_9) PORT_CHAR('9') PORT_CHAR(')')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("0  `") PORT_CODE(KEYCODE_0) PORT_CHAR('0')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("-  =") PORT_CODE(KEYCODE_MINUS) PORT_CHAR('-') PORT_CHAR('=')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("^  ~") PORT_CODE(KEYCODE_EQUALS) PORT_CHAR('^') PORT_CHAR('~')
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("\\  |") PORT_CODE(KEYCODE_BACKSLASH) PORT_CHAR('\\') PORT_CHAR('|')
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Backspace") PORT_CODE(KEYCODE_BACKSPACE) PORT_CHAR(8)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KEY2")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Q") PORT_CODE(KEYCODE_Q) PORT_CHAR('Q') PORT_CHAR('q')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("W") PORT_CODE(KEYCODE_W) PORT_CHAR('W') PORT_CHAR('w')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("E") PORT_CODE(KEYCODE_E) PORT_CHAR('E') PORT_CHAR('e')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("R") PORT_CODE(KEYCODE_R) PORT_CHAR('R') PORT_CHAR('r')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("T") PORT_CODE(KEYCODE_T) PORT_CHAR('T') PORT_CHAR('t')
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Y") PORT_CODE(KEYCODE_Y) PORT_CHAR('Y') PORT_CHAR('y')
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("U") PORT_CODE(KEYCODE_U) PORT_CHAR('U') PORT_CHAR('u')
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("I") PORT_CODE(KEYCODE_I) PORT_CHAR('I') PORT_CHAR('i')
+
+	PORT_START("KEY3")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("O") PORT_CODE(KEYCODE_O) PORT_CHAR('O') PORT_CHAR('o')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("P") PORT_CODE(KEYCODE_P) PORT_CHAR('P') PORT_CHAR('p')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("@  `") PORT_CODE(KEYCODE_OPENBRACE) PORT_CHAR('@') PORT_CHAR('`')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("[  {") PORT_CODE(KEYCODE_CLOSEBRACE) PORT_CHAR('[') PORT_CHAR('{')
+	PORT_BIT( 0xf0, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KEY4")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("A") PORT_CODE(KEYCODE_A) PORT_CHAR('A') PORT_CHAR('a')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("S") PORT_CODE(KEYCODE_S) PORT_CHAR('S') PORT_CHAR('s')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("D") PORT_CODE(KEYCODE_D) PORT_CHAR('D') PORT_CHAR('d')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("F") PORT_CODE(KEYCODE_F) PORT_CHAR('F') PORT_CHAR('f')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("G") PORT_CODE(KEYCODE_G) PORT_CHAR('G') PORT_CHAR('g')
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("H") PORT_CODE(KEYCODE_H) PORT_CHAR('H') PORT_CHAR('h')
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("J") PORT_CODE(KEYCODE_J) PORT_CHAR('J') PORT_CHAR('j')
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("K") PORT_CODE(KEYCODE_K) PORT_CHAR('K') PORT_CHAR('k')
+
+	PORT_START("KEY5")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("L") PORT_CODE(KEYCODE_L) PORT_CHAR('L') PORT_CHAR('l')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME(";  +") PORT_CODE(KEYCODE_COLON) PORT_CHAR(';') PORT_CHAR('+')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME(":  *") PORT_CODE(KEYCODE_QUOTE) PORT_CHAR(':') PORT_CHAR('*')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("]  }") PORT_CODE(KEYCODE_INSERT) PORT_CHAR(']') PORT_CHAR('}')
+	PORT_BIT( 0xf0, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KEY6")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("<  >") PORT_CODE(KEYCODE_BACKSLASH2) PORT_CHAR('<') PORT_CHAR('>')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Z") PORT_CODE(KEYCODE_Z) PORT_CHAR('Z') PORT_CHAR('z')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("X") PORT_CODE(KEYCODE_X) PORT_CHAR('X') PORT_CHAR('x')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("C") PORT_CODE(KEYCODE_C) PORT_CHAR('C') PORT_CHAR('c')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("V") PORT_CODE(KEYCODE_V) PORT_CHAR('V') PORT_CHAR('v')
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("B") PORT_CODE(KEYCODE_B) PORT_CHAR('B') PORT_CHAR('b')
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("N") PORT_CODE(KEYCODE_N) PORT_CHAR('N') PORT_CHAR('n')
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("M") PORT_CODE(KEYCODE_M) PORT_CHAR('M') PORT_CHAR('m')
+
+	PORT_START("KEY7")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME(",") PORT_CODE(KEYCODE_COMMA) PORT_CHAR(',')
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME(".") PORT_CODE(KEYCODE_STOP) PORT_CHAR('.')
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("/  ?") PORT_CODE(KEYCODE_SLASH) PORT_CHAR('/') PORT_CHAR('?')
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Space") PORT_CODE(KEYCODE_SPACE) PORT_CHAR(' ')
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("FT (Return)") PORT_CODE(KEYCODE_ENTER) PORT_CHAR(13)
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("BREAK") PORT_CODE(KEYCODE_PAUSE)
+	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KEY8")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Clear (ESC)") PORT_CODE(KEYCODE_ESC) PORT_CHAR(UCHAR_MAMEKEY(ESC))
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Diagonal Arrow") PORT_CODE(KEYCODE_HOME) PORT_CHAR(UCHAR_MAMEKEY(HOME))
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Left") PORT_CODE(KEYCODE_LEFT) PORT_CHAR(UCHAR_MAMEKEY(LEFT))
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Down") PORT_CODE(KEYCODE_DOWN) PORT_CHAR(UCHAR_MAMEKEY(DOWN))
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Up") PORT_CODE(KEYCODE_UP) PORT_CHAR(UCHAR_MAMEKEY(UP))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad Right") PORT_CODE(KEYCODE_RIGHT) PORT_CHAR(UCHAR_MAMEKEY(RIGHT))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad C (TAB)") PORT_CODE(KEYCODE_TAB) PORT_CHAR(9)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 7") PORT_CODE(KEYCODE_7_PAD) PORT_CHAR(UCHAR_MAMEKEY(7_PAD))
+
+	PORT_START("KEY9")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 8") PORT_CODE(KEYCODE_8_PAD) PORT_CHAR(UCHAR_MAMEKEY(8_PAD))
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 9") PORT_CODE(KEYCODE_9_PAD) PORT_CHAR(UCHAR_MAMEKEY(9_PAD))
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad R") PORT_CODE(KEYCODE_PGUP)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 4") PORT_CODE(KEYCODE_4_PAD) PORT_CHAR(UCHAR_MAMEKEY(4_PAD))
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 5") PORT_CODE(KEYCODE_5_PAD) PORT_CHAR(UCHAR_MAMEKEY(5_PAD))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 6") PORT_CODE(KEYCODE_6_PAD) PORT_CHAR(UCHAR_MAMEKEY(6_PAD))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad (blank)") PORT_CODE(KEYCODE_PGDN)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 1") PORT_CODE(KEYCODE_1_PAD) PORT_CHAR(UCHAR_MAMEKEY(1_PAD))
+
+	PORT_START("KEY10")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 2") PORT_CODE(KEYCODE_2_PAD) PORT_CHAR(UCHAR_MAMEKEY(2_PAD))
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 3") PORT_CODE(KEYCODE_3_PAD) PORT_CHAR(UCHAR_MAMEKEY(3_PAD))
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 0") PORT_CODE(KEYCODE_0_PAD) PORT_CHAR(UCHAR_MAMEKEY(0_PAD))
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad 00") PORT_CODE(KEYCODE_SLASH_PAD)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad .") PORT_CODE(KEYCODE_DEL_PAD) PORT_CHAR(UCHAR_MAMEKEY(DEL_PAD))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Keypad FT") PORT_CODE(KEYCODE_ENTER_PAD) PORT_CHAR(UCHAR_MAMEKEY(ENTER_PAD))
+	PORT_BIT( 0xc0, IP_ACTIVE_HIGH, IPT_UNUSED )
+
+	PORT_START("KBMODS")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Shift") PORT_CODE(KEYCODE_LSHIFT) PORT_CODE(KEYCODE_RSHIFT) PORT_CHAR(UCHAR_SHIFT_1)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Control") PORT_CODE(KEYCODE_LCONTROL) PORT_CODE(KEYCODE_RCONTROL) PORT_CHAR(UCHAR_SHIFT_2)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("REP") PORT_CODE(KEYCODE_LALT)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Shift Lock") PORT_CODE(KEYCODE_CAPSLOCK) PORT_TOGGLE
+	PORT_BIT( 0xf0, IP_ACTIVE_HIGH, IPT_UNUSED )
+
 	PORT_START("MODE")
 	PORT_DIPNAME( 0x80, 0x80, "Mode" )
 	PORT_DIPSETTING(    0x80, "Normal" )
@@ -1164,6 +1358,8 @@ void ncr9010_state::machine_start()
 	m_hld_timer = timer_alloc(FUNC(ncr9010_state::head_unload), this);
 	m_panel_timer = timer_alloc(FUNC(ncr9010_state::panel_update), this);
 	m_bell_timer = timer_alloc(FUNC(ncr9010_state::bell_off), this);
+	m_kbd_timer = timer_alloc(FUNC(ncr9010_state::kbd_scan), this);
+	m_kbd_timer->adjust(attotime::from_hz(100), 0, attotime::from_hz(100));
 	m_panel_timer->adjust(attotime::from_hz(20), 0, attotime::from_hz(20));
 
 	m_power_led = 1;
@@ -1186,6 +1382,9 @@ void ncr9010_state::machine_start()
 	save_item(NAME(m_kbd_fifo));
 	save_item(NAME(m_kbd_head));
 	save_item(NAME(m_kbd_count));
+	save_item(NAME(m_kbd_prev));
+	save_item(NAME(m_kbd_last));
+	save_item(NAME(m_kbd_reptime));
 	save_item(NAME(m_fx_cmdbuf));
 	save_item(NAME(m_fx_cmdcnt));
 	save_item(NAME(m_fx_status));
@@ -1224,6 +1423,9 @@ void ncr9010_state::machine_reset()
 	m_cur_x = m_cur_y = 0;
 	m_crt_ctrl = 0;
 	m_kbd_head = m_kbd_count = 0;
+	std::fill(std::begin(m_kbd_prev), std::end(m_kbd_prev), 0);
+	m_kbd_last = 0xff;
+	m_kbd_reptime = 0;
 
 	m_fx_cmdcnt = 0;
 	m_fx_status = 0x00;
@@ -1267,8 +1469,6 @@ void ncr9010_state::ncr9010(machine_config &config)
 	screen.set_screen_update(FUNC(ncr9010_state::screen_update));
 	PALETTE(config, m_palette, palette_device::MONOCHROME);
 
-	generic_keyboard_device &keyboard(GENERIC_KEYBOARD(config, "keyboard", 0));
-	keyboard.set_keyboard_callback(FUNC(ncr9010_state::kbd_put));
 
 	// HLE of the I/O Processor + Flex Disk IF
 	FD1793(config, m_fdc, 2_MHz_XTAL);
