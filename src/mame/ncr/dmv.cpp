@@ -616,7 +616,7 @@ void dmv_state::update_busint(int slot, int state)
     description of the 8088 interrupt system warns that an enabled input
     without a peripheral behind it interrupts "by pull up".  So a slot
     that is empty, or holds a card that does not use its own line
-    (K803, K806, K215, K233, ...), reads as an active request.  The
+    (K803, K806, K233, ...), reads as an active request.  The
     CONFIG switch below can turn this off for software that unmasks
     every input.
 */
@@ -1054,7 +1054,7 @@ static void dmv_slot2_6(device_slot_interface &device)
 	device.option_add("k211", DMV_K211);        // K211 RS-232 Communications Interface
 	device.option_add("k212", DMV_K212);        // K212 RS-232 Printer Interface
 	device.option_add("k213", DMV_K213);        // K213 RS-232 Plotter Interface
-	device.option_add("k215", DMV_K215);        // K215 Buffered RS-232C (HLE from NCR's V1K215)
+	device.option_add("k215", DMV_K215);        // K215 Buffered RS-232C
 	device.option_add("k233", DMV_K233);        // K233 16K Shared RAM
 	device.option_add("k801", DMV_K801);        // K801 RS-232 Switchable Interface
 	device.option_add("k803", DMV_K803);        // K803 RTC module
