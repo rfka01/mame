@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+authors:rfka01
+PB-64-2 printer buffer front panel
+-->
+<mamelayout version="2">
+
+	<element name="panel"><rect><color red="0.86" green="0.87" blue="0.82" /></rect></element>
+	<element name="label_bg"><rect><color red="0.62" green="0.62" blue="0.60" /></rect></element>
+	<element name="cell"><rect><color red="0.95" green="0.95" blue="0.93" /></rect></element>
+
+	<element name="led_green" defstate="0">
+		<disk state="1"><color red="0.2" green="1.0" blue="0.2" /></disk>
+		<disk state="0"><color red="0.15" green="0.3" blue="0.15" /></disk>
+	</element>
+	<element name="led_yellow" defstate="0">
+		<disk state="1"><color red="1.0" green="0.85" blue="0.1" /></disk>
+		<disk state="0"><color red="0.35" green="0.3" blue="0.1" /></disk>
+	</element>
+	<element name="led_orange" defstate="0">
+		<disk state="1"><color red="1.0" green="0.5" blue="0.05" /></disk>
+		<disk state="0"><color red="0.35" green="0.2" blue="0.05" /></disk>
+	</element>
+	<element name="led_red" defstate="0">
+		<disk state="1"><color red="1.0" green="0.1" blue="0.1" /></disk>
+		<disk state="0"><color red="0.3" green="0.08" blue="0.08" /></disk>
+	</element>
+
+	<element name="btn_red">
+		<rect><color red="0.1" green="0.1" blue="0.1" /></rect>
+		<rect state="0"><bounds x="0.12" y="0.12" width="0.76" height="0.76" /><color red="0.95" green="0.15" blue="0.12" /></rect>
+		<rect state="1"><bounds x="0.18" y="0.18" width="0.64" height="0.64" /><color red="0.7" green="0.1" blue="0.08" /></rect>
+	</element>
+	<element name="btn_green">
+		<rect><color red="0.1" green="0.1" blue="0.1" /></rect>
+		<rect state="0"><bounds x="0.12" y="0.12" width="0.76" height="0.76" /><color red="0.1" green="0.6" blue="0.25" /></rect>
+		<rect state="1"><bounds x="0.18" y="0.18" width="0.64" height="0.64" /><color red="0.05" green="0.4" blue="0.15" /></rect>
+	</element>
+	<element name="btn_white">
+		<rect><color red="0.1" green="0.1" blue="0.1" /></rect>
+		<rect state="0"><bounds x="0.12" y="0.12" width="0.76" height="0.76" /><color red="0.97" green="0.97" blue="0.97" /></rect>
+		<rect state="1"><bounds x="0.18" y="0.18" width="0.64" height="0.64" /><color red="0.75" green="0.75" blue="0.75" /></rect>
+	</element>
+
+	<element name="t_bufready"><text string="BUFFER READY"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_prnerr"><text string="PRINTER ERROR"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_copy"><text string="COPY"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_ram"><text string="RAM   STATUS"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_reset"><text string="RESET"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_port"><text string="PORT    SELECT"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_start"><text string="START/END"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_plus"><text string="PLUS"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_1"><text string="1"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_2"><text string="2"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_16k"><text string="16K"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_32k"><text string="32K"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_48k"><text string="48K"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_64k"><text string="64K"><color red="0.1" green="0.1" blue="0.1" /></text></element>
+	<element name="t_model"><text string="PB-64-2   PRINTER BUFFER" align="1"><color red="0.15" green="0.15" blue="0.15" /></text></element>
+
+	<view name="Front Panel">
+		<bounds x="0" y="0" width="160" height="56" />
+		<element ref="panel"><bounds x="0" y="0" width="160" height="56" /></element>
+
+		<!-- BUFFER READY / RESET -->
+		<element ref="label_bg"><bounds x="4" y="4" width="22" height="6" /></element>
+		<element ref="t_bufready"><bounds x="4" y="5" width="22" height="4" /></element>
+		<element ref="cell"><bounds x="4" y="11" width="22" height="9" /></element>
+		<element name="ready" ref="led_green"><bounds x="13" y="13.5" width="4" height="4" /></element>
+		<element ref="btn_red" inputtag="RESET" inputmask="0x01"><bounds x="8" y="23" width="14" height="14" /></element>
+		<element ref="label_bg"><bounds x="4" y="40" width="22" height="6" /></element>
+		<element ref="t_reset"><bounds x="4" y="41" width="22" height="4" /></element>
+
+		<!-- PRINTER ERROR / PORT SELECT -->
+		<element ref="label_bg"><bounds x="30" y="4" width="22" height="6" /></element>
+		<element ref="t_prnerr"><bounds x="30" y="5" width="22" height="4" /></element>
+		<element ref="cell"><bounds x="30" y="11" width="22" height="9" /></element>
+		<element name="led0" ref="led_yellow"><bounds x="39" y="13.5" width="4" height="4" /></element>
+		<element ref="cell"><bounds x="30" y="23" width="16" height="6.5" /></element>
+		<element name="port1" ref="led_red"><bounds x="36" y="24.5" width="3.5" height="3.5" /></element>
+		<element ref="t_1"><bounds x="45" y="24" width="4" height="5" /></element>
+		<element ref="cell"><bounds x="30" y="30.5" width="16" height="6.5" /></element>
+		<element name="port2" ref="led_red"><bounds x="36" y="32" width="3.5" height="3.5" /></element>
+		<element ref="t_2"><bounds x="45" y="31.5" width="4" height="5" /></element>
+		<element ref="btn_green" inputtag="KEYS" inputmask="0x04"><bounds x="50" y="23" width="14" height="14" /></element>
+		<element ref="label_bg"><bounds x="30" y="40" width="36" height="6" /></element>
+		<element ref="t_port"><bounds x="30" y="41" width="36" height="4" /></element>
+
+		<!-- COPY -->
+		<element ref="label_bg"><bounds x="70" y="4" width="38" height="6" /></element>
+		<element ref="t_copy"><bounds x="70" y="5" width="38" height="4" /></element>
+		<element ref="cell"><bounds x="70" y="11" width="38" height="9" /></element>
+		<element name="led4" ref="led_orange"><bounds x="87" y="13.5" width="4" height="4" /></element>
+		<element ref="btn_white" inputtag="KEYS" inputmask="0x08"><bounds x="73" y="23" width="14" height="14" /></element>
+		<element ref="btn_white" inputtag="KEYS" inputmask="0x10"><bounds x="91" y="23" width="14" height="14" /></element>
+		<element ref="t_start"><bounds x="70" y="41" width="19" height="4" /></element>
+		<element ref="t_plus"><bounds x="89" y="41" width="19" height="4" /></element>
+
+		<!-- RAM STATUS -->
+		<element ref="label_bg"><bounds x="112" y="4" width="44" height="6" /></element>
+		<element ref="t_ram"><bounds x="112" y="5" width="44" height="4" /></element>
+		<element ref="cell"><bounds x="112" y="11" width="10.5" height="9" /></element>
+		<element ref="cell"><bounds x="123.2" y="11" width="10.5" height="9" /></element>
+		<element ref="cell"><bounds x="134.4" y="11" width="10.5" height="9" /></element>
+		<element ref="cell"><bounds x="145.6" y="11" width="10.4" height="9" /></element>
+		<element name="led1" ref="led_red"><bounds x="115.5" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="led3" ref="led_red"><bounds x="126.7" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="led5" ref="led_red"><bounds x="137.9" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="led7" ref="led_red"><bounds x="149.1" y="13.5" width="3.5" height="3.5" /></element>
+		<element ref="t_16k"><bounds x="112" y="21" width="10.5" height="4" /></element>
+		<element ref="t_32k"><bounds x="123.2" y="21" width="10.5" height="4" /></element>
+		<element ref="t_48k"><bounds x="134.4" y="21" width="10.5" height="4" /></element>
+		<element ref="t_64k"><bounds x="145.6" y="21" width="10.4" height="4" /></element>
+		<element ref="label_bg"><bounds x="112" y="30" width="44" height="14" /></element>
+		<element ref="t_model"><bounds x="114" y="34" width="40" height="5" /></element>
+	</view>
+</mamelayout>
