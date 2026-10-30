@@ -467,6 +467,9 @@ void citizen_200gx_device::cr_motor_w(u8 data)
 			m_cr_step_time = now;
 			m_cr_from = m_cr_half;
 			m_cr_half += delta;
+
+			// a moving carriage releases the bitmap printer's hold on the top of a new page
+			m_bitmap_printer->setheadpos(int(std::lround((m_cr_half / 120.0 + LEFT_OFFSET) * HDPI)), m_bitmap_printer->m_ypos);
 		}
 	}
 	m_cr_angle = angle;
