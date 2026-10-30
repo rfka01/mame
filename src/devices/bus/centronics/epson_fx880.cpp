@@ -75,6 +75,8 @@ constexpr int VDPI = 216;               // vertical resolution (four paper feed 
 constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr int LEFT_STEPS = 60;          // paper edge to the carriage home position, in half steps (guess)
+constexpr double NEEDLE_FLIGHT = 135e-6; // fire to impact (s): the firmware fires early by as much; found from
+										// bidirectional draft after graphics (aligned from 70 to 190 us)
 constexpr int REAR_PE = 400;            // rear PE detector below the print line, in paper half steps (guess)
 
 // AT93C46 contents after the factory reset (Tear Off/Bin and Load/Eject held at power on),
@@ -563,11 +565,13 @@ void epson_fx880_device::p8_w(u8 data)
 
 double epson_fx880_device::head_x() const
 {
-	// carriage position in half steps (1/240"), interpolated within the current step period
+	// carriage position in half steps (1/240"), interpolated within the current step period,
+	// where the wire reaches the paper: the head moves on during the needle's flight
 	if (m_cr_period.is_never())
 		return m_cr_pos;
-	double const frac = std::min(1.0, (machine().time() - m_cr_step_time).as_double() / m_cr_period.as_double());
-	return m_cr_from + (m_cr_pos - m_cr_from) * frac;
+	double const period = m_cr_period.as_double();
+	double const frac = std::min(1.0, (machine().time() - m_cr_step_time).as_double() / period);
+	return m_cr_from + (m_cr_pos - m_cr_from) * (frac + NEEDLE_FLIGHT / period);
 }
 
 void epson_fx880_device::strike()
