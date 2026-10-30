@@ -59,7 +59,7 @@ PB-64-2 printer buffer front panel
 	<element name="t_64k"><text string="64K"><color red="0.1" green="0.1" blue="0.1" /></text></element>
 	<element name="t_model"><text string="PB-64-2   PRINTER BUFFER" align="1"><color red="0.15" green="0.15" blue="0.15" /></text></element>
 
-	<view name="Front Panel">
+	<view name="PB-64-2 Front Panel">
 		<bounds x="0" y="0" width="160" height="56" />
 		<element ref="panel"><bounds x="0" y="0" width="160" height="56" /></element>
 
@@ -67,7 +67,7 @@ PB-64-2 printer buffer front panel
 		<element ref="label_bg"><bounds x="4" y="4" width="22" height="6" /></element>
 		<element ref="t_bufready"><bounds x="4" y="5" width="22" height="4" /></element>
 		<element ref="cell"><bounds x="4" y="11" width="22" height="9" /></element>
-		<element name="ready" ref="led_green"><bounds x="13" y="13.5" width="4" height="4" /></element>
+		<element name="pb642_ready" ref="led_green"><bounds x="13" y="13.5" width="4" height="4" /></element>
 		<element ref="btn_red" inputtag="RESET" inputmask="0x01"><bounds x="8" y="23" width="14" height="14" /></element>
 		<element ref="label_bg"><bounds x="4" y="40" width="22" height="6" /></element>
 		<element ref="t_reset"><bounds x="4" y="41" width="22" height="4" /></element>
@@ -76,12 +76,12 @@ PB-64-2 printer buffer front panel
 		<element ref="label_bg"><bounds x="30" y="4" width="22" height="6" /></element>
 		<element ref="t_prnerr"><bounds x="30" y="5" width="22" height="4" /></element>
 		<element ref="cell"><bounds x="30" y="11" width="22" height="9" /></element>
-		<element name="led0" ref="led_yellow"><bounds x="39" y="13.5" width="4" height="4" /></element>
+		<element name="pb642_led0" ref="led_yellow"><bounds x="39" y="13.5" width="4" height="4" /></element>
 		<element ref="cell"><bounds x="30" y="23" width="16" height="6.5" /></element>
-		<element name="port1" ref="led_red"><bounds x="36" y="24.5" width="3.5" height="3.5" /></element>
+		<element name="pb642_port1" ref="led_red"><bounds x="36" y="24.5" width="3.5" height="3.5" /></element>
 		<element ref="t_1"><bounds x="45" y="24" width="4" height="5" /></element>
 		<element ref="cell"><bounds x="30" y="30.5" width="16" height="6.5" /></element>
-		<element name="port2" ref="led_red"><bounds x="36" y="32" width="3.5" height="3.5" /></element>
+		<element name="pb642_port2" ref="led_red"><bounds x="36" y="32" width="3.5" height="3.5" /></element>
 		<element ref="t_2"><bounds x="45" y="31.5" width="4" height="5" /></element>
 		<element ref="btn_green" inputtag="KEYS" inputmask="0x04"><bounds x="50" y="23" width="14" height="14" /></element>
 		<element ref="label_bg"><bounds x="30" y="40" width="36" height="6" /></element>
@@ -91,7 +91,7 @@ PB-64-2 printer buffer front panel
 		<element ref="label_bg"><bounds x="70" y="4" width="38" height="6" /></element>
 		<element ref="t_copy"><bounds x="70" y="5" width="38" height="4" /></element>
 		<element ref="cell"><bounds x="70" y="11" width="38" height="9" /></element>
-		<element name="led4" ref="led_orange"><bounds x="87" y="13.5" width="4" height="4" /></element>
+		<element name="pb642_led4" ref="led_orange"><bounds x="87" y="13.5" width="4" height="4" /></element>
 		<element ref="btn_white" inputtag="KEYS" inputmask="0x08"><bounds x="73" y="23" width="14" height="14" /></element>
 		<element ref="btn_white" inputtag="KEYS" inputmask="0x10"><bounds x="91" y="23" width="14" height="14" /></element>
 		<element ref="t_start"><bounds x="70" y="41" width="19" height="4" /></element>
@@ -104,10 +104,10 @@ PB-64-2 printer buffer front panel
 		<element ref="cell"><bounds x="123.2" y="11" width="10.5" height="9" /></element>
 		<element ref="cell"><bounds x="134.4" y="11" width="10.5" height="9" /></element>
 		<element ref="cell"><bounds x="145.6" y="11" width="10.4" height="9" /></element>
-		<element name="led1" ref="led_red"><bounds x="115.5" y="13.5" width="3.5" height="3.5" /></element>
-		<element name="led3" ref="led_red"><bounds x="126.7" y="13.5" width="3.5" height="3.5" /></element>
-		<element name="led5" ref="led_red"><bounds x="137.9" y="13.5" width="3.5" height="3.5" /></element>
-		<element name="led7" ref="led_red"><bounds x="149.1" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="pb642_led1" ref="led_red"><bounds x="115.5" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="pb642_led3" ref="led_red"><bounds x="126.7" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="pb642_led5" ref="led_red"><bounds x="137.9" y="13.5" width="3.5" height="3.5" /></element>
+		<element name="pb642_led7" ref="led_red"><bounds x="149.1" y="13.5" width="3.5" height="3.5" /></element>
 		<element ref="t_16k"><bounds x="112" y="21" width="10.5" height="4" /></element>
 		<element ref="t_32k"><bounds x="123.2" y="21" width="10.5" height="4" /></element>
 		<element ref="t_48k"><bounds x="134.4" y="21" width="10.5" height="4" /></element>
