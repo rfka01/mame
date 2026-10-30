@@ -22,15 +22,19 @@
     * DRAM refresh: every main loop pass and the RAM test run through
       NOP slides located between XX80 and XXF0, so the 64K DRAMs see all
       row addresses at least once every 4 ms.
-    * The ROM was entered from the scanned magazine, with a bug fixed by
-      inserting a 0x00 NOP at 0x382, shifting bytes 0x382-0x3ee to
-      0x383-0x3ef so the hard-coded addresses point at the right places.
+    * The ROM was entered from the scanned magazine listing (Table 1,
+      August 1985), with a bug in the printed listing fixed by inserting
+      a 0x00 NOP at 0x382, shifting bytes 0x382-0x3ee to 0x383-0x3ef so
+      the hard-coded addresses point at the right places.
+    * Cross-checked glyph by glyph against the listing scan: all bytes
+      match except 0x0098, which the magazine prints as B8 (JP 0x00B8)
+      and the first transcription had as BB. With BB the 16K branch
+      skipped LD HL,0x4000, so the power-on clear started at a random HL
+      and strobed 4096 NULs to the printer. Corrected here.
     * Power-on sizes the RAM by writing/reading 0x8000 and 0xC000 and
-      clears it. Note: the 16K branch jumps to 0x00BB instead of 0x00B8,
-      so HL is not set to 0x4000 first and the clear loop starts wherever
-      HL happens to be (with HL = 0 it also hits the latches at
-      0x2000/0x3000 and strobes 4096 NULs to the printer). Unverified
-      whether this is in the original listing or a transcription error.
+      clears it. With no RAM fitted at all it reports 16K; the article's
+      commissioning test (TEST without RAM -> "RAM Fail at location :
+      4000" after about ten seconds) is available as RAM size "0K".
     * TEST switch (INT, IM 1 -> 0x0038 -> 0x0400) is only accepted in the
       EI/NOP/DI window at 0x010E, i.e. while the buffer is empty. It
       prints "Ram test started / Ram present : nnK", writes a pattern,
@@ -52,6 +56,13 @@
     0x0000-0xffff   any read: d6 = strobe received, d7 = printer not busy
 
     On the input port only STB, D0-D7, ACK and BUSY are connected.
+    Input handshake (Fig. 2, July 1985): STB drives the asynchronous
+    preset of the 74LS74 IC3b, whose Q clocks the data into the 74LS374
+    IC15 and whose /Q gives BUSY (via IC2e) and status d6 (via IC2d).
+    The read decode of 0x1000-0x1fff clears IC3b and is also the ACK.
+    RESET is not connected to IC3b, so its power-on state is undefined;
+    the firmware clears it with a dummy read at 0x00C8 once the RAM is
+    cleared ("buffer ready ... after about a second").
 
 ***************************************************************************/
 
@@ -301,9 +312,9 @@ void etiprintbuffer_device::device_reset()
 	if (blocks)
 		mem.install_ram(0x4000, 0x4000 + (blocks * 0x4000) - 1, m_ram.get());
 
-	// The input flip-flop is assumed to come up set (BUSY), so the computer
-	// is held off until the firmware's dummy read of 0x1000 at 0x00C8, after
-	// RAM sizing and clearing, releases it.
+	// IC3b is not reset by RESET and powers up in an undefined state; take
+	// the set state (BUSY) so the computer is held off until the firmware's
+	// dummy read of 0x1000 at 0x00C8 releases it.
 	m_strobereceived = true;
 	m_bufferready_led = 0;
 	output_busy(1);
@@ -411,6 +422,7 @@ static INPUT_PORTS_START(etiprintbuffer)
 
 	PORT_START("CONFIG")
 	PORT_CONFNAME(0x03, 0x03, "ETI Buffer RAM Size")
+	PORT_CONFSETTING(0x00, "0K (commissioning test)")
 	PORT_CONFSETTING(0x01, "16K")
 	PORT_CONFSETTING(0x02, "32K")
 	PORT_CONFSETTING(0x03, "48K")
@@ -423,7 +435,7 @@ ioport_constructor etiprintbuffer_device::device_input_ports() const
 
 ROM_START(etiprintbuffer)
 	ROM_REGION(0x800, "maincpu", 0)
-	ROM_LOAD("etibuffer.rom", 0x0000, 0x0800, CRC(bd31d7b6) SHA1(cd76a9a53c6b9994c5721f8c393bc782143c6d3f))
+	ROM_LOAD("etibuffer.rom", 0x0000, 0x0800, CRC(4cae68f2) SHA1(33a4eae61fb1bc7815a1a6bf18e2523651bb0054))
 ROM_END
 
 const tiny_rom_entry *etiprintbuffer_device::device_rom_region() const
