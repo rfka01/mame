@@ -128,6 +128,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "citizen_200gx.h"
 #include "epson_fx880.h"
 #include "epson_lx800.h"
+#include "etibuffer.h"
 #include "epson_lx810l.h"
 #include "epson_rx80.h"
 #include "hasp_savquest.h"
@@ -164,6 +165,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("mcs820", MCS820);
 	device.option_add("printer", CENTRONICS_PRINTER);
 	device.option_add("pb642", CENTRONICS_PB642);
+	device.option_add("etibuffer", ETIPRINTBUFFER);
 	device.option_add("digiblst", CENTRONICS_DIGIBLASTER);
 	device.option_add("covox", CENTRONICS_COVOX);
 	device.option_add("covox_stereo", CENTRONICS_COVOX_STEREO);
