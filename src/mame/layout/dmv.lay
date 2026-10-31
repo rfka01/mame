@@ -2,179 +2,455 @@
 <!--
 license:CC0-1.0
 -->
+<!--
+	NCR Decision Mate V
+
+	Three cabinet styles:
+	  - gray cabinet with two floppy drives
+	  - dark front according to the NCR "Corporate Appearance Plan" (CAP)
+	  - light cabinet with one floppy drive and an internal hard disk
+
+	The eight test LEDs live on the mainboard at the rear of the machine;
+	they are shown below the cabinet so the self-test codes stay visible.
+	The K220 diagnostic module display can be enabled as a collection.
+-->
 <mamelayout version="2">
 	<element name="led" defstate="1">
-		<disk state="0">
-			<color red="0.75" green="0.0" blue="0.0" />
-		</disk>
-		<disk state="1">
-			<color red="0.20" green="0.0" blue="0.0" />
-		</disk>
+		<disk state="0"><color red="1.0" green="0.15" blue="0.10"/></disk>
+		<disk state="1"><color red="0.30" green="0.03" blue="0.02"/></disk>
 	</element>
-
 	<element name="l1">
-		<text string="1">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="1"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l2">
-		<text string="2">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="2"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l3">
-		<text string="3">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="3"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l4">
-		<text string="4">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="4"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l5">
-		<text string="5">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="5"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l6">
-		<text string="6">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="6"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l7">
-		<text string="7">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="7"><color red="0.92" green="0.92" blue="0.85"/></text>
 	</element>
 	<element name="l8">
-		<text string="8">
-			<color red="1.0" green="1.0" blue="1.0" />
-		</text>
+		<text string="8"><color red="0.92" green="0.92" blue="0.85"/></text>
+	</element>
+	<element name="fdd_led" defstate="0">
+		<rect state="0"><color red="0.29" green="0.05" blue="0.05" alpha="0.0"/></rect>
+		<rect state="1"><color red="1.0" green="0.18" blue="0.12"/></rect>
 	</element>
 	<element name="digit" defstate="0">
-		<led7seg>
-			<color red="0.75" green="0.0" blue="0.0" />
-		</led7seg>
+		<led7seg><color red="1.0" green="0.12" blue="0.10"/></led7seg>
 	</element>
-
-
-	<view name="Default Layout">
-		<screen index="0">
-			<bounds x="30" y="0" width="640" height="480" />
-		</screen>
-
-		<element name="led1" ref="led">
-			<bounds x="15" y="33" width="10" height="10" />
-		</element>
-		<element name="led2" ref="led">
-			<bounds x="15" y="53" width="10" height="10" />
-		</element>
-		<element name="led3" ref="led">
-			<bounds x="15" y="73" width="10" height="10" />
-		</element>
-		<element name="led4" ref="led">
-			<bounds x="15" y="93" width="10" height="10" />
-		</element>
-		<element name="led5" ref="led">
-			<bounds x="15" y="113" width="10" height="10" />
-		</element>
-		<element name="led6" ref="led">
-			<bounds x="15" y="133" width="10" height="10" />
-		</element>
-		<element name="led7" ref="led">
-			<bounds x="15" y="153" width="10" height="10" />
-		</element>
-		<element name="led8" ref="led">
-			<bounds x="15" y="173" width="10" height="10" />
-		</element>
-
-		<element name="label1" ref="l1">
-			<bounds x="0" y="30" width="15" height="16" />
-		</element>
-		<element name="label2" ref="l2">
-			<bounds x="0" y="50" width="15" height="16" />
-		</element>
-		<element name="label3" ref="l3">
-			<bounds x="0" y="70" width="15" height="16" />
-		</element>
-		<element name="label4" ref="l4">
-			<bounds x="0" y="90" width="15" height="16" />
-		</element>
-		<element name="label5" ref="l5">
-			<bounds x="0" y="110" width="15" height="16" />
-		</element>
-		<element name="label6" ref="l6">
-			<bounds x="0" y="130" width="15" height="16" />
-		</element>
-		<element name="label7" ref="l7">
-			<bounds x="0" y="150" width="15" height="16" />
-		</element>
-		<element name="label8" ref="l8">
-			<bounds x="0" y="170" width="15" height="16" />
-		</element>
+	<element name="k220">
+		<image>
+			<data><![CDATA[
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="70" viewBox="0 0 200 70"><rect x="0" y="0" width="200" height="70" rx="4" fill="#1d6b45"/><rect x="0" y="0" width="200" height="70" rx="4" fill="none" stroke="#14492f" stroke-width="3"/><rect x="79" y="3" width="52" height="64" fill="none" stroke="#d8e8dc" stroke-width="1.2" opacity="0.7"/><rect x="82" y="6" width="46" height="58" rx="2" fill="#2b2b2d"/><rect x="82" y="6" width="46" height="58" rx="2" fill="none" stroke="#1a1a1b" stroke-width="2"/><rect x="137" y="3" width="52" height="64" fill="none" stroke="#d8e8dc" stroke-width="1.2" opacity="0.7"/><rect x="140" y="6" width="46" height="58" rx="2" fill="#2b2b2d"/><rect x="140" y="6" width="46" height="58" rx="2" fill="none" stroke="#1a1a1b" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="#c9c9a0"/><circle cx="12" cy="58" r="5" fill="#c9c9a0"/></svg>
+			]]></data>
+		</image>
+	</element>
+	<element name="cap_diag">
+		<text string="K220"><color red="0.85" green="0.91" blue="0.86"/></text>
+	</element>
+	<element name="cap_leds">
+		<text string="Mainboard test LEDs" align="1"><color red="0.55" green="0.55" blue="0.55"/></text>
+	</element>
+	<element name="cap_leds2">
+		<text string="(rear of the machine)" align="1"><color red="0.45" green="0.45" blue="0.45"/></text>
+	</element>
+	<element name="pcb">
+		<image>
+			<data><![CDATA[
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="70" viewBox="0 0 400 70"><rect x="0" y="0" width="400" height="70" rx="4" fill="#1d6b45"/><rect x="0" y="0" width="400" height="70" rx="4" fill="none" stroke="#14492f" stroke-width="3"/><rect x="30" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="30" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="74" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="74" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="118" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="118" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="162" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="162" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="206" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="206" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="250" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="250" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="294" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="294" y="57" width="20" height="3" fill="#2f8c5c"/><rect x="338" y="10" width="20" height="3" fill="#2f8c5c"/><rect x="338" y="57" width="20" height="3" fill="#2f8c5c"/><circle cx="12" cy="12" r="5" fill="#c9c9a0"/><circle cx="388" cy="12" r="5" fill="#c9c9a0"/></svg>
+			]]></data>
+		</image>
+	</element>
+	<element name="cabinet_gray">
+		<image>
+			<data><![CDATA[
+<svg xmlns="http://www.w3.org/2000/svg" width="1308" height="720" viewBox="0 0 1308 720">
+<defs><linearGradient id="shell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2dfd8"/><stop offset="1" stop-color="#b9b6ae"/></linearGradient><linearGradient id="recess" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9a69f"/><stop offset="1" stop-color="#cfccc5"/></linearGradient><radialGradient id="knob" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/><stop offset="0.5" stop-color="#d9d8d4"/><stop offset="1" stop-color="#8e8c87"/></radialGradient><linearGradient id="rocker" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2432a"/><stop offset="0.6" stop-color="#f05a3c"/><stop offset="1" stop-color="#c2321d"/></linearGradient><radialGradient id="pled" cx="0.4" cy="0.4" r="0.6"><stop offset="0" stop-color="#d8ffd0"/><stop offset="1" stop-color="#3fc83a"/></radialGradient><linearGradient id="plate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b8ad95"/><stop offset="1" stop-color="#ddd2ba"/></linearGradient><linearGradient id="grip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a554b" stop-opacity="0.55"/><stop offset="0.35" stop-color="#b8ad95"/><stop offset="1" stop-color="#ddd2ba"/></linearGradient></defs>
+<rect x="0" y="0" width="1308" height="720" rx="34" fill="url(#shell)"/>
+<rect x="22" y="22" width="1264" height="676" rx="20" fill="#cfccc5" stroke="#b9b6ae" stroke-width="2"/>
+<path d="M 70 50 L 870 50 L 812 88 L 128 88 Z" fill="#a9a69f"/>
+<path d="M 70 50 L 128 88 L 128 612 L 70 670 Z" fill="#a9a69f" opacity="0.75"/>
+<path d="M 870 50 L 870 670 L 812 612 L 812 88 Z" fill="#a9a69f" opacity="0.55"/>
+<path d="M 70 670 L 128 612 L 812 612 L 870 670 Z" fill="#cfccc5" opacity="0.9"/>
+<rect x="70" y="50" width="800" height="620" rx="10" fill="none" stroke="#b9b6ae" stroke-width="3"/>
+<rect x="128" y="88" width="684" height="524" rx="28" fill="#262a28"/>
+<rect x="900" y="50" width="360" height="600" rx="8" fill="#c6c3bc" stroke="#a8a59e" stroke-width="4"/>
+<rect x="937.3333333333334" y="102" width="124" height="400" rx="3" fill="#ddd2ba" stroke="#b8ad95" stroke-width="3"/>
+<rect x="984.5" y="120.0" width="67.0" height="112.0" fill="url(#plate)"/>
+<rect x="984.5" y="120.0" width="67.0" height="2" fill="#b8ad95" opacity="0.6"/>
+<rect x="949.7" y="246.0" width="86.8" height="96.0" fill="#b8ad95"/>
+<path d="M 949.7 246.0 L 1036.5 246.0 L 1031.5 258.0 L 954.7 258.0 Z" fill="#5a554b" opacity="0.55"/>
+<path d="M 949.7 246.0 L 954.7 258.0 L 954.7 336.0 L 949.7 342.0 Z" fill="#5a554b" opacity="0.35"/>
+<path d="M 1036.5 246.0 L 1031.5 258.0 L 1031.5 336.0 L 1036.5 342.0 Z" fill="#5a554b" opacity="0.2"/>
+<path d="M 949.7 342.0 L 954.7 336.0 L 1031.5 336.0 L 1036.5 342.0 Z" fill="#e9e0cb"/>
+<rect x="949.7" y="246.0" width="86.8" height="96.0" fill="none" stroke="#5a554b" stroke-width="1" opacity="0.6"/>
+<rect x="969.6" y="112.0" width="14.9" height="380.0" rx="2" fill="#5a554b"/>
+<path d="M 1006.0 164.5 A 23.6 23.6 0 0 1 1030.2 196.1" fill="none" stroke="#55524c" stroke-width="2"/>
+<path d="M 1036.6 193.1 L 1029.5 197.9 L 1027.2 189.6" fill="none" stroke="#55524c" stroke-width="2"/>
+<path d="M 962.1 150.0 Q 962.1 142.0 970.1 141.0 L 981.9 140.0 Q 986.9 140.0 986.9 146.0 L 986.9 207.7 A 22.3 22.3 0 1 1 946.3 194.9 Q 962.1 184.2 962.1 172.0 Z" fill="#e9e0cb" stroke="#b3a88f" stroke-width="2"/>
+<path d="M 981.9 145.0 L 985.9 146.0 L 985.9 207.7 L 981.9 207.7 Z" fill="#b3a88f" opacity="0.4"/>
+<circle cx="964.6" cy="207.7" r="7.8" fill="#b3a88f" opacity="0.18"/>
+<rect x="946.0" y="444.0" width="10" height="26" rx="2" fill="#4a0e0c" stroke="#b8ad95" stroke-width="1.5"/>
+<rect x="1098.6666666666665" y="102" width="124" height="400" rx="3" fill="#ddd2ba" stroke="#b8ad95" stroke-width="3"/>
+<rect x="1145.8" y="120.0" width="67.0" height="112.0" fill="url(#plate)"/>
+<rect x="1145.8" y="120.0" width="67.0" height="2" fill="#b8ad95" opacity="0.6"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="#b8ad95"/>
+<path d="M 1111.1 246.0 L 1197.9 246.0 L 1192.9 258.0 L 1116.1 258.0 Z" fill="#5a554b" opacity="0.55"/>
+<path d="M 1111.1 246.0 L 1116.1 258.0 L 1116.1 336.0 L 1111.1 342.0 Z" fill="#5a554b" opacity="0.35"/>
+<path d="M 1197.9 246.0 L 1192.9 258.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#5a554b" opacity="0.2"/>
+<path d="M 1111.1 342.0 L 1116.1 336.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#e9e0cb"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="none" stroke="#5a554b" stroke-width="1" opacity="0.6"/>
+<rect x="1130.9" y="112.0" width="14.9" height="380.0" rx="2" fill="#5a554b"/>
+<path d="M 1167.3 164.5 A 23.6 23.6 0 0 1 1191.5 196.1" fill="none" stroke="#55524c" stroke-width="2"/>
+<path d="M 1197.9 193.1 L 1190.8 197.9 L 1188.5 189.6" fill="none" stroke="#55524c" stroke-width="2"/>
+<path d="M 1123.5 150.0 Q 1123.5 142.0 1131.5 141.0 L 1143.3 140.0 Q 1148.3 140.0 1148.3 146.0 L 1148.3 207.7 A 22.3 22.3 0 1 1 1107.7 194.9 Q 1123.5 184.2 1123.5 172.0 Z" fill="#e9e0cb" stroke="#b3a88f" stroke-width="2"/>
+<path d="M 1143.3 145.0 L 1147.3 146.0 L 1147.3 207.7 L 1143.3 207.7 Z" fill="#b3a88f" opacity="0.4"/>
+<circle cx="1125.9" cy="207.7" r="7.8" fill="#b3a88f" opacity="0.18"/>
+<rect x="1107.3" y="444.0" width="10" height="26" rx="2" fill="#4a0e0c" stroke="#b8ad95" stroke-width="1.5"/>
+<line x1="945" y1="534" x2="955" y2="534" stroke="#55524c" stroke-width="2"/><line x1="997" y1="534" x2="1007" y2="534" stroke="#55524c" stroke-width="2"/><line x1="1002" y1="529" x2="1002" y2="539" stroke="#55524c" stroke-width="2"/>
+<circle cx="976" cy="534" r="5" fill="none" stroke="#55524c" stroke-width="2"/>
+<line x1="984.0" y1="534.0" x2="988.0" y2="534.0" stroke="#55524c" stroke-width="2"/>
+<line x1="981.7" y1="539.7" x2="984.5" y2="542.5" stroke="#55524c" stroke-width="2"/>
+<line x1="976.0" y1="542.0" x2="976.0" y2="546.0" stroke="#55524c" stroke-width="2"/>
+<line x1="970.3" y1="539.7" x2="967.5" y2="542.5" stroke="#55524c" stroke-width="2"/>
+<line x1="968.0" y1="534.0" x2="964.0" y2="534.0" stroke="#55524c" stroke-width="2"/>
+<line x1="970.3" y1="528.3" x2="967.5" y2="525.5" stroke="#55524c" stroke-width="2"/>
+<line x1="976.0" y1="526.0" x2="976.0" y2="522.0" stroke="#55524c" stroke-width="2"/>
+<line x1="981.7" y1="528.3" x2="984.5" y2="525.5" stroke="#55524c" stroke-width="2"/>
+<line x1="1041" y1="534" x2="1051" y2="534" stroke="#55524c" stroke-width="2"/><line x1="1093" y1="534" x2="1103" y2="534" stroke="#55524c" stroke-width="2"/><line x1="1098" y1="529" x2="1098" y2="539" stroke="#55524c" stroke-width="2"/>
+<circle cx="1072" cy="534" r="9" fill="none" stroke="#55524c" stroke-width="2"/><path d="M 1072 525 A 9 9 0 0 1 1072 543 Z" fill="#55524c"/>
+<rect x="926" y="554" width="196" height="78" rx="6" fill="#b3b0a9" stroke="#a8a59e" stroke-width="3"/>
+<circle cx="976" cy="593.0" r="19" fill="#8e8c87"/>
+<circle cx="976" cy="593.0" r="15" fill="url(#knob)"/>
+<circle cx="1072" cy="593.0" r="19" fill="#8e8c87"/>
+<circle cx="1072" cy="593.0" r="15" fill="url(#knob)"/>
+<rect x="1152" y="550" width="46" height="90" rx="14" fill="#8e1f12"/>
+<rect x="1155" y="553" width="40" height="84" rx="12" fill="url(#rocker)"/>
+<line x1="1175" y1="562" x2="1175" y2="580" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1175" cy="618" r="8" fill="none" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1181" cy="528" r="11" fill="#4fd84a" opacity="0.35"/>
+<circle cx="1181" cy="528" r="6.5" fill="url(#pled)"/>
+</svg>
+			]]></data>
+		</image>
+	</element>
+	<element name="ncr_logo_gray">
+		<rect><bounds x="0" y="0" width="72" height="24"/><color red="0.227" green="0.227" blue="0.227"/></rect>
+		<rect><bounds x="2.00" y="2" width="21.33" height="20"/><color red="0.776" green="0.765" blue="0.737"/></rect>
+		<text string="N"><bounds x="2.00" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+		<rect><bounds x="25.33" y="2" width="21.33" height="20"/><color red="0.776" green="0.765" blue="0.737"/></rect>
+		<text string="C"><bounds x="25.33" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+		<rect><bounds x="48.66" y="2" width="21.33" height="20"/><color red="0.776" green="0.765" blue="0.737"/></rect>
+		<text string="R"><bounds x="48.66" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+	</element>
+	<element name="lbl_A_gray">
+		<text string="A"><color red="0.290" green="0.278" blue="0.251"/></text>
+	</element>
+	<element name="lbl_B_gray">
+		<text string="B"><color red="0.290" green="0.278" blue="0.251"/></text>
+	</element>
+	<element name="cabinet_cap">
+		<image>
+			<data><![CDATA[
+<svg xmlns="http://www.w3.org/2000/svg" width="1308" height="720" viewBox="0 0 1308 720">
+<defs><linearGradient id="shell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f2ef"/><stop offset="1" stop-color="#c9c8c3"/></linearGradient><linearGradient id="recess" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#333436"/><stop offset="1" stop-color="#4b4c4f"/></linearGradient><radialGradient id="knob" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/><stop offset="0.5" stop-color="#1c1c1d"/><stop offset="1" stop-color="#4c4d50"/></radialGradient><linearGradient id="rocker" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2432a"/><stop offset="0.6" stop-color="#f05a3c"/><stop offset="1" stop-color="#c2321d"/></linearGradient><radialGradient id="pled" cx="0.4" cy="0.4" r="0.6"><stop offset="0" stop-color="#d8ffd0"/><stop offset="1" stop-color="#3fc83a"/></radialGradient><linearGradient id="plate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1d1e1f"/><stop offset="1" stop-color="#2c2d2f"/></linearGradient><linearGradient id="grip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#121213" stop-opacity="0.55"/><stop offset="0.35" stop-color="#1d1e1f"/><stop offset="1" stop-color="#2c2d2f"/></linearGradient></defs>
+<rect x="0" y="0" width="1308" height="720" rx="34" fill="url(#shell)"/>
+<rect x="22" y="22" width="1264" height="676" rx="20" fill="#4b4c4f"/>
+<path d="M 70 50 L 870 50 L 812 88 L 128 88 Z" fill="#333436"/>
+<path d="M 70 50 L 128 88 L 128 612 L 70 670 Z" fill="#333436" opacity="0.75"/>
+<path d="M 870 50 L 870 670 L 812 612 L 812 88 Z" fill="#333436" opacity="0.55"/>
+<path d="M 70 670 L 128 612 L 812 612 L 870 670 Z" fill="#4b4c4f" opacity="0.9"/>
+<rect x="70" y="50" width="800" height="620" rx="10" fill="none" stroke="#2a2b2d" stroke-width="3"/>
+<rect x="128" y="88" width="684" height="524" rx="28" fill="#1c1e1d"/>
+<rect x="900" y="50" width="360" height="600" rx="8" fill="#3f4043" stroke="#2b2c2e" stroke-width="4"/>
+<rect x="937.3333333333334" y="102" width="124" height="400" rx="3" fill="#2c2d2f" stroke="#1d1e1f" stroke-width="3"/>
+<rect x="984.5" y="120.0" width="67.0" height="112.0" fill="url(#plate)"/>
+<rect x="984.5" y="120.0" width="67.0" height="2" fill="#1d1e1f" opacity="0.6"/>
+<rect x="949.7" y="246.0" width="86.8" height="96.0" fill="#1d1e1f"/>
+<path d="M 949.7 246.0 L 1036.5 246.0 L 1031.5 258.0 L 954.7 258.0 Z" fill="#121213" opacity="0.55"/>
+<path d="M 949.7 246.0 L 954.7 258.0 L 954.7 336.0 L 949.7 342.0 Z" fill="#121213" opacity="0.35"/>
+<path d="M 1036.5 246.0 L 1031.5 258.0 L 1031.5 336.0 L 1036.5 342.0 Z" fill="#121213" opacity="0.2"/>
+<path d="M 949.7 342.0 L 954.7 336.0 L 1031.5 336.0 L 1036.5 342.0 Z" fill="#3a3b3d"/>
+<rect x="949.7" y="246.0" width="86.8" height="96.0" fill="none" stroke="#121213" stroke-width="1" opacity="0.6"/>
+<rect x="969.6" y="112.0" width="14.9" height="380.0" rx="2" fill="#121213"/>
+<path d="M 1006.0 164.5 A 23.6 23.6 0 0 1 1030.2 196.1" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<path d="M 1036.6 193.1 L 1029.5 197.9 L 1027.2 189.6" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<path d="M 962.1 150.0 Q 962.1 142.0 970.1 141.0 L 981.9 140.0 Q 986.9 140.0 986.9 146.0 L 986.9 207.7 A 22.3 22.3 0 1 1 946.3 194.9 Q 962.1 184.2 962.1 172.0 Z" fill="#3a3b3d" stroke="#1a1a1b" stroke-width="2"/>
+<path d="M 981.9 145.0 L 985.9 146.0 L 985.9 207.7 L 981.9 207.7 Z" fill="#1a1a1b" opacity="0.4"/>
+<circle cx="964.6" cy="207.7" r="7.8" fill="#1a1a1b" opacity="0.18"/>
+<rect x="946.0" y="444.0" width="10" height="26" rx="2" fill="#4a0e0c" stroke="#1d1e1f" stroke-width="1.5"/>
+<rect x="1098.6666666666665" y="102" width="124" height="400" rx="3" fill="#2c2d2f" stroke="#1d1e1f" stroke-width="3"/>
+<rect x="1145.8" y="120.0" width="67.0" height="112.0" fill="url(#plate)"/>
+<rect x="1145.8" y="120.0" width="67.0" height="2" fill="#1d1e1f" opacity="0.6"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="#1d1e1f"/>
+<path d="M 1111.1 246.0 L 1197.9 246.0 L 1192.9 258.0 L 1116.1 258.0 Z" fill="#121213" opacity="0.55"/>
+<path d="M 1111.1 246.0 L 1116.1 258.0 L 1116.1 336.0 L 1111.1 342.0 Z" fill="#121213" opacity="0.35"/>
+<path d="M 1197.9 246.0 L 1192.9 258.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#121213" opacity="0.2"/>
+<path d="M 1111.1 342.0 L 1116.1 336.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#3a3b3d"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="none" stroke="#121213" stroke-width="1" opacity="0.6"/>
+<rect x="1130.9" y="112.0" width="14.9" height="380.0" rx="2" fill="#121213"/>
+<path d="M 1167.3 164.5 A 23.6 23.6 0 0 1 1191.5 196.1" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<path d="M 1197.9 193.1 L 1190.8 197.9 L 1188.5 189.6" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<path d="M 1123.5 150.0 Q 1123.5 142.0 1131.5 141.0 L 1143.3 140.0 Q 1148.3 140.0 1148.3 146.0 L 1148.3 207.7 A 22.3 22.3 0 1 1 1107.7 194.9 Q 1123.5 184.2 1123.5 172.0 Z" fill="#3a3b3d" stroke="#1a1a1b" stroke-width="2"/>
+<path d="M 1143.3 145.0 L 1147.3 146.0 L 1147.3 207.7 L 1143.3 207.7 Z" fill="#1a1a1b" opacity="0.4"/>
+<circle cx="1125.9" cy="207.7" r="7.8" fill="#1a1a1b" opacity="0.18"/>
+<rect x="1107.3" y="444.0" width="10" height="26" rx="2" fill="#4a0e0c" stroke="#1d1e1f" stroke-width="1.5"/>
+<line x1="945" y1="534" x2="955" y2="534" stroke="#c9c9c9" stroke-width="2"/><line x1="997" y1="534" x2="1007" y2="534" stroke="#c9c9c9" stroke-width="2"/><line x1="1002" y1="529" x2="1002" y2="539" stroke="#c9c9c9" stroke-width="2"/>
+<circle cx="976" cy="534" r="5" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="984.0" y1="534.0" x2="988.0" y2="534.0" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="981.7" y1="539.7" x2="984.5" y2="542.5" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="976.0" y1="542.0" x2="976.0" y2="546.0" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="970.3" y1="539.7" x2="967.5" y2="542.5" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="968.0" y1="534.0" x2="964.0" y2="534.0" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="970.3" y1="528.3" x2="967.5" y2="525.5" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="976.0" y1="526.0" x2="976.0" y2="522.0" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="981.7" y1="528.3" x2="984.5" y2="525.5" stroke="#c9c9c9" stroke-width="2"/>
+<line x1="1041" y1="534" x2="1051" y2="534" stroke="#c9c9c9" stroke-width="2"/><line x1="1093" y1="534" x2="1103" y2="534" stroke="#c9c9c9" stroke-width="2"/><line x1="1098" y1="529" x2="1098" y2="539" stroke="#c9c9c9" stroke-width="2"/>
+<path d="M 1063 530 L 1068 530 L 1074 524 L 1074 544 L 1068 538 L 1063 538 Z" fill="#c9c9c9"/><path d="M 1079 528 A 8 8 0 0 1 1079 540" fill="none" stroke="#c9c9c9" stroke-width="2"/>
+<rect x="926" y="554" width="196" height="78" rx="6" fill="#2e2f31" stroke="#2b2c2e" stroke-width="3"/>
+<circle cx="976" cy="593.0" r="19" fill="#4c4d50"/>
+<circle cx="976" cy="593.0" r="15" fill="url(#knob)"/>
+<circle cx="1072" cy="593.0" r="19" fill="#4c4d50"/>
+<circle cx="1072" cy="593.0" r="15" fill="url(#knob)"/>
+<rect x="1152" y="550" width="46" height="90" rx="14" fill="#8e1f12"/>
+<rect x="1155" y="553" width="40" height="84" rx="12" fill="url(#rocker)"/>
+<line x1="1175" y1="562" x2="1175" y2="580" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1175" cy="618" r="8" fill="none" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1181" cy="528" r="11" fill="#4fd84a" opacity="0.35"/>
+<circle cx="1181" cy="528" r="6.5" fill="url(#pled)"/>
+</svg>
+			]]></data>
+		</image>
+	</element>
+	<element name="ncr_logo_cap">
+		<rect><bounds x="0" y="0" width="72" height="24"/><color red="0.941" green="0.941" blue="0.941"/></rect>
+		<rect><bounds x="2.00" y="2" width="21.33" height="20"/><color red="0.247" green="0.251" blue="0.263"/></rect>
+		<text string="N"><bounds x="2.00" y="3" width="21.33" height="18"/><color red="0.941" green="0.941" blue="0.941"/></text>
+		<rect><bounds x="25.33" y="2" width="21.33" height="20"/><color red="0.247" green="0.251" blue="0.263"/></rect>
+		<text string="C"><bounds x="25.33" y="3" width="21.33" height="18"/><color red="0.941" green="0.941" blue="0.941"/></text>
+		<rect><bounds x="48.66" y="2" width="21.33" height="20"/><color red="0.247" green="0.251" blue="0.263"/></rect>
+		<text string="R"><bounds x="48.66" y="3" width="21.33" height="18"/><color red="0.941" green="0.941" blue="0.941"/></text>
+	</element>
+	<element name="lbl_A_cap">
+		<text string="A"><color red="0.847" green="0.847" blue="0.847"/></text>
+	</element>
+	<element name="lbl_B_cap">
+		<text string="B"><color red="0.847" green="0.847" blue="0.847"/></text>
+	</element>
+	<element name="cabinet_light">
+		<image>
+			<data><![CDATA[
+<svg xmlns="http://www.w3.org/2000/svg" width="1308" height="720" viewBox="0 0 1308 720">
+<defs><linearGradient id="shell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f3ef"/><stop offset="1" stop-color="#cdccc6"/></linearGradient><linearGradient id="recess" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bdbcb6"/><stop offset="1" stop-color="#e3e2dd"/></linearGradient><radialGradient id="knob" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/><stop offset="0.5" stop-color="#dedddb"/><stop offset="1" stop-color="#8f8e8a"/></radialGradient><linearGradient id="rocker" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2432a"/><stop offset="0.6" stop-color="#f05a3c"/><stop offset="1" stop-color="#c2321d"/></linearGradient><radialGradient id="pled" cx="0.4" cy="0.4" r="0.6"><stop offset="0" stop-color="#d8ffd0"/><stop offset="1" stop-color="#3fc83a"/></radialGradient><linearGradient id="plate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c4c1b8"/><stop offset="1" stop-color="#e8e5dc"/></linearGradient><linearGradient id="grip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a675f" stop-opacity="0.55"/><stop offset="0.35" stop-color="#c4c1b8"/><stop offset="1" stop-color="#e8e5dc"/></linearGradient></defs>
+<rect x="0" y="0" width="1308" height="720" rx="34" fill="url(#shell)"/>
+<rect x="22" y="22" width="1264" height="676" rx="20" fill="#e3e2dd" stroke="#cdccc6" stroke-width="2"/>
+<path d="M 70 50 L 870 50 L 812 88 L 128 88 Z" fill="#bdbcb6"/>
+<path d="M 70 50 L 128 88 L 128 612 L 70 670 Z" fill="#bdbcb6" opacity="0.75"/>
+<path d="M 870 50 L 870 670 L 812 612 L 812 88 Z" fill="#bdbcb6" opacity="0.55"/>
+<path d="M 70 670 L 128 612 L 812 612 L 870 670 Z" fill="#e3e2dd" opacity="0.9"/>
+<rect x="70" y="50" width="800" height="620" rx="10" fill="none" stroke="#cdccc6" stroke-width="3"/>
+<rect x="128" y="88" width="684" height="524" rx="28" fill="#2a2e2c"/>
+<rect x="900" y="50" width="360" height="600" rx="8" fill="#dddcd6" stroke="#bebdb7" stroke-width="4"/>
+<rect x="959.3333333333334" y="122" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="959.3333333333334" y="247" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="959.3333333333334" y="372" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="989.3333333333334" y="122" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="989.3333333333334" y="247" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="989.3333333333334" y="372" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="1019.3333333333334" y="122" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="1019.3333333333334" y="247" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="1019.3333333333334" y="372" width="11" height="110" rx="5" fill="#bebdb7"/>
+<rect x="1098.6666666666665" y="102" width="124" height="400" rx="3" fill="#e8e5dc" stroke="#c4c1b8" stroke-width="3"/>
+<rect x="1145.8" y="120.0" width="67.0" height="112.0" fill="url(#plate)"/>
+<rect x="1145.8" y="120.0" width="67.0" height="2" fill="#c4c1b8" opacity="0.6"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="#c4c1b8"/>
+<path d="M 1111.1 246.0 L 1197.9 246.0 L 1192.9 258.0 L 1116.1 258.0 Z" fill="#6a675f" opacity="0.55"/>
+<path d="M 1111.1 246.0 L 1116.1 258.0 L 1116.1 336.0 L 1111.1 342.0 Z" fill="#6a675f" opacity="0.35"/>
+<path d="M 1197.9 246.0 L 1192.9 258.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#6a675f" opacity="0.2"/>
+<path d="M 1111.1 342.0 L 1116.1 336.0 L 1192.9 336.0 L 1197.9 342.0 Z" fill="#efece4"/>
+<rect x="1111.1" y="246.0" width="86.8" height="96.0" fill="none" stroke="#6a675f" stroke-width="1" opacity="0.6"/>
+<rect x="1130.9" y="112.0" width="14.9" height="380.0" rx="2" fill="#6a675f"/>
+<path d="M 1167.3 164.5 A 23.6 23.6 0 0 1 1191.5 196.1" fill="none" stroke="#55534e" stroke-width="2"/>
+<path d="M 1197.9 193.1 L 1190.8 197.9 L 1188.5 189.6" fill="none" stroke="#55534e" stroke-width="2"/>
+<path d="M 1123.5 150.0 Q 1123.5 142.0 1131.5 141.0 L 1143.3 140.0 Q 1148.3 140.0 1148.3 146.0 L 1148.3 207.7 A 22.3 22.3 0 1 1 1107.7 194.9 Q 1123.5 184.2 1123.5 172.0 Z" fill="#efece4" stroke="#bab7ae" stroke-width="2"/>
+<path d="M 1143.3 145.0 L 1147.3 146.0 L 1147.3 207.7 L 1143.3 207.7 Z" fill="#bab7ae" opacity="0.4"/>
+<circle cx="1125.9" cy="207.7" r="7.8" fill="#bab7ae" opacity="0.18"/>
+<rect x="1107.3" y="444.0" width="10" height="26" rx="2" fill="#4a0e0c" stroke="#c4c1b8" stroke-width="1.5"/>
+<line x1="945" y1="534" x2="955" y2="534" stroke="#55534e" stroke-width="2"/><line x1="997" y1="534" x2="1007" y2="534" stroke="#55534e" stroke-width="2"/><line x1="1002" y1="529" x2="1002" y2="539" stroke="#55534e" stroke-width="2"/>
+<circle cx="976" cy="534" r="5" fill="none" stroke="#55534e" stroke-width="2"/>
+<line x1="984.0" y1="534.0" x2="988.0" y2="534.0" stroke="#55534e" stroke-width="2"/>
+<line x1="981.7" y1="539.7" x2="984.5" y2="542.5" stroke="#55534e" stroke-width="2"/>
+<line x1="976.0" y1="542.0" x2="976.0" y2="546.0" stroke="#55534e" stroke-width="2"/>
+<line x1="970.3" y1="539.7" x2="967.5" y2="542.5" stroke="#55534e" stroke-width="2"/>
+<line x1="968.0" y1="534.0" x2="964.0" y2="534.0" stroke="#55534e" stroke-width="2"/>
+<line x1="970.3" y1="528.3" x2="967.5" y2="525.5" stroke="#55534e" stroke-width="2"/>
+<line x1="976.0" y1="526.0" x2="976.0" y2="522.0" stroke="#55534e" stroke-width="2"/>
+<line x1="981.7" y1="528.3" x2="984.5" y2="525.5" stroke="#55534e" stroke-width="2"/>
+<line x1="1041" y1="534" x2="1051" y2="534" stroke="#55534e" stroke-width="2"/><line x1="1093" y1="534" x2="1103" y2="534" stroke="#55534e" stroke-width="2"/><line x1="1098" y1="529" x2="1098" y2="539" stroke="#55534e" stroke-width="2"/>
+<circle cx="1072" cy="534" r="9" fill="none" stroke="#55534e" stroke-width="2"/><path d="M 1072 525 A 9 9 0 0 1 1072 543 Z" fill="#55534e"/>
+<rect x="926" y="554" width="196" height="78" rx="6" fill="#c7c6c0" stroke="#bebdb7" stroke-width="3"/>
+<circle cx="976" cy="593.0" r="19" fill="#8f8e8a"/>
+<circle cx="976" cy="593.0" r="15" fill="url(#knob)"/>
+<circle cx="1072" cy="593.0" r="19" fill="#8f8e8a"/>
+<circle cx="1072" cy="593.0" r="15" fill="url(#knob)"/>
+<rect x="1152" y="550" width="46" height="90" rx="14" fill="#8e1f12"/>
+<rect x="1155" y="553" width="40" height="84" rx="12" fill="url(#rocker)"/>
+<line x1="1175" y1="562" x2="1175" y2="580" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1175" cy="618" r="8" fill="none" stroke="#fde8e2" stroke-width="3"/>
+<circle cx="1181" cy="528" r="11" fill="#4fd84a" opacity="0.35"/>
+<circle cx="1181" cy="528" r="6.5" fill="url(#pled)"/>
+</svg>
+			]]></data>
+		</image>
+	</element>
+	<element name="ncr_logo_light">
+		<rect><bounds x="0" y="0" width="72" height="24"/><color red="0.227" green="0.227" blue="0.227"/></rect>
+		<rect><bounds x="2.00" y="2" width="21.33" height="20"/><color red="0.867" green="0.863" blue="0.839"/></rect>
+		<text string="N"><bounds x="2.00" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+		<rect><bounds x="25.33" y="2" width="21.33" height="20"/><color red="0.867" green="0.863" blue="0.839"/></rect>
+		<text string="C"><bounds x="25.33" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+		<rect><bounds x="48.66" y="2" width="21.33" height="20"/><color red="0.867" green="0.863" blue="0.839"/></rect>
+		<text string="R"><bounds x="48.66" y="3" width="21.33" height="18"/><color red="0.227" green="0.227" blue="0.227"/></text>
+	</element>
+	<view name="Gray cabinet, two floppy drives">
+		<element ref="cabinet_gray"><bounds x="0" y="0" width="1308" height="720"/></element>
+		<screen index="0"><bounds x="150" y="110" width="640" height="480"/></screen>
+		<element ref="ncr_logo_gray"><bounds x="1156.6666666666665" y="60" width="66" height="22"/></element>
+		<element ref="lbl_A_gray"><bounds x="1045.3333333333335" y="84" width="16" height="16"/></element>
+		<element ref="lbl_B_gray"><bounds x="1206.6666666666665" y="84" width="16" height="16"/></element>
+		<element name="floppy_led0" ref="fdd_led"><bounds x="947.5" y="445.5" width="7" height="23"/></element>
+		<element name="floppy_led1" ref="fdd_led"><bounds x="1108.8" y="445.5" width="7" height="23"/></element>
+		<!-- mainboard test LEDs; on the real machine they sit on the mainboard at the rear -->
+		<element ref="pcb"><bounds x="0" y="740" width="400" height="70"/></element>
+		<element name="led1" ref="led"><bounds x="32" y="760" width="16" height="16"/></element>
+		<element ref="l1"><bounds x="30" y="780" width="20" height="16"/></element>
+		<element name="led2" ref="led"><bounds x="76" y="760" width="16" height="16"/></element>
+		<element ref="l2"><bounds x="74" y="780" width="20" height="16"/></element>
+		<element name="led3" ref="led"><bounds x="120" y="760" width="16" height="16"/></element>
+		<element ref="l3"><bounds x="118" y="780" width="20" height="16"/></element>
+		<element name="led4" ref="led"><bounds x="164" y="760" width="16" height="16"/></element>
+		<element ref="l4"><bounds x="162" y="780" width="20" height="16"/></element>
+		<element name="led5" ref="led"><bounds x="208" y="760" width="16" height="16"/></element>
+		<element ref="l5"><bounds x="206" y="780" width="20" height="16"/></element>
+		<element name="led6" ref="led"><bounds x="252" y="760" width="16" height="16"/></element>
+		<element ref="l6"><bounds x="250" y="780" width="20" height="16"/></element>
+		<element name="led7" ref="led"><bounds x="296" y="760" width="16" height="16"/></element>
+		<element ref="l7"><bounds x="294" y="780" width="20" height="16"/></element>
+		<element name="led8" ref="led"><bounds x="340" y="760" width="16" height="16"/></element>
+		<element ref="l8"><bounds x="338" y="780" width="20" height="16"/></element>
+		<element ref="cap_leds"><bounds x="410" y="748" width="300" height="22"/></element>
+		<element ref="cap_leds2"><bounds x="410" y="772" width="300" height="22"/></element>
+		<collection name="Diagnostic module (K220)" visible="no">
+			<element ref="k220"><bounds x="1108" y="740" width="200" height="70"/></element>
+			<element ref="cap_diag"><bounds x="1130" y="764" width="50" height="22"/></element>
+			<element name="digit0" ref="digit"><bounds x="1196" y="752" width="32" height="46"/></element>
+			<element name="digit1" ref="digit"><bounds x="1254" y="752" width="32" height="46"/></element>
+		</collection>
 	</view>
-
-	<view name="Diagnostic module">
-		<screen index="0">
-			<bounds x="30" y="0" width="640" height="480" />
-		</screen>
-
-		<element name="led1" ref="led">
-			<bounds x="15" y="33" width="10" height="10" />
-		</element>
-		<element name="led2" ref="led">
-			<bounds x="15" y="53" width="10" height="10" />
-		</element>
-		<element name="led3" ref="led">
-			<bounds x="15" y="73" width="10" height="10" />
-		</element>
-		<element name="led4" ref="led">
-			<bounds x="15" y="93" width="10" height="10" />
-		</element>
-		<element name="led5" ref="led">
-			<bounds x="15" y="113" width="10" height="10" />
-		</element>
-		<element name="led6" ref="led">
-			<bounds x="15" y="133" width="10" height="10" />
-		</element>
-		<element name="led7" ref="led">
-			<bounds x="15" y="153" width="10" height="10" />
-		</element>
-		<element name="led8" ref="led">
-			<bounds x="15" y="173" width="10" height="10" />
-		</element>
-
-		<element name="label1" ref="l1">
-			<bounds x="0" y="30" width="15" height="16" />
-		</element>
-		<element name="label2" ref="l2">
-			<bounds x="0" y="50" width="15" height="16" />
-		</element>
-		<element name="label3" ref="l3">
-			<bounds x="0" y="70" width="15" height="16" />
-		</element>
-		<element name="label4" ref="l4">
-			<bounds x="0" y="90" width="15" height="16" />
-		</element>
-		<element name="label5" ref="l5">
-			<bounds x="0" y="110" width="15" height="16" />
-		</element>
-		<element name="label6" ref="l6">
-			<bounds x="0" y="130" width="15" height="16" />
-		</element>
-		<element name="label7" ref="l7">
-			<bounds x="0" y="150" width="15" height="16" />
-		</element>
-		<element name="label8" ref="l8">
-			<bounds x="0" y="170" width="15" height="16" />
-		</element>
-
-		<element name="digit0" ref="digit">
-			<bounds x="5" y="200" width="20" height="30" />
-		</element>
-		<element name="digit1" ref="digit">
-			<bounds x="5" y="240" width="20" height="30" />
-		</element>
+	<view name="Dark cabinet (CAP), two floppy drives">
+		<element ref="cabinet_cap"><bounds x="0" y="0" width="1308" height="720"/></element>
+		<screen index="0"><bounds x="150" y="110" width="640" height="480"/></screen>
+		<element ref="ncr_logo_cap"><bounds x="1156.6666666666665" y="60" width="66" height="22"/></element>
+		<element ref="lbl_A_cap"><bounds x="1045.3333333333335" y="84" width="16" height="16"/></element>
+		<element ref="lbl_B_cap"><bounds x="1206.6666666666665" y="84" width="16" height="16"/></element>
+		<element name="floppy_led0" ref="fdd_led"><bounds x="947.5" y="445.5" width="7" height="23"/></element>
+		<element name="floppy_led1" ref="fdd_led"><bounds x="1108.8" y="445.5" width="7" height="23"/></element>
+		<!-- mainboard test LEDs; on the real machine they sit on the mainboard at the rear -->
+		<element ref="pcb"><bounds x="0" y="740" width="400" height="70"/></element>
+		<element name="led1" ref="led"><bounds x="32" y="760" width="16" height="16"/></element>
+		<element ref="l1"><bounds x="30" y="780" width="20" height="16"/></element>
+		<element name="led2" ref="led"><bounds x="76" y="760" width="16" height="16"/></element>
+		<element ref="l2"><bounds x="74" y="780" width="20" height="16"/></element>
+		<element name="led3" ref="led"><bounds x="120" y="760" width="16" height="16"/></element>
+		<element ref="l3"><bounds x="118" y="780" width="20" height="16"/></element>
+		<element name="led4" ref="led"><bounds x="164" y="760" width="16" height="16"/></element>
+		<element ref="l4"><bounds x="162" y="780" width="20" height="16"/></element>
+		<element name="led5" ref="led"><bounds x="208" y="760" width="16" height="16"/></element>
+		<element ref="l5"><bounds x="206" y="780" width="20" height="16"/></element>
+		<element name="led6" ref="led"><bounds x="252" y="760" width="16" height="16"/></element>
+		<element ref="l6"><bounds x="250" y="780" width="20" height="16"/></element>
+		<element name="led7" ref="led"><bounds x="296" y="760" width="16" height="16"/></element>
+		<element ref="l7"><bounds x="294" y="780" width="20" height="16"/></element>
+		<element name="led8" ref="led"><bounds x="340" y="760" width="16" height="16"/></element>
+		<element ref="l8"><bounds x="338" y="780" width="20" height="16"/></element>
+		<element ref="cap_leds"><bounds x="410" y="748" width="300" height="22"/></element>
+		<element ref="cap_leds2"><bounds x="410" y="772" width="300" height="22"/></element>
+		<collection name="Diagnostic module (K220)" visible="no">
+			<element ref="k220"><bounds x="1108" y="740" width="200" height="70"/></element>
+			<element ref="cap_diag"><bounds x="1130" y="764" width="50" height="22"/></element>
+			<element name="digit0" ref="digit"><bounds x="1196" y="752" width="32" height="46"/></element>
+			<element name="digit1" ref="digit"><bounds x="1254" y="752" width="32" height="46"/></element>
+		</collection>
+	</view>
+	<view name="Light cabinet, one floppy drive and hard disk">
+		<element ref="cabinet_light"><bounds x="0" y="0" width="1308" height="720"/></element>
+		<screen index="0"><bounds x="150" y="110" width="640" height="480"/></screen>
+		<element ref="ncr_logo_light"><bounds x="937.3333333333334" y="66" width="66" height="22"/></element>
+		<element name="floppy_led0" ref="fdd_led"><bounds x="1108.8" y="445.5" width="7" height="23"/></element>
+		<!-- mainboard test LEDs; on the real machine they sit on the mainboard at the rear -->
+		<element ref="pcb"><bounds x="0" y="740" width="400" height="70"/></element>
+		<element name="led1" ref="led"><bounds x="32" y="760" width="16" height="16"/></element>
+		<element ref="l1"><bounds x="30" y="780" width="20" height="16"/></element>
+		<element name="led2" ref="led"><bounds x="76" y="760" width="16" height="16"/></element>
+		<element ref="l2"><bounds x="74" y="780" width="20" height="16"/></element>
+		<element name="led3" ref="led"><bounds x="120" y="760" width="16" height="16"/></element>
+		<element ref="l3"><bounds x="118" y="780" width="20" height="16"/></element>
+		<element name="led4" ref="led"><bounds x="164" y="760" width="16" height="16"/></element>
+		<element ref="l4"><bounds x="162" y="780" width="20" height="16"/></element>
+		<element name="led5" ref="led"><bounds x="208" y="760" width="16" height="16"/></element>
+		<element ref="l5"><bounds x="206" y="780" width="20" height="16"/></element>
+		<element name="led6" ref="led"><bounds x="252" y="760" width="16" height="16"/></element>
+		<element ref="l6"><bounds x="250" y="780" width="20" height="16"/></element>
+		<element name="led7" ref="led"><bounds x="296" y="760" width="16" height="16"/></element>
+		<element ref="l7"><bounds x="294" y="780" width="20" height="16"/></element>
+		<element name="led8" ref="led"><bounds x="340" y="760" width="16" height="16"/></element>
+		<element ref="l8"><bounds x="338" y="780" width="20" height="16"/></element>
+		<element ref="cap_leds"><bounds x="410" y="748" width="300" height="22"/></element>
+		<element ref="cap_leds2"><bounds x="410" y="772" width="300" height="22"/></element>
+		<collection name="Diagnostic module (K220)" visible="no">
+			<element ref="k220"><bounds x="1108" y="740" width="200" height="70"/></element>
+			<element ref="cap_diag"><bounds x="1130" y="764" width="50" height="22"/></element>
+			<element name="digit0" ref="digit"><bounds x="1196" y="752" width="32" height="46"/></element>
+			<element name="digit1" ref="digit"><bounds x="1254" y="752" width="32" height="46"/></element>
+		</collection>
+	</view>
+	<view name="Screen with test LEDs">
+		<screen index="0"><bounds x="0" y="0" width="640" height="480"/></screen>
+		<!-- mainboard test LEDs; on the real machine they sit on the mainboard at the rear -->
+		<element ref="pcb"><bounds x="0" y="490" width="400" height="70"/></element>
+		<element name="led1" ref="led"><bounds x="32" y="510" width="16" height="16"/></element>
+		<element ref="l1"><bounds x="30" y="530" width="20" height="16"/></element>
+		<element name="led2" ref="led"><bounds x="76" y="510" width="16" height="16"/></element>
+		<element ref="l2"><bounds x="74" y="530" width="20" height="16"/></element>
+		<element name="led3" ref="led"><bounds x="120" y="510" width="16" height="16"/></element>
+		<element ref="l3"><bounds x="118" y="530" width="20" height="16"/></element>
+		<element name="led4" ref="led"><bounds x="164" y="510" width="16" height="16"/></element>
+		<element ref="l4"><bounds x="162" y="530" width="20" height="16"/></element>
+		<element name="led5" ref="led"><bounds x="208" y="510" width="16" height="16"/></element>
+		<element ref="l5"><bounds x="206" y="530" width="20" height="16"/></element>
+		<element name="led6" ref="led"><bounds x="252" y="510" width="16" height="16"/></element>
+		<element ref="l6"><bounds x="250" y="530" width="20" height="16"/></element>
+		<element name="led7" ref="led"><bounds x="296" y="510" width="16" height="16"/></element>
+		<element ref="l7"><bounds x="294" y="530" width="20" height="16"/></element>
+		<element name="led8" ref="led"><bounds x="340" y="510" width="16" height="16"/></element>
+		<element ref="l8"><bounds x="338" y="530" width="20" height="16"/></element>
+		<collection name="Diagnostic module (K220)" visible="no">
+			<element ref="k220"><bounds x="440" y="490" width="200" height="70"/></element>
+			<element ref="cap_diag"><bounds x="462" y="514" width="50" height="22"/></element>
+			<element name="digit0" ref="digit"><bounds x="528" y="502" width="32" height="46"/></element>
+			<element name="digit1" ref="digit"><bounds x="586" y="502" width="32" height="46"/></element>
+		</collection>
 	</view>
 </mamelayout>
