@@ -78,6 +78,7 @@ public:
 		, m_slot7(*this, "slot7")
 		, m_slot7a(*this, "slot7a")
 		, m_leds(*this, "led%u", 1U)
+		, m_floppy_leds(*this, "floppy_led%u", 0U)
 	{ }
 
 	void dmv(machine_config &config);
@@ -95,6 +96,7 @@ private:
 	void pit_out0(int state);
 	void timint_w(int state);
 	void fdd_motor_w(uint8_t data);
+	void floppy_led_cb(floppy_image_device *floppy, int state);
 	uint8_t sys_status_r();
 	void tc_set_w(uint8_t data);
 	void switch16_w(uint8_t data);
@@ -204,6 +206,7 @@ private:
 	required_device<dmvcart_slot_device> m_slot7;
 	required_device<dmvcart_slot_device> m_slot7a;
 	output_finder<8> m_leds;
+	output_finder<2> m_floppy_leds;
 
 	bool        m_ramoutdis;
 	int         m_switch16;
@@ -276,6 +279,12 @@ void dmv_state::romsel_w(uint8_t data)
 void dmv_state::rambank_w(offs_t offset, uint8_t data)
 {
 	m_ram_bank = offset;
+}
+
+void dmv_state::floppy_led_cb(floppy_image_device *floppy, int state)
+{
+	// drive activity LED: lit while the drive is selected by the FDC and ready (motor on, disk inserted)
+	m_floppy_leds[(floppy == m_floppy1->get_device()) ? 1 : 0] = state;
 }
 
 void dmv_state::fdd_motor_w(uint8_t data)
@@ -826,6 +835,10 @@ INPUT_PORTS_END
 
 void dmv_state::machine_start()
 {
+	for (floppy_connector *con : { m_floppy0.target(), m_floppy1.target() })
+		if (floppy_image_device *floppy = con->get_device())
+			floppy->setup_led_cb(floppy_image_device::led_cb(&dmv_state::floppy_led_cb, this));
+
 	// the colour board's 96KB are always allocated; in monochrome mode
 	// only the first plane is used (see vram_r/vram_w)
 	m_video_ram = std::make_unique<uint16_t[]>(VRAM_WORDS);
