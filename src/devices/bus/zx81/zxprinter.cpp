@@ -1,0 +1,70 @@
+// license:BSD-3-Clause
+// copyright-holders:rfka01
+/**********************************************************************
+
+    Sinclair ZX Printer and Alphacom 32 for the ZX81
+
+    Port FB (A2 low). The printer passes the rest of the bus on to its
+    through connector, which is not emulated.
+
+**********************************************************************/
+
+#include "emu.h"
+#include "zxprinter.h"
+
+#include "machine/zxprinter.h"
+
+
+namespace {
+
+class zx81_zxprinter_device : public device_t, public device_zx81_expansion_interface
+{
+public:
+	zx81_zxprinter_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+		zx81_zxprinter_device(mconfig, ZX81_ZXPRINTER, tag, owner, clock)
+	{
+	}
+
+protected:
+	zx81_zxprinter_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+		device_t(mconfig, type, tag, owner, clock),
+		device_zx81_expansion_interface(mconfig, *this),
+		m_printer(*this, "printer")
+	{
+	}
+
+	virtual void device_start() override ATTR_COLD { }
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD { ZX_PRINTER(config, m_printer); }
+
+	virtual uint8_t iorq_r(offs_t offset) override
+	{
+		return BIT(offset, 2) ? 0xff : m_printer->read();
+	}
+
+	virtual void iorq_w(offs_t offset, uint8_t data) override
+	{
+		if (!BIT(offset, 2))
+			m_printer->write(data);
+	}
+
+	required_device<zx_printer_device> m_printer;
+};
+
+
+class zx81_alphacom32_device : public zx81_zxprinter_device
+{
+public:
+	zx81_alphacom32_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+		zx81_zxprinter_device(mconfig, ZX81_ALPHACOM32, tag, owner, clock)
+	{
+	}
+
+protected:
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD { ALPHACOM32(config, m_printer); }
+};
+
+} // anonymous namespace
+
+
+DEFINE_DEVICE_TYPE_PRIVATE(ZX81_ZXPRINTER, device_zx81_expansion_interface, zx81_zxprinter_device, "zx81_zxprinter", "Sinclair ZX Printer (ZX81)")
+DEFINE_DEVICE_TYPE_PRIVATE(ZX81_ALPHACOM32, device_zx81_expansion_interface, zx81_alphacom32_device, "zx81_alphacom32", "Alphacom 32 (ZX81)")

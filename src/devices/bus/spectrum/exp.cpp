@@ -182,9 +182,11 @@ void spectrum_expansion_slot_device::mreq_w(offs_t offset, uint8_t data)
 #include "uspeech.h"
 #include "vtx5000.h"
 #include "wafa.h"
+#include "zxprinter.h"
 
 void spectrum_expansion_devices(device_slot_interface &device)
 {
+	device.option_add("alphacom32", SPECTRUM_ALPHACOM32);
 	device.option_add("betav2", SPECTRUM_BETAV2);
 	device.option_add("betav3", SPECTRUM_BETAV3);
 	device.option_add("betaplus", SPECTRUM_BETAPLUS);
@@ -235,10 +237,12 @@ void spectrum_expansion_devices(device_slot_interface &device)
 	device.option_add("uspeech", SPECTRUM_USPEECH);
 	device.option_add("vtx5000", SPECTRUM_VTX5000);
 	device.option_add("wafadrive", SPECTRUM_WAFA);
+	device.option_add("zxprinter", SPECTRUM_ZXPRINTER);
 }
 
 void spec128_expansion_devices(device_slot_interface &device)
 {
+	device.option_add("alphacom32", SPECTRUM_ALPHACOM32);
 	device.option_add("beta128", SPECTRUM_BETA128);
 	device.option_add("disciple", SPECTRUM_DISCIPLE);
 	device.option_add("intf1", SPECTRUM_INTF1);
@@ -259,6 +263,7 @@ void spec128_expansion_devices(device_slot_interface &device)
 	device.option_add("swiftdisc", SPECTRUM_SWIFTDISC);
 	device.option_add("swiftdisc2", SPECTRUM_SWIFTDISC2);
 	device.option_add("wafadrive", SPECTRUM_WAFA);
+	device.option_add("zxprinter", SPECTRUM_ZXPRINTER);
 }
 
 void specpls3_expansion_devices(device_slot_interface &device)

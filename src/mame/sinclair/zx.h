@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "bus/zx81/exp.h"
 #include "cpu/z80/z80.h"
 #include "imagedev/cassette.h"
 #include "machine/ram.h"
@@ -40,7 +41,8 @@ public:
 		m_region_gfx1(*this, "gfx1"),
 		m_io_row(*this, "ROW%u", 0U),
 		m_io_config(*this, "CONFIG"),
-		m_screen(*this, "screen")
+		m_screen(*this, "screen"),
+		m_exp(*this, "exp")
 	{ }
 
 	void zx81(machine_config &config);
@@ -99,6 +101,7 @@ private:
 	required_ioport_array<8> m_io_row;
 	optional_ioport m_io_config;
 	required_device<screen_device> m_screen;
+	optional_device<zx81_expansion_slot_device> m_exp;
 
 	address_space *m_program = nullptr;
 	emu_timer *m_tape_input = nullptr;

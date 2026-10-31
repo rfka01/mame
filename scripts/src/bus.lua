@@ -5875,6 +5875,8 @@ if BUSES["SPECTRUM"] then
 		MAME_DIR .. "src/devices/bus/spectrum/vtx5000.h",
 		MAME_DIR .. "src/devices/bus/spectrum/wafa.cpp",
 		MAME_DIR .. "src/devices/bus/spectrum/wafa.h",
+		MAME_DIR .. "src/devices/bus/spectrum/zxprinter.cpp",
+		MAME_DIR .. "src/devices/bus/spectrum/zxprinter.h",
 	}
 end
 
@@ -6872,6 +6874,20 @@ if BUSES["Z29_KBD"] then
 	}
 end
 
+
+---------------------------------------------------
+--
+--@src/devices/bus/zx81/exp.h,BUSES["ZX81"] = true
+---------------------------------------------------
+
+if BUSES["ZX81"] then
+	files {
+		MAME_DIR .. "src/devices/bus/zx81/exp.cpp",
+		MAME_DIR .. "src/devices/bus/zx81/exp.h",
+		MAME_DIR .. "src/devices/bus/zx81/zxprinter.cpp",
+		MAME_DIR .. "src/devices/bus/zx81/zxprinter.h",
+	}
+end
 
 ---------------------------------------------------
 --

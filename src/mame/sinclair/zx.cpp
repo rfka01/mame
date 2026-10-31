@@ -374,6 +374,9 @@ void zx_state::zx81(machine_config &config)
 	m_cassette->set_formats(zx81_cassette_formats);
 	m_cassette->set_interface("zx81_cass");
 
+	// ZX Printer, Alphacom 32
+	ZX81_EXPANSION_SLOT(config, m_exp, zx81_expansion_devices, nullptr);
+
 	// software lists
 	m_softlist->set_original("zx81_cass");
 
