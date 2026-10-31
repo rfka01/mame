@@ -26,7 +26,7 @@
       PA3-PA0 carriage motor, PA4 FONT/YES, PA5 FORM FEED/NO,
       PA6 paper sensor (1 = paper), PA7 carriage home (1 = home)
       PB1/PB0 EEPROM SCL/SDA, PB2 paper release lever (1 = single sheets),
-      PB3/PB4 font lamps, PB5 /AUTO FEED?, PB6 READY lamp, PB7 /ERROR?
+      PB3/PB4 font lamps, PB5 /AUTO FEED?, PB6 READY lamp, PB7 /ERROR?; PE and SLCT not known (fixed)
       PC6 = CO0 needle drive pulse (low), width from the A/D readings
 
     Single sheets come from the cassette: the firmware turns the paper
@@ -254,6 +254,7 @@ void epson_ap3250_device::device_add_mconfig(machine_config &config)
 		m_led[0] = BIT(~data, 4);   // left font lamp (PB4, lit by switching the pin to output low)
 		m_led[1] = BIT(~data, 3);   // right font lamp (PB3)
 		m_led[2] = BIT(~data, 6);   // READY
+		output_fault(BIT(data, 7));   // /ERROR (guess: low after a fatal error)
 		m_eeprom->write_sda(BIT(data, 0));   // PB0 = SDA, PB1 = SCL
 		m_eeprom->write_scl(BIT(data, 1));
 	});
@@ -338,6 +339,11 @@ void epson_ap3250_device::device_start()
 void epson_ap3250_device::device_reset()
 {
 	m_bank->set_entry(3);
+
+	// how the gate array drives PE and SLCT is not known: report paper and selected
+	output_perror(0);
+	output_select(1);
+	output_fault(1);
 }
 
 u8 epson_ap3250_device::pa_r()
