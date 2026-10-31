@@ -4,11 +4,11 @@
 
     Epson ActionPrinter 3250 (LQ-100) 24-pin dot matrix printer
 
-    Board C092 MAIN: NEC uPD78C10, 32 KiB SRAM, 2 Mbit mask ROM,
+    Board C092 MAIN: NEC uPD78C10, 32 KiB SRAM, mask ROM (256 KiB used),
     gate array E05A71CA, X24C01 EEPROM.
 
     Memory map (from the firmware):
-      0000-5fff  ROM 00000-05fff
+      0000-5fff  ROM 00000-05fff (dump offset 40000)
       6000-7fff  ROM window, 8 KiB bank selected by FE02
       8000-fdff  SRAM
       fe00-fe0f  E05A71
@@ -64,6 +64,7 @@
 
 namespace {
 
+constexpr offs_t ROM_BASE = 0x40000;    // firmware within the dump
 constexpr int HDPI = 360;
 constexpr int VDPI = 360;
 constexpr double PAPER_WIDTH = 9.5;     // widest paper (fanfold with the push tractor)
@@ -171,8 +172,10 @@ ioport_constructor epson_ap3250_device::device_input_ports() const
 
 
 ROM_START( ap3250 )
-	ROM_REGION(0x40000, "maincpu", 0)
-	ROM_LOAD("ap3250.ic3", 0x00000, 0x40000, CRC(f9ffec2a) SHA1(2552ab9bb4fc1b796bd83393f15f6b4a25e395f8))
+	// read as a 27C080: the first quarter is blank and A19 has no effect, the firmware
+	// sits at 40000-7ffff (the part's real size is not known)
+	ROM_REGION(0x100000, "maincpu", 0)
+	ROM_LOAD("ap3250.ic3", 0x00000, 0x100000, CRC(991d155f) SHA1(ab70605775047269613496fe6cec930d3659f856))
 
 	// settings as the firmware writes them into an empty EEPROM, changed to the factory
 	// settings given in the manual: TOF +-0 (byte 6), download off (byte 8), auto line feed off (byte 9)
@@ -205,7 +208,7 @@ epson_ap3250_device::epson_ap3250_device(const machine_config &mconfig, const ch
 
 void epson_ap3250_device::mem_map(address_map &map)
 {
-	map(0x0000, 0x5fff).rom().region("maincpu", 0);
+	map(0x0000, 0x5fff).rom().region("maincpu", ROM_BASE);
 	map(0x6000, 0x7fff).bankr(m_bank);
 	map(0x8000, 0xfdff).ram();
 	map(0xfe00, 0xfe0f).rw(FUNC(epson_ap3250_device::ga_r), FUNC(epson_ap3250_device::ga_w));
@@ -287,7 +290,7 @@ void epson_ap3250_device::device_add_mconfig(machine_config &config)
 
 void epson_ap3250_device::device_start()
 {
-	m_bank->configure_entries(0, 0x20, memregion("maincpu")->base(), 0x2000);
+	m_bank->configure_entries(0, 0x20, memregion("maincpu")->base() + ROM_BASE, 0x2000);
 	std::fill(std::begin(m_ga), std::end(m_ga), 0);
 	m_data = 0;
 	m_latch = 0;
