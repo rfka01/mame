@@ -5712,6 +5712,28 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/machine/zxprinter.h,MACHINES["ZXPRINTER"] = true
+---------------------------------------------------
+
+if MACHINES["ZXPRINTER"] then
+	files {
+		MAME_DIR .. "src/devices/machine/zxprinter.cpp",
+		MAME_DIR .. "src/devices/machine/zxprinter.h",
+	}
+
+	dependency {
+		{ MAME_DIR .. "src/devices/machine/zxprinter.cpp", GEN_DIR .. "emu/layout/alphacom32.lh" },
+		{ MAME_DIR .. "src/devices/machine/zxprinter.cpp", GEN_DIR .. "emu/layout/zxprinter.lh" },
+	}
+
+	custombuildtask {
+		layoutbuildtask("emu/layout", "alphacom32"),
+		layoutbuildtask("emu/layout", "zxprinter"),
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/machine/unihammer.h,MACHINES["UNIHAMMER"] = true
 ---------------------------------------------------
 if MACHINES["UNIHAMMER"] then

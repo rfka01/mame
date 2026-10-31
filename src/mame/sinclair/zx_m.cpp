@@ -158,7 +158,7 @@ uint8_t zx_state::zx80_io_r(offs_t offset)
 
 uint8_t zx_state::zx81_io_r(offs_t offset)
 {
-/* port FB = read printer status, not emulated
+/* port FB = read printer status (expansion port)
     FE = read keyboard, NTSC/PAL diode, and cass bit; turn off HSYNC-generator/cass-out
     The upper 8 bits are used to select a keyboard scan line */
 
@@ -186,6 +186,9 @@ uint8_t zx_state::zx81_io_r(offs_t offset)
 			data &= 0x7f;
 	}
 
+	if (!BIT(offset, 2))
+		data &= m_exp->iorq_r(offset);
+
 	return data;
 }
 
@@ -198,7 +201,7 @@ uint8_t zx_state::pc8300_io_r(offs_t offset)
 {
 /* port F5 = sound
     F6 = unknown
-    FB = read printer status, not emulated
+    FB = read printer status (expansion port)
     FE = read keyboard and cass bit; turn off HSYNC-generator/cass-out
     The upper 8 bits are used to select a keyboard scan line.
     No TV diode */
@@ -224,6 +227,9 @@ uint8_t zx_state::pc8300_io_r(offs_t offset)
 			data &= 0x7f;
 	}
 
+	if (!BIT(offset, 2))
+		data &= m_exp->iorq_r(offset);
+
 	return data;
 }
 
@@ -232,7 +238,7 @@ uint8_t zx_state::pow3000_io_r(offs_t offset)
 /* port 7E = read NTSC/PAL diode
     F5 = sound
     F6 = unknown
-    FB = read printer status, not emulated
+    FB = read printer status (expansion port)
     FE = read keyboard and cass bit; turn off HSYNC-generator/cass-out
     The upper 8 bits are used to select a keyboard scan line */
 
@@ -262,6 +268,9 @@ uint8_t zx_state::pow3000_io_r(offs_t offset)
 			data &= 0x7f;
 	}
 
+	if (!BIT(offset, 2))
+		data &= m_exp->iorq_r(offset);
+
 	return data;
 }
 
@@ -281,7 +290,7 @@ void zx_state::zx81_io_w(offs_t offset, uint8_t data)
 {
 /* port F5 = unknown, pc8300/pow3000/lambda only
     F6 = unknown, pc8300/pow3000/lambda only
-    FB = write data to printer, not emulated
+    FB = write data to printer (expansion port)
     FD = turn off NMI generator
     FE = turn on NMI generator
     FF = write HSYNC and cass data */
@@ -300,6 +309,9 @@ void zx_state::zx81_io_w(offs_t offset, uint8_t data)
 			m_nmi_on = false;
 		}
 	}
+
+	if (!BIT(offset, 2))
+		m_exp->iorq_w(offset, data);
 
 	drop_sync();
 }
