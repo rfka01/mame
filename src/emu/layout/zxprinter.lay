@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Sinclair ZX Printer: the aluminium coated paper roll in the black case, the clear tear-off
+bar with the Sinclair logo, the red ZX PRINTER legend and the paper feed button at the
+right (after photos of a printer)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.07" green="0.07" blue="0.08" /></rect></element>
+	<element name="case_edge"><rect><color red="0.16" green="0.16" blue="0.17" /></rect></element>
+	<element name="bar"><rect><color red="0.62" green="0.64" blue="0.66" alpha="0.55" /></rect></element>
+	<element name="silver"><rect><color red="0.86" green="0.87" blue="0.88" /></rect></element>
+	<element name="key" defstate="0">
+		<rect><color red="0.02" green="0.02" blue="0.02" /></rect>
+		<rect state="0"><bounds x="0.1" y="0.1" width="0.8" height="0.8" /><color red="0.20" green="0.20" blue="0.21" /></rect>
+		<rect state="1"><bounds x="0.1" y="0.1" width="0.8" height="0.8" /><color red="0.10" green="0.10" blue="0.11" /></rect>
+	</element>
+	<element name="t_sinclair"><text string="sinclair"><color red="0.35" green="0.36" blue="0.38" /></text></element>
+	<element name="t_name"><text string="ZX PRINTER" align="1"><color red="0.85" green="0.10" blue="0.08" /></text></element>
+	<element name="t_feed"><text string="FEED"><color red="0.45" green="0.45" blue="0.47" /></text></element>
+
+	<view name="Paper and Case">
+		<element ref="case"><bounds x="0" y="0" width="760" height="680" /></element>
+		<screen tag="bitmap_printer:screen"><bounds x="80" y="20" width="576" height="432" /></screen>
+		<!-- the paper is aluminium coated, the burnt dots show the black layer below -->
+		<element ref="silver" blend="multiply"><bounds x="80" y="20" width="576" height="432" /></element>
+		<element ref="case_edge"><bounds x="0" y="452" width="760" height="8" /></element>
+		<element ref="bar"><bounds x="70" y="440" width="596" height="70" /></element>
+		<element ref="t_sinclair"><bounds x="110" y="455" width="180" height="40" /></element>
+		<element ref="t_name"><bounds x="100" y="560" width="300" height="40" /></element>
+		<element id="feed" ref="key" inputtag="BUTTONS" inputmask="0x01"><bounds x="690" y="40" width="40" height="40" /></element>
+		<element ref="t_feed"><bounds x="680" y="85" width="60" height="22" /></element>
+	</view>
+
+	<view name="Paper">
+		<screen tag="bitmap_printer:screen"><bounds x="0" y="0" width="576" height="432" /></screen>
+		<element ref="silver" blend="multiply"><bounds x="0" y="0" width="576" height="432" /></element>
+	</view>
+</mamelayout>
