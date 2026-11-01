@@ -139,10 +139,13 @@ int zx_printer_device::current_x() const
 void zx_printer_device::output_row()
 {
 	// one pass of a stylus: a row of dots, then the paper moves on by one row
+	// the spark burns the aluminium away down to the dark grey base layer; the thermal
+	// paper of the Alphacom 32 turns black
 	int const y = m_bitmap_printer->m_ypos;
+	int const ink = (type() == ALPHACOM32) ? 0x000000 : 0x2c2c30;
 	for (int i = 0; i < DOTS; i++)
 		if (m_row[i])
-			m_bitmap_printer->draw_pixel(LEFT + i, y, 0x000000);
+			m_bitmap_printer->draw_pixel(LEFT + i, y, ink);
 	std::fill(std::begin(m_row), std::end(m_row), 0);
 	m_bitmap_printer->m_ypos++;
 	m_bitmap_printer->check_new_page();

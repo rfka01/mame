@@ -163,8 +163,8 @@ private:
 	int m_feed_lo;  // visited, never more than a paper length apart
 	bool m_roll_dirty;
 	bool m_roll_collected;
-	int m_roll_first;      // roll coordinates of the collected run, so a
-	int m_roll_last;       // discontiguous row can be spotted and close it out
+	int m_roll_first;      // roll coordinates of the collected run: a page starts at
+	int m_roll_last;       // its first ink, a discontiguous row closes it out
 	bool m_feed_forward;   // which end of the roll last exposed new paper
 	int m_led_state[MAX_LEDS];
 	int m_num_leds;
@@ -220,7 +220,9 @@ private:
 	void reset_feed_marks();
 	void clear_roll_rows(int from_row, int to_row, u32 color = 0xffffff);
 	bool flush_roll();
+	bool collect_roll_row(int src);
 	bool retire_roll_rows(int from_row, int to_row, bool forward);
+	void finish_roll();
 	bool row_has_ink(bitmap_rgb32 &bitmap, int row) const;
 	void write_roll_page(bitmap_rgb32 &bitmap, int first_row);
 	void write_bitmap_to_file(bitmap_rgb32 &bitmap);
