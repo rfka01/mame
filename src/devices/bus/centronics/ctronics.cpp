@@ -147,6 +147,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "printer.h"
 #include "samdac.h"
 #include "smartboard.h"
+#include "star_gem10x.h"
 #include "star_nl10.h"
 #include "bus/cbmiec/mps1200.h"
 
@@ -183,6 +184,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("mz1p16", MZ1P16);
 	device.option_add("pc6022", PC6022);
 	device.option_add("mps1250", MPS1250);
+	device.option_add("gem10x", STAR_GEMINI10X);
 	device.option_add("nl10", STAR_NL10);
 	device.option_add("md16", NIXDORF_MD16);
 
