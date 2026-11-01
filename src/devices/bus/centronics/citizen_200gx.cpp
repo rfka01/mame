@@ -19,8 +19,9 @@
       e00b/e00c w   needle pulse width (negative count; e00b ed for printing)
       e001 w        bits 0-3 carriage motor, bits 4-7 paper feed motor phases
                     (active low, half-step tables at 0081 and 3d81)
-      e002 w        bits 0-3 phases of a third motor stepped only at power on,
-                    bit 5 BUSY, bit 6 /ACK pulse, bit 7 (?)
+      e002 w        bits 0-3 colour ribbon shift motor (active low, half steps
+                    7 6 e a b 9 d 5 lift the ribbon), bit 5 BUSY, bit 6 /ACK pulse,
+                    bit 7 (?)
       e003 w        bit 6 set: bits 0-3 lamps beside the keys, keys read on PA4-PA7;
                     bit 6 clear: menu switch read on PA5-PA6
       e004 r        Centronics data latch
@@ -43,8 +44,14 @@
     Carriage: 1/60" full steps, the head fires twice per step in draft (120 dpi).
     Paper: 1/432" half steps, a line feed of n/216" takes 2n half steps.
 
+    Colour ribbon (colour kit, DIP switch SW2-8): at power on the firmware
+    lifts the ribbon 428 half steps against the stop and lowers it by 361.
+    It then prints from four positions, counted from the lowest one: black
+    67, cyan 167, magenta 267, yellow 407. Violet, orange and green take two
+    passes, the inks mix on the paper.
+
     TODO:
-    - /INIT, the third motor (paper path?), PC7, serial interface option
+    - /INIT, PC7, serial interface option
     - keys held at power on (self test, hex dump)
     - crystal and TI clock are guesses that give the specified 160 cps
 
@@ -72,6 +79,17 @@ constexpr int VDPI = 216;
 constexpr double PAPER_WIDTH = 9.5;
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr double LEFT_OFFSET = 0.25;    // paper edge to the home position, inches (guess)
+
+// colour ribbon: lift in half steps from the lowest position (the firmware drives against the
+// top stop at power on); band boundaries halfway between the print positions
+constexpr int RIBBON_TOP = 428;
+struct ribbon_band { int below; u32 ink; };
+constexpr ribbon_band ribbon_bands[] = {
+	{ 117, 0x000000 },          // black at 67
+	{ 217, 0x2ca8e0 },          // cyan at 167
+	{ 337, 0xd8307c },          // magenta at 267
+	{ RIBBON_TOP + 1, 0xf0d028 } // yellow at 407
+};
 
 class citizen_200gx_device : public device_t, public device_centronics_peripheral_interface
 {
@@ -140,8 +158,12 @@ private:
 	attotime m_cr_period;
 	int m_pf_angle;
 	int m_pf_half;
+	int m_rib_angle;
+	int m_rib_half;         // colour ribbon lift in half steps
 
 	void cr_motor_w(u8 data);
+	void ribbon_motor_w(u8 data);
+	u32 ink_color() const;
 	void pf_motor_w(u8 data);
 	void update_busy();
 	void fire();
@@ -261,7 +283,8 @@ citizen_200gx_device::citizen_200gx_device(const machine_config &mconfig, const 
 	m_slctin(1),
 	m_pa(0xff), m_pb(0), m_pc(0xff),
 	m_cr_angle(-1), m_cr_half(100), m_cr_from(100),
-	m_pf_angle(-1), m_pf_half(0)
+	m_pf_angle(-1), m_pf_half(0),
+	m_rib_angle(-1), m_rib_half(0)
 {
 }
 
@@ -323,6 +346,8 @@ void citizen_200gx_device::device_start()
 	save_item(NAME(m_cr_period));
 	save_item(NAME(m_pf_angle));
 	save_item(NAME(m_pf_half));
+	save_item(NAME(m_rib_angle));
+	save_item(NAME(m_rib_half));
 }
 
 void citizen_200gx_device::device_reset()
@@ -379,6 +404,8 @@ void citizen_200gx_device::ga_w(offs_t offset, u8 data)
 		pf_motor_w(data >> 4);
 		break;
 	case 2:
+		if ((old ^ data) & 0x0f)
+			ribbon_motor_w(data & 0x0f);
 		if ((old ^ data) & 0x40)
 			output_ack(BIT(data, 6) ? 0 : 1);
 		update_busy();
@@ -425,9 +452,51 @@ void citizen_200gx_device::fire()
 	int const x = int(std::lround((head_x() / 120.0 + LEFT_OFFSET) * HDPI));
 	if (x < 0 || x >= int(PAPER_WIDTH * HDPI))
 		return;
+	u32 const ink = ink_color();
 	for (int needle = 0; needle < 9; needle++)
 		if (BIT(head, needle))
-			m_bitmap_printer->draw_pixel(x, m_bitmap_printer->m_ypos + needle * (VDPI / 72), 0x000000);
+		{
+			// the inks of the colour ribbon mix on the paper
+			int const y = m_bitmap_printer->m_ypos + needle * (VDPI / 72);
+			u32 color = ink;
+			if (ink)
+			{
+				u32 const paper = m_bitmap_printer->get_pixel(x, y) & 0xffffff;
+				color = 0;
+				for (int shift = 0; shift < 24; shift += 8)
+					color |= ((((paper >> shift) & 0xff) * ((ink >> shift) & 0xff)) / 255) << shift;
+			}
+			m_bitmap_printer->draw_pixel(x, y, color);
+		}
+}
+
+u32 citizen_200gx_device::ink_color() const
+{
+	// without the colour kit (SW2-8 off) the black ribbon is fitted
+	if (!BIT(m_sw2->read(), 7))
+		return 0x000000;
+	for (auto const &band : ribbon_bands)
+		if (m_rib_half < band.below)
+			return band.ink;
+	return 0x000000;
+}
+
+void citizen_200gx_device::ribbon_motor_w(u8 data)
+{
+	// half-step sequence 7 6 e a b 9 d 5 (active low) lifts the ribbon
+	static int const angle[16] = { -1, -1, -1, -1, -1, 7, 1, 0, -1, 5, 3, 4, -1, 6, 2, -1 };
+	int const a = angle[data & 0x0f];
+	if (a < 0)
+		return;
+	if (m_rib_angle >= 0)
+	{
+		int const delta = (a - m_rib_angle) & 7;
+		if (delta == 1)
+			m_rib_half = std::min(m_rib_half + 1, RIBBON_TOP);
+		else if (delta == 7)
+			m_rib_half = std::max(m_rib_half - 1, 0);
+	}
+	m_rib_angle = a;
 }
 
 namespace {
