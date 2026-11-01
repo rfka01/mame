@@ -88,6 +88,8 @@ void zx_printer_device::device_add_mconfig(machine_config &config)
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * DPI), int(PAPER_HEIGHT * DPI), DPI, DPI);
 	m_bitmap_printer->set_continuous_feed(true);
 	m_bitmap_printer->set_paper_view(3.0);
+	if (type() != ALPHACOM32)
+		m_bitmap_printer->set_paper_texture(&zx_printer_device::aluminium_paper);
 
 	if (type() == ALPHACOM32)
 		config.set_default_layout(layout_alphacom32);
@@ -125,6 +127,46 @@ void zx_printer_device::device_reset()
 }
 
 
+void zx_printer_device::aluminium_paper(printer_page_canvas &page)
+{
+	// the aluminium coating of the ZX Printer paper on the PDF pages: silver grey,
+	// with the streaks of the rolled coating running along the paper
+	auto noise = [] (u32 i, u32 seed)
+	{
+		u32 h = i * 0x9e3779b1u ^ seed * 0x85ebca77u;
+		h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15;
+		return float(h >> 8) * (2.0f / 16777216.0f) - 1.0f;
+	};
+	auto smooth = [&noise] (double x, u32 seed)
+	{
+		int const i = int(std::floor(x));
+		float f = float(x - i);
+		f = f * f * (3.0f - 2.0f * f);
+		return noise(u32(i), seed) * (1.0f - f) + noise(u32(i + 1), seed) * f;
+	};
+
+	int const w = page.width(), h = page.height();
+	double const dpi = page.dpi();
+	std::vector<float> column(w);
+	for (int x = 0; x < w; x++)
+	{
+		double const in = x / dpi;
+		column[x] = 0.84f
+				+ 0.020f * smooth(in / 0.9, 1)
+				+ 0.014f * smooth(in / 0.22, 2)
+				+ 0.010f * smooth(in / 0.055, 3)
+				+ 0.008f * noise(u32(x), 4);
+	}
+	for (int y = 0; y < h; y++)
+	{
+		float const along = 1.0f + 0.012f * smooth(y / dpi / 2.5, 5);   // the coating is not quite even along the roll
+		u8 *const row = page.row(y);
+		int const ch = page.channels();
+		for (int x = 0; x < w; x++)
+			std::fill_n(&row[x * ch], ch, u8(std::lround(255.0f * std::clamp(column[x] * along, 0.0f, 1.0f))));
+	}
+}
+
 attotime zx_printer_device::pixel_period(int speed) const
 {
 	return attotime::from_ticks((speed == 1) ? 440 : 220, SPECTRUM_CLOCK);
@@ -142,7 +184,7 @@ void zx_printer_device::output_row()
 	// the spark burns the aluminium away down to the dark grey base layer; the thermal
 	// paper of the Alphacom 32 turns black
 	int const y = m_bitmap_printer->m_ypos;
-	int const ink = (type() == ALPHACOM32) ? 0x000000 : 0x2c2c30;
+	int const ink = (type() == ALPHACOM32) ? 0x000000 : 0x2c2c2c;
 	for (int i = 0; i < DOTS; i++)
 		if (m_row[i])
 			m_bitmap_printer->draw_pixel(LEFT + i, y, ink);

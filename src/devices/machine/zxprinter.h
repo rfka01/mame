@@ -40,6 +40,7 @@ private:
 	void update();
 	void output_row();
 	attotime pixel_period(int speed) const;
+	static void aluminium_paper(printer_page_canvas &page);
 	TIMER_CALLBACK_MEMBER(tick);
 
 	required_device<bitmap_printer_device> m_bitmap_printer;
