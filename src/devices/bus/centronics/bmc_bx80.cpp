@@ -14,7 +14,12 @@
       P22 low: 8041 (P25 = A0), P23 low: 8155 (P25 = IO/M)
       P24: A12 of the program ROM, inverted
       P10 = ON LINE lamp, P27 = READY lamp (both toggle with the ON LINE key)
-      P11-P14 <- slave P21, P23, P20, P22; P15 = /ACK, P16 = BUSY; P17 <- SW2-3
+      P11 <- slave P20, P12 <- slave P23, P13 <- slave P21, P14 <- slave P22;
+      P15 = /ACK, P16 = BUSY; P17 <- SW2-3
+      (P11 and P13 as the firmware needs them: the main CPU waits on P13 for
+      the start of a line and starts its dot timer on a PTS edge while P11
+      reports the acceleration; emphasized printing times the half dots
+      with that timer)
       INT <- 8155 PC0 (INTR A)
     8155: PA = Centronics data (strobed input), PB7-PB0 = needles 1-8,
       PC4 = needle 9 (all active low)
@@ -61,7 +66,7 @@ constexpr double PAPER_HEIGHT = 11.0;
 constexpr double CR_STEPS_PER_INCH = 640.0 / 7.5;   // manual: 640 dots in a 7.5 inch line
 constexpr double LEFT_OFFSET = 0.75;         // paper edge to the home sensor edge (guess)
 constexpr double CR_MOVE = 0.00104;     // time the carriage takes for a step (guess, as FX-80)
-constexpr double DOT_LAG = 1.13;        // steps the dot lands behind the step position while moving:
+constexpr double DOT_LAG = 0.06;        // steps the dot lands behind the step position while moving:
                                         // stepper load angle less needle flight, fitted so both directions line up
 constexpr int NEEDLE_MIN = 150;        // shorter drive pulses do not reach the paper (guess)
 constexpr int CR_LEFT = -40;            // left stop, steps from the home sensor edge
@@ -240,7 +245,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &bmc_bx80_device::io_map);
 	m_maincpu->p1_in_cb().set([this] () {
 		// P11-P14 from the slave P2, P17 = SW2-3
-		return (m_p1 & 0x61) | (BIT(m_s2, 1) << 1) | (BIT(m_s2, 3) << 2) | (BIT(m_s2, 0) << 3) | (BIT(m_s2, 2) << 4) | (BIT(m_sw2->read(), 2) << 7);
+		return (m_p1 & 0x61) | (BIT(m_s2, 0) << 1) | (BIT(m_s2, 3) << 2) | (BIT(m_s2, 1) << 3) | (BIT(m_s2, 2) << 4) | (BIT(m_sw2->read(), 2) << 7);
 	});
 	m_maincpu->p1_out_cb().set([this] (u8 data) {
 		if (data != m_p1) LOGMASKED(LOG_PORT, "%s P1 w %02x\n", machine().describe_context(), data);
