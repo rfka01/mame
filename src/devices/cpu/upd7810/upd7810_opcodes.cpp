@@ -9472,12 +9472,12 @@ void upd7810_device::OUT()
 
 void upd7810_device::MOV_A_S()
 {
-	logerror("unimplemented instruction: MOV_A_S\n");
+	A = m_sio_s;
 }
 
 void upd7810_device::MOV_S_A()
 {
-	logerror("unimplemented instruction: MOV_A_S\n");
+	m_sio_s = A;
 }
 
 void upd7810_device::PEN()
@@ -9497,7 +9497,18 @@ void upd7810_device::PEX()
 
 void upd7810_device::SIO()
 {
-	logerror("unimplemented instruction: SIO\n");
+	// uPD7801 serial I/O: exchange the S register with the SO/SI lines, 8 bits,
+	// LSB first; the transfer is completed at once (the bit timing of SCK is
+	// not modelled), unconnected SI reads 1
+	u8 data = m_sio_s;
+	for (int i = 0; i < 8; i++)
+	{
+		m_txd_func(BIT(data, 0));
+		int const in = m_rxd_func.isunset() ? 1 : (m_rxd_func() ? 1 : 0);
+		data = (data >> 1) | (in << 7);
+	}
+	m_sio_s = data;
+	IRR |= INTFST;
 }
 
 void upd7810_device::SKIT_F0()

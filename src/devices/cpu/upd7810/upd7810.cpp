@@ -741,8 +741,8 @@ uint8_t upd7801_device::read_pc()
 	uint8_t data = (m_pc_in & inputs) | (m_pc_out & ~inputs);
 	if (!BIT(m_mc, 2))  /* TODO PC2 = -SCS input */
 		data = (data & ~0x04) | 0x04;
-	if (!BIT(m_mc, 7))  /* TODO PC7 = HOLD input */
-		data = (data & ~0x80);
+	// PC7 in control mode is the HOLD input; the pin can still be read
+	// (the Star Gemini-10X reads its parallel/serial interface selection there)
 	return data;
 }
 
@@ -1862,6 +1862,7 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_halt));
 
 	save_item(NAME(m_txs));
+	save_item(NAME(m_sio_s));
 	save_item(NAME(m_rxs));
 	save_item(NAME(m_txcnt));
 	save_item(NAME(m_rxcnt));
@@ -2108,6 +2109,7 @@ void upd7810_device::device_reset()
 	m_halt = 0;
 
 	m_txs = 0;
+	m_sio_s = 0;
 	m_rxs = ~0;
 	m_txcnt = 0;
 	m_rxcnt = 0;
