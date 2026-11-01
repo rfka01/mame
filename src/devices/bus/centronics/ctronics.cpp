@@ -131,6 +131,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "epson_fx880.h"
 #include "epson_ap3250.h"
 #include "epson_lx800.h"
+#include "epson_lx86.h"
 #include "etibuffer.h"
 #include "epson_lx810l.h"
 #include "epson_rx80.h"
@@ -166,6 +167,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("fx880", EPSON_FX880);
 	device.option_add("ap3250", EPSON_AP3250);
 	device.option_add("lx800", EPSON_LX800);
+	device.option_add("lx86", EPSON_LX86);
 	device.option_add("lx810l", EPSON_LX810L);
 	device.option_add("ap2000", EPSON_AP2000);
 	device.option_add("rx80", EPSON_RX80);
