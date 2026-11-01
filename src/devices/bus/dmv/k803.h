@@ -34,6 +34,8 @@ protected:
 
 	virtual void io_read(int ifsel, offs_t offset, uint8_t &data) override;
 	virtual void io_write(int ifsel, offs_t offset, uint8_t data) override;
+	// holds its own slot line (a2) inactive: measured, no pull-up level in 13h/IRR
+	virtual bool drives_irq() const override { return true; }
 
 	void update_int();
 
