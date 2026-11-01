@@ -4,6 +4,7 @@
 
     Epson FX-80 9-pin dot matrix printer
     Epson JX-80 9-pin colour dot matrix printer
+    Epson FX-85 9-pin dot matrix printer with NLQ
 
     Main CPU: uPD7810H6 at 10 MHz, 16 KiB mask ROM, 6 KiB external RAM.
     Slave CPU: 8042AH at 11 MHz, runs the carriage stepper.
@@ -50,6 +51,14 @@
       c800 r        bit 7 = colour ribbon home sensor
       c801 w        bits 7-6 ribbon shift stepper (Gray code), bit 5 energise
 
+    FX-85 (technical manual fig. 2-8): FXMB main board with the FX-80
+    circuit, plus the FXEXT board:
+      4000-7fff     RAM (input buffer, NLQ development buffer)
+      a000-bfff     draft character generator (FX4)
+      c800-c8ff     NLQ character generator (FE5), one page of 256 bytes;
+                    a write sets the page
+    The ROM sets come from two machines (see ROM_START( epson_fx85 )).
+
     Power-on key combinations: LINE FEED = self test, FORM FEED = hex
     dump.  Hold the keys (or select them under "Keys held at power on")
     and use the printer's power switch input, which restarts only the
@@ -75,6 +84,7 @@
 
 #include "epson_fx80.lh"
 #include "epson_jx80.lh"
+#include "epson_fx85.lh"
 
 //#define VERBOSE 1
 #include "logmacro.h"
@@ -148,12 +158,13 @@ protected:
 
 	int m_ribbon_band;      // colour band in front of the needles (JX-80)
 
-private:
-	// main CPU
+	// main CPU bus
 	u8 slave_r(offs_t offset);
 	void slave_w(offs_t offset, u8 data);
-	TIMER_CALLBACK_MEMBER(slave_write_sync);
 	u8 cent_data_r();
+
+private:
+	TIMER_CALLBACK_MEMBER(slave_write_sync);
 	void pa_w(u8 data);
 	u8 pb_r();
 	void pb_w(u8 data);
@@ -249,6 +260,28 @@ private:
 };
 
 
+class epson_fx85_device : public epson_fx80_device
+{
+public:
+	// construction/destruction
+	epson_fx85_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
+
+private:
+	void fx85_mem(address_map &map) ATTR_COLD;
+	u8 nlq_r(offs_t offset);
+	void nlq_w(offs_t offset, u8 data);
+
+	required_region_ptr<u8> m_nlq;
+	u8 m_nlq_page;          // FXEXT IC 5B: high address of the NLQ character generator
+};
+
+
 //**************************************************************************
 //  ROM
 //**************************************************************************
@@ -270,6 +303,34 @@ ROM_START( epson_jx80 )
 	ROM_LOAD("epson_fx_c42040kb_8042ah.bin", 0x0000, 0x800, CRC(3e9d08c1) SHA1(d5074f60497cc75d40996e6cef63231d3a3697f1))
 ROM_END
 
+ROM_START( epson_fx85 )
+	// The dumps come from two different machines:
+	//  - "v340": main program FC5-V5 and draft character generator FX4-V1 of an FX-85
+	//    with firmware version 3.40; its NLQ character generator was not dumped, the
+	//    one of the second machine is used
+	//  - "u10": main program FC5, draft character generator FX4 and NLQ character
+	//    generator FE5 of an FX-85 with firmware "U-1.0", a Cyrillic version (Cyrillic
+	//    in place of the italic characters; the upper half of its FX4 is empty)
+	// The 8042 ROM is the one of the FX-80+.
+	ROM_DEFAULT_BIOS("v340")
+	ROM_SYSTEM_BIOS(0, "v340", "Version 3.40 (NLQ ROM of the U-1.0 machine)")
+	ROM_SYSTEM_BIOS(1, "u10", "Version U-1.0, Cyrillic")
+
+	ROM_REGION(0x4000, "maincpu", 0)  // FXMB IC 5A, main program
+	ROMX_LOAD("epson_fx85_7128-257_fc5-v5_632100.bin", 0x0000, 0x4000, CRC(7f86b714) SHA1(6133b61a653fd25a8da0887c626aa7ebe8b0f6b7), ROM_BIOS(0))
+	ROMX_LOAD("fx85_u1_fc5.bin", 0x0000, 0x4000, CRC(4e87d96c) SHA1(604ae662afac8925a67e8ec167baf5716a6c8666), ROM_BIOS(1))
+
+	ROM_REGION(0x2000, "chargen", 0)  // FXMB IC 4A, draft character generator
+	ROMX_LOAD("epson_fx85_2764-302_fx4_v1_62810a.bin", 0x0000, 0x2000, CRC(2f84e5c5) SHA1(6f45f15241197314d0216401aa4f6cb6f71499d4), ROM_BIOS(0))
+	ROMX_LOAD("fx85_u0_fx4.bin", 0x0000, 0x2000, CRC(a134f9a1) SHA1(d5624ac1e94298cb3c39a23969e8f9fc72d887a2), ROM_BIOS(1))
+
+	ROM_REGION(0x4000, "nlq", 0)  // FXEXT IC 5A, NLQ character generator (from the U-1.0 machine)
+	ROM_LOAD("fx85_u0_fe5.bin", 0x0000, 0x4000, CRC(dd8b9eb8) SHA1(92729bf2b79e6eb7612138fd07ecfd311b597cfd))
+
+	ROM_REGION(0x800, "slavecpu", 0)  // 2K rom for 8042, as in the FX-80+
+	ROM_LOAD("epson_fx_c42040kb_8042ah.bin", 0x0000, 0x800, CRC(3e9d08c1) SHA1(d5074f60497cc75d40996e6cef63231d3a3697f1))
+ROM_END
+
 const tiny_rom_entry *epson_fx80_device::device_rom_region() const
 {
 	return ROM_NAME(epson_fx80);
@@ -278,6 +339,11 @@ const tiny_rom_entry *epson_fx80_device::device_rom_region() const
 const tiny_rom_entry *epson_jx80_device::device_rom_region() const
 {
 	return ROM_NAME(epson_jx80);
+}
+
+const tiny_rom_entry *epson_fx85_device::device_rom_region() const
+{
+	return ROM_NAME(epson_fx85);
 }
 
 
@@ -348,6 +414,49 @@ INPUT_PORTS_END
 ioport_constructor epson_fx80_device::device_input_ports() const
 {
 	return INPUT_PORTS_NAME(epson_fx80);
+}
+
+static INPUT_PORTS_START( epson_fx85 )
+	PORT_INCLUDE( epson_fx80 )
+
+	PORT_MODIFY("PANEL")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("FX-85 ON LINE")
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("FX-85 FF / NLQ")
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("FX-85 LF / DRAFT")
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("FX-85 Power switch (off/on)") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(epson_fx85_device::power_switch), 0)
+
+	PORT_MODIFY("DSW1")  // technical manual table 2-10
+	PORT_DIPNAME( 0x01, 0x01, "Typeface" )                   PORT_DIPLOCATION("SW1:1")
+	PORT_DIPSETTING(    0x00, "Condensed" )
+	PORT_DIPSETTING(    0x01, "Pica" )
+	PORT_DIPNAME( 0x08, 0x00, "Character mode" )             PORT_DIPLOCATION("SW1:4")
+	PORT_DIPSETTING(    0x00, "ESC/P" )
+	PORT_DIPSETTING(    0x08, "IBM" )
+
+	PORT_MODIFY("DSW2")  // technical manual table 2-12 (switch 2-1 and the jumper J5 as the FX-80 firmware reads them)
+	PORT_DIPNAME( 0x01, 0x00, "Page length (J5)" )
+	PORT_DIPSETTING(    0x00, "11\"" )
+	PORT_DIPSETTING(    0x01, "12\"" )
+	PORT_DIPNAME( 0x02, 0x00, "1 inch skip-over perforation" ) PORT_DIPLOCATION("SW2:3")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x00, "Cut sheet feeder" )           PORT_DIPLOCATION("SW2:2")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x00, "SLCT IN not fixed" )          PORT_DIPLOCATION("SW2:1")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x08, DEF_STR( On ) )
+
+	PORT_MODIFY("CONFIG")
+	PORT_CONFNAME( 0x06, 0x00, "Keys held at power on" )
+	PORT_CONFSETTING(    0x00, "None" )
+	PORT_CONFSETTING(    0x02, "LF (self test)" )
+	PORT_CONFSETTING(    0x04, "FF (hex dump)" )
+INPUT_PORTS_END
+
+ioport_constructor epson_fx85_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME(epson_fx85);
 }
 
 
@@ -889,8 +998,60 @@ void epson_jx80_device::update_ribbon()
 	m_ribbon_band = std::clamp((m_ribbon_pos + RIBBON_BAND / 2) / RIBBON_BAND, 0, 3);
 }
 
+
+
+//-------------------------------------------------
+//  FX-85
+//-------------------------------------------------
+
+epson_fx85_device::epson_fx85_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	epson_fx80_device(mconfig, EPSON_FX85, tag, owner, clock),
+	m_nlq(*this, "nlq"),
+	m_nlq_page(0)
+{
+}
+
+void epson_fx85_device::fx85_mem(address_map &map)
+{
+	// technical manual fig. 2-8, chip selects from the fuse ROM M02016GA
+	map(0x0000, 0x3fff).rom().region("maincpu", 0);
+	map(0x4000, 0x7fff).ram();  // FXEXT: 8K input buffer, 8K NLQ development and justification buffer
+	map(0x8000, 0x8fff).ram();  // FXMB: 2 x 2K
+	map(0xa000, 0xbfff).rom().region("chargen", 0);
+	map(0xc800, 0xc8ff).mirror(0x0700).rw(FUNC(epson_fx85_device::nlq_r), FUNC(epson_fx85_device::nlq_w));
+	map(0xd000, 0xd001).mirror(0x07fe).rw(FUNC(epson_fx85_device::slave_r), FUNC(epson_fx85_device::slave_w));
+	map(0xd800, 0xd800).mirror(0x07ff).r(FUNC(epson_fx85_device::cent_data_r));
+}
+
+void epson_fx85_device::device_add_mconfig(machine_config &config)
+{
+	epson_fx80_device::device_add_mconfig(config);
+	m_maincpu->set_addrmap(AS_PROGRAM, &epson_fx85_device::fx85_mem);
+
+	config.set_default_layout(layout_epson_fx85);
+}
+
+void epson_fx85_device::device_start()
+{
+	epson_fx80_device::device_start();
+	save_item(NAME(m_nlq_page));
+}
+
+u8 epson_fx85_device::nlq_r(offs_t offset)
+{
+	// the NLQ character generator, a page of 256 bytes at a time
+	return m_nlq[((m_nlq_page & 0x3f) << 8) | offset];
+}
+
+void epson_fx85_device::nlq_w(offs_t offset, u8 data)
+{
+	// the firmware writes the high address with bit 6 set to the same offset
+	m_nlq_page = data;
+}
+
 } // anonymous namespace
 
 
 DEFINE_DEVICE_TYPE_PRIVATE(EPSON_FX80, device_centronics_peripheral_interface, epson_fx80_device, "epson_fx80", "Epson FX-80")
 DEFINE_DEVICE_TYPE_PRIVATE(EPSON_JX80, device_centronics_peripheral_interface, epson_jx80_device, "epson_jx80", "Epson JX-80")
+DEFINE_DEVICE_TYPE_PRIVATE(EPSON_FX85, device_centronics_peripheral_interface, epson_fx85_device, "epson_fx85", "Epson FX-85")
