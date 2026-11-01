@@ -200,6 +200,7 @@ private:
 	PAIR      m_dma_mar1;                       // DMA memory address register ch 1
 	PAIR      m_dma_iar1;                       // DMA I/O address register ch 1
 	uint8_t   m_dstat;                          // DMA status register
+	bool      m_dma0_asci_flag;                 // last ASCI request flag for DMA0 edge sense
 	uint8_t   m_dmode;                          // DMA mode register
 	uint8_t   m_dcntl;                          // DMA/WAIT control register
 	uint8_t   m_il;                             // INT vector low register
@@ -262,6 +263,8 @@ private:
 	int take_interrupt(int irq);
 	uint8_t z180_readcontrol(offs_t port);
 	void z180_writecontrol(offs_t port, uint8_t data);
+	bool dma0_asci_flag(unsigned sel, bool io_source);
+	bool dma0_request(bool io_source);
 	int z180_dma0(int max_cycles);
 	int z180_dma1();
 	void z180_write_iolines(uint32_t data);
