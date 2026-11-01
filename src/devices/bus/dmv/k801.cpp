@@ -185,7 +185,8 @@ void dmv_k801_device::pci_mconfig(machine_config &config, bool epci, const char 
 	m_pci->rts_handler().set("rs232", FUNC(rs232_port_device::write_rts));
 	m_pci->dtr_handler().set("rs232", FUNC(rs232_port_device::write_dtr));
 	m_pci->rxrdy_handler().set(FUNC(dmv_k801_device::pci_irq_w));
-	m_pci->txrdy_handler().set(FUNC(dmv_k801_device::pci_irq_w));
+	if (epci)
+		m_pci->txrdy_handler().set(FUNC(dmv_k801_device::pci_irq_w));
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, default_option);
 	m_rs232->rxd_handler().set(m_pci, FUNC(scn_pci_device::rxd_w));
@@ -199,6 +200,10 @@ void dmv_k801_device::device_add_mconfig(machine_config &config)
 	pci_mconfig(config, true, "printer");
 }
 
+// Measured on two machines with DMVFRAGE: the K211 interrupt follows
+// RxRDY only (2651 local loopback raises it, enabling the transmitter
+// does not), while the K801 follows TxRDY.  K212 and K213 share the
+// 2651 setup and are assumed to be wired the same way.
 void dmv_k211_device::device_add_mconfig(machine_config &config)
 {
 	pci_mconfig(config, false, "null_modem");
