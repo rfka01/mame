@@ -16,6 +16,9 @@
       P10 = ON LINE lamp, P27 = READY lamp (both toggle with the ON LINE key)
       P11 <- slave P20, P12 <- slave P23, P13 <- slave P21, P14 <- slave P22;
       P15 = /ACK, P16 = BUSY; P17 <- SW2-3
+      (BUSY on the connector also follows the 8155 port A buffer full flag
+      PC1: the firmware raises P16 only between bytes, so without BF a fast
+      host overwrites a byte the 8155 still holds, e.g. in bit images)
       (P11 and P13 as the firmware needs them: the main CPU waits on P13 for
       the start of a line and starts its dot timer on a PTS edge while P11
       reports the acceleration; emphasized printing times the half dots
@@ -143,6 +146,7 @@ private:
 	u16 m_needles;
 	attotime m_fire_t[9];
 	double m_fire_x[9];
+	int m_fire_y[9];
 };
 
 
@@ -252,7 +256,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 		m_p1 = data;
 		m_led[1] = BIT(data, 0);     // ON LINE
 		output_ack(BIT(data, 5));
-		output_busy(BIT(data, 6));
+		output_busy(BIT(data, 6) || BIT(m_pc, 1));
 	});
 	m_maincpu->p2_in_cb().set([this] () { u8 const d = 0xff; if (!machine().side_effects_disabled()) LOGMASKED(LOG_PORT, "%s P2 r\n", machine().describe_context()); return d; });
 	m_maincpu->p2_out_cb().set([this] (u8 data) {
@@ -284,6 +288,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 		m_pc = data;
 		needles_w((u16(~m_pb & 0xff) << 1) | BIT(~m_pc, 4));
 		m_maincpu->set_input_line(MCS48_INPUT_IRQ, BIT(data, 0) ? ASSERT_LINE : CLEAR_LINE);   // INTR A (guess: straight to /INT)
+		output_busy(BIT(m_p1, 6) || BIT(data, 1));
 	});
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
 	m_bitmap_printer->set_dot_style(printer_dot_style::impact_9pin());
@@ -321,12 +326,13 @@ void bmc_bx80_device::device_start()
 	m_pb = 0xff;
 	m_pc = 0xff;
 	m_needles = 0;
-	for (int i = 0; i < 9; i++) { m_fire_t[i] = attotime::zero; m_fire_x[i] = 0; }
+	for (int i = 0; i < 9; i++) { m_fire_t[i] = attotime::zero; m_fire_x[i] = 0; m_fire_y[i] = 0; }
 	save_item(NAME(m_pb));
 	save_item(NAME(m_pc));
 	save_item(NAME(m_needles));
 	save_item(NAME(m_fire_t));
 	save_item(NAME(m_fire_x));
+	save_item(NAME(m_fire_y));
 	save_item(NAME(m_pts));
 	save_item(NAME(m_pts_pending));
 	save_item(NAME(m_pts_fall));
@@ -475,6 +481,7 @@ void bmc_bx80_device::needles_w(u16 needles)
 		{
 			m_fire_t[pin] = now;
 			m_fire_x[pin] = head_x() - (m_cr_period.is_never() ? 0.0 : m_cr_dir * DOT_LAG);
+			m_fire_y[pin] = m_bitmap_printer->m_ypos;   // the needle strikes now: a needle the firmware leaves on across a line feed must not mark the next line
 		}
 		else
 		{
@@ -483,7 +490,7 @@ void bmc_bx80_device::needles_w(u16 needles)
 				continue;
 			int const x = int(std::lround((m_fire_x[pin] / CR_STEPS_PER_INCH + LEFT_OFFSET) * HDPI));
 			if (x >= 0 && x < int(PAPER_WIDTH * HDPI))
-				m_bitmap_printer->draw_pixel(x, m_bitmap_printer->m_ypos + pin * (VDPI / 72), 0x000000);
+				m_bitmap_printer->draw_pixel(x, m_fire_y[pin] + pin * (VDPI / 72), 0x000000);
 		}
 	}
 }
