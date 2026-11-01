@@ -45,6 +45,10 @@ public:
 	// PDF output: dot appearance of the pages filed to the "printout" image
 	void set_dot_style(const printer_dot_style &style) { m_dot_style = style; m_dot_style_set = true; }
 
+	// paper that isn't plain white (coated, tinted), drawn under the dots of the
+	// PDF pages; the canvas is greyscale unless the ink is colored (configuration time only)
+	void set_paper_texture(std::function<void (printer_page_canvas &)> &&texture) { m_paper_texture = std::move(texture); }
+
 	// height of the paper shown on the paper screen, in inches (configuration time only)
 	void set_paper_view(double inches);
 
@@ -190,6 +194,7 @@ private:
 	int m_sheet_right;
 	bool m_sheet_fanfold;
 	bool m_greenbar;
+	std::function<void (printer_page_canvas &)> m_paper_texture;
 	bool m_unlimited_sheets;
 	bool m_always_loaded;
 	bool m_sheet_loaded;

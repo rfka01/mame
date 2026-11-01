@@ -998,6 +998,8 @@ void bitmap_printer_device::write_bitmap_to_file(bitmap_rgb32 &bitmap)
 		if (m_paper_mask)
 			m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color,
 					[this] (printer_page_canvas &page) { paper_canvas(page); }, m_greenbar);
+		else if (m_paper_texture)
+			m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color, m_paper_texture);
 		else
 			m_pdf->print_bitmap(bitmap, m_hdpi, m_vdpi, m_dot_style_set ? &m_dot_style : nullptr, paper_color);
 		return;
