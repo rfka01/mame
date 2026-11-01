@@ -1846,6 +1846,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/smartboard.h",
 		MAME_DIR .. "src/devices/bus/centronics/spjoy.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/spjoy.h",
+		MAME_DIR .. "src/devices/bus/centronics/star_gem10x.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/star_gem10x.h",
 		MAME_DIR .. "src/devices/bus/centronics/star_nl10.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/star_nl10.h",
 	}
@@ -1867,6 +1869,7 @@ if BUSES["CENTRONICS"] then
 		{ MAME_DIR .. "src/devices/bus/centronics/etibuffer.cpp",    GEN_DIR .. "emu/layout/etibuffer.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/pb642.cpp",        GEN_DIR .. "emu/layout/pb642.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/smartboard.cpp",   GEN_DIR .. "emu/layout/smartboard.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/star_gem10x.cpp",  GEN_DIR .. "emu/layout/star_gem10x.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/star_nl10.cpp",    GEN_DIR .. "emu/layout/star_nl10.lh" },
 	}
 
@@ -1887,6 +1890,7 @@ if BUSES["CENTRONICS"] then
 		layoutbuildtask("emu/layout", "etibuffer"),
 		layoutbuildtask("emu/layout", "pb642"),
 		layoutbuildtask("emu/layout", "smartboard"),
+		layoutbuildtask("emu/layout", "star_gem10x"),
 		layoutbuildtask("emu/layout", "star_nl10"),
 	}
 end

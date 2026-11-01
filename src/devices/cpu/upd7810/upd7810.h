@@ -328,6 +328,7 @@ protected:
 	/* internal helper variables */
 	uint16_t  m_txs;    /* transmitter shift register */
 	uint16_t  m_rxs;    /* receiver shift register */
+	uint8_t   m_sio_s;  /* uPD7801 serial I/O register S */
 	uint8_t   m_txcnt;  /* transmitter shift register bit count */
 	uint8_t   m_rxcnt;  /* receiver shift register bit count */
 	uint8_t   m_txbuf;  /* transmitter buffer was written */
