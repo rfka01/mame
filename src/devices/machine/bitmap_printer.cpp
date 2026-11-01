@@ -472,18 +472,7 @@ void bitmap_printer_device::device_stop()
 		return;
 	}
 
-	flush_roll();
-
-	int const live = m_feed_forward ? (m_feed_hi - m_paper_height + 1) : m_feed_lo;
-
-	for (int row = 0; row < m_paper_height; row++)
-	{
-		if (row_has_ink(m_page_bitmap, row))
-		{
-			write_roll_page(m_page_bitmap, live);
-			break;
-		}
-	}
+	finish_roll();
 }
 
 void bitmap_printer_device::device_reset_after_children()
@@ -588,6 +577,43 @@ bool bitmap_printer_device::flush_roll()
 	return saved;
 }
 
+bool bitmap_printer_device::collect_roll_row(int src)
+{
+	// a page of the roll starts at its first ink and is a paper length long, so a
+	// printout is not cut where the ring buffer happens to wrap
+	bool saved = false;
+	int const row = wrap_row(src);
+	bool const ink = row_has_ink(m_page_bitmap, row);
+
+	// rows retire in feed order; a reversal or a jump closes the pending page
+	if (m_roll_collected && (src != m_roll_last + 1) && (src != m_roll_first - 1))
+		saved |= flush_roll();
+
+	if (!m_roll_collected && !ink)
+		return saved;   // blank paper ahead of a printout
+
+	std::copy_n(&m_page_bitmap.pix(row, 0), m_paper_width, &m_roll_bitmap.pix(row, 0));
+
+	if (m_roll_collected)
+	{
+		m_roll_first = std::min(m_roll_first, src);
+		m_roll_last = std::max(m_roll_last, src);
+	}
+	else
+	{
+		m_roll_first = m_roll_last = src;
+		m_roll_collected = true;
+	}
+
+	if (ink)
+		m_roll_dirty = true;
+
+	if ((m_roll_last - m_roll_first) >= (m_paper_height - 1))
+		saved |= flush_roll();
+
+	return saved;
+}
+
 bool bitmap_printer_device::retire_roll_rows(int from_row, int to_row, bool forward)
 {
 	bool saved = false;
@@ -597,38 +623,23 @@ bool bitmap_printer_device::retire_roll_rows(int from_row, int to_row, bool forw
 
 	from_row = std::max(from_row, to_row - m_paper_height + 1);
 
+	// the two directions retire from opposite ends of the roll, a whole paper
+	// length apart
 	for (int i = 0; i <= to_row - from_row; i++)
-	{
-		int const src = forward ? (from_row + i - m_paper_height) : (to_row - i + m_paper_height);
-		int const row = wrap_row(src);
-
-		// the two directions retire from opposite ends of the roll, a whole
-		// paper length apart, so a reversal mid-lap has to close the pending
-		// image out rather than blend two stretches of roll into one page
-		if (m_roll_collected && (src != m_roll_last + 1) && (src != m_roll_first - 1))
-			saved |= flush_roll();
-
-		std::copy_n(&m_page_bitmap.pix(row, 0), m_paper_width, &m_roll_bitmap.pix(row, 0));
-
-		if (m_roll_collected)
-		{
-			m_roll_first = std::min(m_roll_first, src);
-			m_roll_last = std::max(m_roll_last, src);
-		}
-		else
-		{
-			m_roll_first = m_roll_last = src;
-			m_roll_collected = true;
-		}
-
-		if (row_has_ink(m_page_bitmap, row))
-			m_roll_dirty = true;
-
-		if (row == (forward ? m_paper_height - 1 : 0))
-			saved |= flush_roll();
-	}
+		saved |= collect_roll_row(forward ? (from_row + i - m_paper_height) : (to_row - i + m_paper_height));
 
 	return saved;
+}
+
+void bitmap_printer_device::finish_roll()
+{
+	// the paper still in the printer continues the pending page, in feed order
+	int const live = m_feed_forward ? (m_feed_hi - m_paper_height + 1) : m_feed_lo;
+
+	for (int i = 0; i < m_paper_height; i++)
+		collect_roll_row(m_feed_forward ? (live + i) : (live + m_paper_height - 1 - i));
+
+	flush_roll();
 }
 
 uint32_t bitmap_printer_device::screen_update_bitmap(screen_device &screen,
@@ -960,17 +971,7 @@ void bitmap_printer_device::flush_to_pdf()
 {
 	if (m_continuous_feed)
 	{
-		flush_roll();
-
-		int const live = m_feed_forward ? (m_feed_hi - m_paper_height + 1) : m_feed_lo;
-		for (int row = 0; row < m_paper_height; row++)
-		{
-			if (row_has_ink(m_page_bitmap, row))
-			{
-				write_roll_page(m_page_bitmap, live);
-				break;
-			}
-		}
+		finish_roll();
 	}
 	else if (sheet_in())
 	{
