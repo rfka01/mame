@@ -173,16 +173,17 @@ void printer_page_canvas::dot(double x, double y, const printer_dot_style &style
 				a *= 1.0f - style.texture * t;
 			}
 			float const k = a * density;
+			// inks only darken the paper: a dot over a dot of another colour mixes with it
 			if (m_channels == 1)
 			{
 				u8 &p = line[px];
-				p = u8(p - (p - ink_lum) * k);
+				p = std::min(p, u8(p - (p - ink_lum) * k));
 			}
 			else
 			{
 				u8 *const p = &line[px * 3];
 				for (int c = 0; c < 3; c++)
-					p[c] = u8(p[c] - (p[c] - ink[c]) * k);
+					p[c] = std::min(p[c], u8(p[c] - (p[c] - ink[c]) * k));
 			}
 		}
 	}

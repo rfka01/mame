@@ -759,9 +759,14 @@ void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &d
 				double const f = ry ? double(dy) / (ry + 0.5) : 0.0;
 				int const w = rect ? rx : int((rx + 0.5) * std::sqrt(std::max(0.0, 1.0 - f * f)));
 				int const x0 = std::max(x - w, clip.min_x), x1 = std::min(x + w, clip.max_x);
+				// overlapping dots of different inks mix on the paper (each channel keeps
+				// the darker value), so neighbouring colour dots don't cover each other
 				u32 *const out = &dst.pix(py, 0);
 				for (int px = x0; px <= x1; px++)
-					out[px] = color;
+				{
+					u32 const o = out[px];
+					out[px] = (o & 0xff000000) | std::min(o & 0xff0000, color & 0xff0000) | std::min(o & 0xff00, color & 0xff00) | std::min(o & 0xff, color & 0xff);
+				}
 			}
 		}
 	}
