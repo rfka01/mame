@@ -952,10 +952,20 @@ void z180_device::z180_internal_port_write(uint8_t port, uint8_t data)
 		if ((data & (Z180_DSTAT_DE1 | Z180_DSTAT_DWE1)) == Z180_DSTAT_DE1)
 		{
 			m_dstat |= Z180_DSTAT_DME;  /* DMA enable */
+			/* an edge-sensed request seen while the channel was idle does not count */
+			if (m_dcntl & Z180_DCNTL_DMS1)
+				m_iol &= ~Z180_DREQ1;
 		}
 		if ((data & (Z180_DSTAT_DE0 | Z180_DSTAT_DWE0)) == Z180_DSTAT_DE0)
 		{
 			m_dstat |= Z180_DSTAT_DME;  /* DMA enable */
+			/* an edge-sensed request seen while the channel was idle does not count */
+			if (m_dcntl & Z180_DCNTL_DMS0)
+				m_iol &= ~Z180_DREQ0;
+			/* reference level for edge-sensed ASCI requests */
+			const bool io_source = (m_dmode & Z180_DMODE_SM) == 0x0c;
+			const unsigned sel = ((io_source ? m_dma_sar0.d : m_dma_dar0.d) >> 16) & 3;
+			m_dma0_asci_flag = (sel == 1 || sel == 2) && dma0_asci_flag(sel, io_source);
 		}
 		break;
 
@@ -1095,6 +1105,39 @@ void z8s180_device::z180_internal_port_write(uint8_t port, uint8_t data)
 	}
 }
 
+/***************************************************************
+ * DMA0 request source for transfers involving I/O: SAR0 (I/O
+ * source) or DAR0 (I/O destination) bits 17-16 select
+ * 00 = /DREQ0 pin, 01 = ASCI0, 10 = ASCI1, where the ASCI
+ * requests on RDRF (source) or TDRE (destination). With edge
+ * sense selected (DCNTL DMS0) an ASCI request is taken on the
+ * rising edge of its flag, so enabling DMA0 while TDRE is already
+ * set does not transfer until the CPU has written TDR itself.
+ ***************************************************************/
+bool z180_device::dma0_asci_flag(unsigned sel, bool io_source)
+{
+	const u8 stat = m_asci[sel - 1]->stat_r();
+	// (BIT() is the Z80 instruction macro in this file, so mask explicitly)
+	return io_source ? (stat & 0x80) != 0 : (stat & 0x02) != 0;
+}
+
+bool z180_device::dma0_request(bool io_source)
+{
+	const unsigned sel = ((io_source ? m_dma_sar0.d : m_dma_dar0.d) >> 16) & 3;
+	if (sel == 1 || sel == 2)
+	{
+		const bool flag = dma0_asci_flag(sel, io_source);
+		if (m_dcntl & Z180_DCNTL_DMS0)
+		{
+			const bool edge = flag && !m_dma0_asci_flag;
+			m_dma0_asci_flag = flag;
+			return edge;
+		}
+		return flag;
+	}
+	return m_iol & Z180_DREQ0;
+}
+
 int z180_device::z180_dma0(int max_cycles)
 {
 	offs_t sar0 = m_dma_sar0.d;
@@ -1141,7 +1184,7 @@ int z180_device::z180_dma0(int max_cycles)
 			bcr0--;
 			break;
 		case 0x0c:  /* I/O SAR0 fixed to memory DAR0+1 */
-			if (m_iol & Z180_DREQ0)
+			if (dma0_request(true))
 			{
 				z180_write_memory(dar0++, IN(sar0));
 				cycles += memory_wait_states();
@@ -1170,7 +1213,7 @@ int z180_device::z180_dma0(int max_cycles)
 			bcr0--;
 			break;
 		case 0x1c:  /* I/O SAR0 fixed to memory DAR0-1 */
-			if (m_iol & Z180_DREQ0)
+			if (dma0_request(true))
 			{
 				z180_write_memory(dar0--, IN(sar0));
 				cycles += memory_wait_states();
@@ -1198,7 +1241,7 @@ int z180_device::z180_dma0(int max_cycles)
 		case 0x2c:  /* reserved */
 			break;
 		case 0x30:  /* memory SAR0+1 to I/O DAR0 fixed */
-			if (m_iol & Z180_DREQ0)
+			if (dma0_request(false))
 			{
 				OUT(dar0, z180_read_memory(sar0++));
 				cycles += memory_wait_states();
@@ -1212,7 +1255,7 @@ int z180_device::z180_dma0(int max_cycles)
 			}
 			break;
 		case 0x34:  /* memory SAR0-1 to I/O DAR0 fixed */
-			if (m_iol & Z180_DREQ0)
+			if (dma0_request(false))
 			{
 				OUT(dar0, z180_read_memory(sar0--));
 				cycles += memory_wait_states();
@@ -1648,6 +1691,7 @@ void z180_device::device_start()
 	save_item(NAME(m_dma_mar1.d));
 	save_item(NAME(m_dma_iar1.d));
 	save_item(NAME(m_dstat));
+	save_item(NAME(m_dma0_asci_flag));
 	save_item(NAME(m_dmode));
 	save_item(NAME(m_dcntl));
 	save_item(NAME(m_il));
@@ -1736,6 +1780,7 @@ void z180_device::device_reset()
 	m_tcr = 0x00;
 	m_dma_iar1.b.h2 = 0x00;
 	m_dstat = Z180_DSTAT_DWE1 | Z180_DSTAT_DWE0;
+	m_dma0_asci_flag = false;
 	m_dmode = 0x00;
 	m_dcntl = 0xf0; // maximum number of memory and I/O wait states
 	m_il = 0x00;
