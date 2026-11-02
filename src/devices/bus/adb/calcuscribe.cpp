@@ -43,7 +43,8 @@
       800000         write: keypad column select (bits 0-4, active high)
                      read : bits 0-3 keypad rows (active low)
                             bit 4 Mac cable present, bit 5 PC cable present
-      FE0000-FFFFFF  128 KiB battery-backed SRAM
+      C00000-FFFFFF  128 KiB battery-backed SRAM (mirrored; firmware uses
+                     FE0000-FFFFFF and probes the size via F80000)
 
     Latch outputs:
       Q0 HD61830 R/W   Q1 HD61830 E   Q2 E of a character LCD (CalcuScribe
@@ -53,7 +54,7 @@
     Ports:
       P4.3-7, P5.3/6/7, P6.0/7, P8.1/4-7  keyboard columns (driven low by
                                           setting the direction bit)
-      P6.3  power latch, P6.4 low battery (1 = low)
+      P6.3  power latch, P6.4 battery OK (0 = low)
       P6.5  ADB data / PS/2 clock in (inverted), P6.6 PS/2 data in (inverted)
       P7    HD61830 data bus
       UART0 infrared port ("InfraLink")
@@ -392,7 +393,7 @@ void calcuscribe_device::program_map(address_map &map)
 	map(0x000000, 0x0fffff).mirror(0x300000).rom().region("maincpu", 0);
 	map(0x400000, 0x4fffff).rw(FUNC(calcuscribe_device::io4_r), FUNC(calcuscribe_device::io4_w));
 	map(0x800000, 0x8fffff).rw(FUNC(calcuscribe_device::io8_r), FUNC(calcuscribe_device::io8_w));
-	map(0xfe0000, 0xffffff).ram().share("nvram");
+	map(0xc00000, 0xc1ffff).mirror(0x3e0000).ram().share("nvram");
 }
 
 void calcuscribe_device::lcdc_map(address_map &map)
@@ -410,6 +411,12 @@ void calcuscribe_device::device_add_mconfig(machine_config &config)
 {
 	M37702S1(config, m_maincpu, 19.6608_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &calcuscribe_device::program_map);
+	// Unused inputs must read as 0: when no file is open the firmware
+	// follows a NULL pointer and expects the bytes at 000009-00000B
+	// (P3 direction, P4, P5) to be zero.
+	m_maincpu->p4_in_cb().set_constant(0);
+	m_maincpu->p5_in_cb().set_constant(0);
+	m_maincpu->p8_in_cb().set_constant(0);
 	m_maincpu->p6_in_cb().set(FUNC(calcuscribe_device::p6_r));
 	m_maincpu->p7_in_cb().set(FUNC(calcuscribe_device::p7_r));
 	m_maincpu->p7_out_cb().set(FUNC(calcuscribe_device::p7_w));
@@ -609,8 +616,8 @@ u8 calcuscribe_device::p6_r()
 {
 	u8 data = 0x0c;
 
-	// low battery detector
-	if (BIT(m_config->read(), 2))
+	// battery detector, 1 = battery OK
+	if (!BIT(m_config->read(), 2))
 		data |= 0x10;
 
 	// ADB data line, inverted
