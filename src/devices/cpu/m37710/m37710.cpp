@@ -1043,6 +1043,11 @@ void m37710_cpu_device::m37710i_update_irqs()
 	int wantedIRQ = -1;
 	int curpri = 0;
 
+	// In stop mode the oscillator is halted; only the external interrupt
+	// inputs can request an interrupt and release it.
+	if (CPU_STOPPED & STOP_LEVEL_STOP)
+		pending &= (1 << M37710_LINE_IRQ0) | (1 << M37710_LINE_IRQ1) | (1 << M37710_LINE_IRQ2);
+
 	for (curirq = M37710_INTERRUPT_MAX - 1; curirq >= 0; curirq--)
 	{
 		if ((pending & (1 << curirq)))
@@ -1077,8 +1082,9 @@ void m37710_cpu_device::m37710i_update_irqs()
 	{
 		standard_irq_callback(wantedIRQ, REG_PG | REG_PC);
 
-		// make sure we're running to service the interrupt
-		CPU_STOPPED &= ~STOP_LEVEL_WAI;
+		// make sure we're running to service the interrupt (an accepted
+		// interrupt releases both wait and stop mode)
+		CPU_STOPPED &= ~(STOP_LEVEL_WAI | STOP_LEVEL_STOP);
 
 		// auto-clear line
 		m37710_set_irq_line(wantedIRQ, CLEAR_LINE);
