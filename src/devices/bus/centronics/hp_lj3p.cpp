@@ -9,20 +9,31 @@
     - Toshiba TC5316200 2 MB mask ROM 1818-5008 (16 bit)
     - 1 MB DRAM (8x KM44C256), expansion to 5 MB
     - 93C46 serial EEPROM (settings, page count)
+    - MC6850 compatible ACIA for the serial interface
     - National SD9212AL (1820-6339), HP 1TW7-0301, HP 1TU3-0201 (19.401 MHz,
       Resolution Enhancement)
     - font cartridge slot, control panel, Canon print engine (DC controller)
 
-    Emulated: firmware, EEPROM, control panel display (HD44780), parallel host
-    port (data from a file through the bitbanger device), the serial
-    command/status link to the Canon engine with the MP tray and the optional
-    lower cassette as configuration settings, the glyph/rule merger and the
-    band video output. Printed pages go to the "printout" device (PDF, or PNG
-    files in the snapshot directory).
+    Host interfaces (user's manual, appendix D): a Centronics parallel port
+    and an RS-232C serial port; the control panel selects one of them
+    (Menu, CONFIG: I/O PARALEL or SERIAL, with BAUDRATE, ROBUST XON and
+    DTR POLARITY for the serial port).  The device can be plugged into a
+    Centronics or an RS-232 port; on a serial port, select I/O SERIAL and the
+    computer's baud rate in the control panel (the settings stay in the
+    EEPROM).
+
+    Emulated: firmware, EEPROM, control panel display (HD44780) with keys and
+    indicators, both host interfaces, the serial command/status link to the
+    Canon engine with the MP tray and the optional lower cassette as
+    configuration settings, the glyph/rule merger and the band video output.
+    Printed pages go to the "printout" device (PDF, or PNG files in the
+    snapshot directory).
 
     Not verified against hardware: the engine timing (TOP after PRNT, line
-    period) and the merger's raster operations, which are modelled as ROP3
-    codes from the values the firmware uses.
+    period), the merger's raster operations, which are modelled as ROP3
+    codes from the values the firmware uses, and the meaning of the
+    parallel status bits (taken from the firmware's routines and its
+    behaviour off line and without paper).
 
     Paper handling (service manual): the MP tray has no size sensor, its size
     is set in the control panel (MP SIZE); the lower cassette reports its size
@@ -32,9 +43,12 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "hp_lj3p.h"
+
 #include "cpu/m68000/m68000.h"
-#include "imagedev/bitbngr.h"
 #include "imagedev/pdfprinter.h"
+#include "machine/6850acia.h"
+#include "machine/clock.h"
 #include "machine/eepromser.h"
 #include "video/hd44780.h"
 
@@ -49,29 +63,39 @@
 
 namespace {
 
-class hplj3p_state : public driver_device
+class hp_lj3p_base : public device_t
 {
-public:
-	hplj3p_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag)
-		, m_maincpu(*this, "maincpu")
-		, m_eeprom(*this, "eeprom")
-		, m_lcdc(*this, "lcdc")
-		, m_host(*this, "host")
-		, m_config(*this, "CONFIG")
-		, m_keys(*this, "KEYS")
-		, m_online_led(*this, "online_led")
-		, m_formfeed_led(*this, "formfeed_led")
-		, m_printout(*this, "printout")
-	{ }
+protected:
+	hp_lj3p_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
 
-	void hplj3p(machine_config &config) ATTR_COLD;
+	// device_t implementation
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
+
+	// the host interfaces
+	virtual void out_busy(int state) { }
+	virtual void out_ack(int state) { }
+	virtual void out_perror(int state) { }
+	virtual void out_fault(int state) { }
+	virtual void out_select(int state) { }
+	virtual void out_rxd(int state) { }     // serial data to the computer
+	virtual void out_dtr(int state) { }
+
+	void strobe_w(int state);
+	void init_w(int state);
+	void txd_w(int state) { m_acia->write_rxd(state); }
+
+	u8 m_data;              // Centronics data lines
 
 private:
 	required_device<m68000_device> m_maincpu;
 	required_device<eeprom_serial_93cxx_device> m_eeprom;
 	required_device<hd44780_device> m_lcdc;
-	required_device<bitbanger_device> m_host;
+	required_device<acia6850_device> m_acia;
+	required_device<clock_device> m_acia_clock;
 	required_ioport m_config;
 	required_ioport m_keys;
 	output_finder<> m_online_led;
@@ -119,12 +143,19 @@ private:
 	void blt_out(u16 data);
 
 	// parallel host interface: data latch at 200001, latch full on 3e0006 bit 10
-	// and IRQ 2, 200000 bit 7 pulsed by the firmware to acknowledge the byte
+	// and IRQ 2.  200000 written (the firmware's routines at 143e0-14494):
+	// bit 15 ready for data (BUSY while clear or while the latch is full),
+	// bit 7 ACK pulse, bit 6 /PERROR, bit 5 /FAULT, bit 4 SELECT (inverted
+	// and active low as the routines set and clear them; bit 6 clears without
+	// paper, bit 4 off line), bits 0, 1 and 3 serial interface outputs
+	// (bit 0 DTR through an inverting driver, the others not known)
 	u16 m_pctrl;
 	u8 m_pdata;
 	bool m_pfull;
-	emu_timer *m_host_timer;
-	TIMER_CALLBACK_MEMBER(host_poll);
+	int m_strobe;
+	emu_timer *m_ack_timer;
+	TIMER_CALLBACK_MEMBER(ack_end);
+	void update_parallel();
 	void pctrl_w(offs_t offset, u16 data, u16 mem_mask);
 	u16 pdata_r(offs_t offset, u16 mem_mask);
 
@@ -143,6 +174,8 @@ private:
 	bool m_sheet;       // a sheet is passing the drum
 	emu_timer *m_print_timer;
 	TIMER_CALLBACK_MEMBER(print_step);
+	emu_timer *m_tick_timer;
+	TIMER_CALLBACK_MEMBER(tick) { m_maincpu->set_input_line(M68K_IRQ_3, HOLD_LINE); }
 	void irqctl_w(offs_t offset, u16 data, u16 mem_mask);
 	void video_w(offs_t offset, u16 data, u16 mem_mask);
 	u16 m_video[4];
@@ -160,8 +193,6 @@ private:
 	void ctrl2_w(offs_t offset, u16 data, u16 mem_mask);
 	u16 ctrl2_r(offs_t offset, u16 mem_mask);
 
-	virtual void machine_start() override ATTR_COLD;
-
 	void ctrl_w(offs_t offset, u16 data, u16 mem_mask);
 	u16 status_r(offs_t offset, u16 mem_mask);
 
@@ -170,32 +201,125 @@ private:
 };
 
 
-u16 hplj3p_state::unk_r(offs_t offset, u16 mem_mask)
+ROM_START( hp_lj3p )
+	ROM_REGION16_BE( 0x200000, "maincpu", 0 )
+	ROM_LOAD16_WORD_SWAP( "1818-5008.bin", 0x000000, 0x200000, CRC(900d4ea8) SHA1(c28333147b125bf332ce034e817df82887539cb3) )
+
+	ROM_REGION16_BE( 0x80, "eeprom", 0 )
+	ROM_LOAD16_WORD_SWAP( "93c46.bin", 0x00, 0x80, CRC(f8bf50ea) SHA1(1257d5b3912f8696f6843a13ac7e7bc7afdcef4e) )
+ROM_END
+
+
+static INPUT_PORTS_START( hp_lj3p )
+	// control panel: the secondary functions (Reset, Continue, Print Fonts,
+	// Test, minus) are selected by holding Shift while clicking the key
+	PORT_START("KEYS")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet On Line / Reset") PORT_CODE(KEYCODE_O)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Form Feed / Continue") PORT_CODE(KEYCODE_F)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Menu / Print Fonts") PORT_CODE(KEYCODE_M)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Enter / Test") PORT_CODE(KEYCODE_ENTER)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet + / -") PORT_CODE(KEYCODE_PLUS_PAD)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Shift") PORT_CODE(KEYCODE_LSHIFT)
+	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNUSED )
+
+	PORT_START("CONFIG")
+	PORT_CONFNAME( 0x07, 0x00, "Lower cassette (LC)" )
+	PORT_CONFSETTING(    0x00, "Not installed" )
+	PORT_CONFSETTING(    0x01, "Letter" )
+	PORT_CONFSETTING(    0x02, "Legal" )
+	PORT_CONFSETTING(    0x03, "A4" )
+	PORT_CONFSETTING(    0x04, "Executive" )
+	PORT_CONFNAME( 0x08, 0x08, "Paper in MP tray" )
+	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
+	PORT_CONFSETTING(    0x08, DEF_STR( Yes ) )
+	PORT_CONFNAME( 0x10, 0x10, "Paper in lower cassette" )
+	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
+	PORT_CONFSETTING(    0x10, DEF_STR( Yes ) )
+	PORT_CONFNAME( 0x20, 0x00, "Paper path door" )
+	PORT_CONFSETTING(    0x00, "Closed" )
+	PORT_CONFSETTING(    0x20, "Open" )
+INPUT_PORTS_END
+
+
+hp_lj3p_base::hp_lj3p_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock) :
+	device_t(mconfig, type, tag, owner, clock),
+	m_data(0),
+	m_maincpu(*this, "maincpu"),
+	m_eeprom(*this, "eeprom"),
+	m_lcdc(*this, "lcdc"),
+	m_acia(*this, "acia"),
+	m_acia_clock(*this, "acia_clock"),
+	m_config(*this, "CONFIG"),
+	m_keys(*this, "KEYS"),
+	m_online_led(*this, "online_led"),
+	m_formfeed_led(*this, "formfeed_led"),
+	m_printout(*this, "printout")
+{
+}
+
+const tiny_rom_entry *hp_lj3p_base::device_rom_region() const
+{
+	return ROM_NAME( hp_lj3p );
+}
+
+ioport_constructor hp_lj3p_base::device_input_ports() const
+{
+	return INPUT_PORTS_NAME( hp_lj3p );
+}
+
+
+u16 hp_lj3p_base::unk_r(offs_t offset, u16 mem_mask)
 {
 	if (!machine().side_effects_disabled())
 		LOG("%s: read %06x & %04x\n", machine().describe_context(), offset << 1, mem_mask);
 	return 0;
 }
 
-void hplj3p_state::unk_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::unk_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	LOG("%s: write %06x = %04x & %04x\n", machine().describe_context(), offset << 1, data, mem_mask);
 }
 
-void hplj3p_state::machine_start()
+void hp_lj3p_base::device_start()
 {
+
 	m_ctrl = 0;
 	m_ctrl2 = 0;
 	m_irqctl = 0;
 	m_irq4 = m_irq5 = m_top = m_sheet = false;
-	save_item(NAME(m_sheet));
 	std::fill(std::begin(m_video), std::end(m_video), 0);
-	m_print_timer = timer_alloc(FUNC(hplj3p_state::print_step), this);
-	m_line_timer = timer_alloc(FUNC(hplj3p_state::video_line), this);
+	m_print_timer = timer_alloc(FUNC(hp_lj3p_base::print_step), this);
+	m_line_timer = timer_alloc(FUNC(hp_lj3p_base::video_line), this);
+	// system tick on level 3: the firmware counts 167 ticks per second (source and acknowledge not known)
+	m_tick_timer = timer_alloc(FUNC(hp_lj3p_base::tick), this);
+	attotime const tick = attotime::from_hz(32_MHz_XTAL / 192000);
+	m_tick_timer->adjust(tick, 0, tick);
 	m_blt_dest = m_blt_row = m_blt_ptr = 0;
 	m_blt_ctrl = m_blt_mask = m_blt_mode = m_blt_spill = 0;
 	m_blt_pat = 0;
 	m_blt_patrow = 0;
+	m_page.allocate(2550, 3508);   // 8.5 x 11.69 inches: Letter width, A4 length
+	m_page.fill(0xffffff);
+	m_page_y = 0;
+	m_page_dirty = false;
+	m_band_lines = 0;
+	m_band_addr = 0;
+	m_panel = 0;
+	m_pctrl = 0;
+	m_pdata = 0;
+	m_pfull = false;
+	m_strobe = 1;
+	m_ack_timer = timer_alloc(FUNC(hp_lj3p_base::ack_end), this);
+	m_eng_cmd = 0;
+	m_eng_sts = 0;
+	m_eng_bits = 0;
+	m_eng_cbits = 0;
+	m_eng_sbsy = false;
+	m_eng_out = false;
+	m_eng_timer = timer_alloc(FUNC(hp_lj3p_base::eng_reply), this);
+
+	save_item(NAME(m_data));
+	save_item(NAME(m_sheet));
 	save_item(NAME(m_blt_pat));
 	save_item(NAME(m_blt_patrow));
 	save_item(NAME(m_blt_dest));
@@ -205,12 +329,7 @@ void hplj3p_state::machine_start()
 	save_item(NAME(m_blt_mask));
 	save_item(NAME(m_blt_mode));
 	save_item(NAME(m_blt_spill));
-	m_page.allocate(2550, 3508);   // 8.5 x 11.69 inches: Letter width, A4 length
-	m_page.fill(0xffffff);
-	m_page_y = 0;
-	m_page_dirty = false;
-	m_band_lines = 0;
-	m_band_addr = 0;
+	save_item(NAME(m_page));
 	save_item(NAME(m_page_y));
 	save_item(NAME(m_page_dirty));
 	save_item(NAME(m_band_lines));
@@ -220,22 +339,10 @@ void hplj3p_state::machine_start()
 	save_item(NAME(m_irq5));
 	save_item(NAME(m_top));
 	save_item(NAME(m_video));
-	m_panel = 0;
-	m_pctrl = 0;
-	m_pdata = 0;
-	m_pfull = false;
-	m_host_timer = timer_alloc(FUNC(hplj3p_state::host_poll), this);
-	m_host_timer->adjust(attotime::from_usec(20), 0, attotime::from_usec(20));
 	save_item(NAME(m_pctrl));
 	save_item(NAME(m_pdata));
 	save_item(NAME(m_pfull));
-	m_eng_cmd = 0;
-	m_eng_sts = 0;
-	m_eng_bits = 0;
-	m_eng_cbits = 0;
-	m_eng_sbsy = false;
-	m_eng_out = false;
-	m_eng_timer = timer_alloc(FUNC(hplj3p_state::eng_reply), this);
+	save_item(NAME(m_strobe));
 	save_item(NAME(m_ctrl));
 	save_item(NAME(m_ctrl2));
 	save_item(NAME(m_panel));
@@ -246,6 +353,16 @@ void hplj3p_state::machine_start()
 	save_item(NAME(m_eng_sbsy));
 	save_item(NAME(m_eng_out));
 }
+
+void hp_lj3p_base::device_reset()
+{
+	m_acia->write_cts(0);
+	m_acia->write_dcd(0);
+	m_acia_clock->set_unscaled_clock(19200);
+	update_parallel();
+	out_ack(1);
+}
+
 
 // Status bytes as the firmware evaluates them (odd parity in bit 0, bit 7 set
 // with bit 6 clear: command not supported by this engine). The firmware tells
@@ -258,7 +375,7 @@ void hplj3p_state::machine_start()
 //   0b  lower cassette size code in bits 6-1 (from switches SW901-SW903)
 //   25  bit 5 lower cassette installed
 //   2a  bit 6 paper in the MP tray (PS2), bit 5 paper in the lower cassette (PS6)
-u8 hplj3p_state::eng_status(u8 cmd)
+u8 hp_lj3p_base::eng_status(u8 cmd)
 {
 	u8 const cfg = m_config->read();
 	unsigned const lc = cfg & 0x07;     // lower cassette size, 0 = not installed
@@ -297,7 +414,7 @@ u8 hplj3p_state::eng_status(u8 cmd)
 	return data;
 }
 
-TIMER_CALLBACK_MEMBER(hplj3p_state::eng_reply)
+TIMER_CALLBACK_MEMBER(hp_lj3p_base::eng_reply)
 {
 	m_eng_sts = eng_status(m_eng_cmd);
 	m_eng_bits = 0;
@@ -306,8 +423,8 @@ TIMER_CALLBACK_MEMBER(hplj3p_state::eng_reply)
 }
 
 // 3e0006: bits 0-7 merger line stride in words, bit 8 SCLK (the formatter
-// clocks commands out and status in)
-void hplj3p_state::ctrl2_w(offs_t offset, u16 data, u16 mem_mask)
+// clocks commands out and status in), bits 13-15 serial clock select
+void hp_lj3p_base::ctrl2_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_ctrl2;
 	COMBINE_DATA(&m_ctrl2);
@@ -326,12 +443,21 @@ void hplj3p_state::ctrl2_w(offs_t offset, u16 data, u16 mem_mask)
 				m_eng_sbsy = false;
 		}
 	}
-	if ((m_ctrl2 ^ old) & ~0x0100)
+	if ((m_ctrl2 ^ old) & 0xe000)
+	{
+		// The firmware's baud rate routine (140a8) selects 0-4 here and the
+		// ACIA divider /64 for 300 and 600 baud, /16 above: the clock is
+		// 19200 Hz (300 x 64) doubled per step
+		unsigned const sel = std::min(m_ctrl2 >> 13, 4);
+		m_acia_clock->set_unscaled_clock(19200 << sel);
+		LOG("%s: serial clock %d Hz\n", machine().describe_context(), 19200 << sel);
+	}
+	if ((m_ctrl2 ^ old) & 0x1e00)
 		LOG("%s: 3e0006 %04x\n", machine().describe_context(), m_ctrl2);
 }
 
 // 3e0006 read: bit 8 /STS, bit 9 engine input, bit 10 parallel data latch full
-u16 hplj3p_state::ctrl2_r(offs_t offset, u16 mem_mask)
+u16 hp_lj3p_base::ctrl2_r(offs_t offset, u16 mem_mask)
 {
 	u16 data = m_eng_out ? 0x0000 : 0x0100;
 	if (m_top)
@@ -343,7 +469,7 @@ u16 hplj3p_state::ctrl2_r(offs_t offset, u16 mem_mask)
 
 // 240000: bit 7 EEPROM CS, bit 8 CLK, bit 9 DI; engine: bit 10 /CMD, bit 11 /CBSY,
 // bits 12-14 further engine outputs
-void hplj3p_state::ctrl_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_ctrl;
 	COMBINE_DATA(&m_ctrl);
@@ -364,50 +490,74 @@ void hplj3p_state::ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 }
 
 // 280000: bit 0 EEPROM DO, bit 1 /SBSY (engine status ready), bits 2/3 engine inputs
-u16 hplj3p_state::status_r(offs_t offset, u16 mem_mask)
+u16 hp_lj3p_base::status_r(offs_t offset, u16 mem_mask)
 {
 	u16 data = m_eeprom->do_read() ? 0x0001 : 0x0000;
 	data |= m_keys->read() << 8;    // control panel keys, active low
 	data |= m_eng_sbsy ? 0x0000 : 0x0002;
 	// bit 2 /RDY and bit 3 /PPRDY (engine powered): both held active (low) for an
 	// engine that is switched on and ready; the firmware waits for /PPRDY before it
-	// starts talking to the engine
+	// starts talking to the engine.  Bits 4 and 5 sense an RS-422 adapter on the
+	// serial port (routine at 1502a), none fitted.
 	return data;
 }
 
-TIMER_CALLBACK_MEMBER(hplj3p_state::host_poll)
+void hp_lj3p_base::update_parallel()
 {
-	// bit 15 of 200000: the formatter is ready for the next byte (it clears the
-	// bit while it reads the latch and sets it again with the acknowledge)
-	if (m_pfull || !BIT(m_pctrl, 15))
-		return;
-	u8 b;
-	if (m_host->input(&b, 1) == 1)
-	{
-		m_pdata = b;
-		m_pfull = true;
-		m_maincpu->set_input_line(M68K_IRQ_2, ASSERT_LINE);
-	}
+	// the interrupt is only requested while the formatter accepts data
+	m_maincpu->set_input_line(M68K_IRQ_2, (m_pfull && BIT(m_pctrl, 15)) ? ASSERT_LINE : CLEAR_LINE);
+	out_busy((m_pfull || !BIT(m_pctrl, 15)) ? 1 : 0);
+	out_select(BIT(m_pctrl, 4));
+	out_perror(BIT(m_pctrl, 6) ? 0 : 1);
+	out_fault(BIT(m_pctrl, 5));
+	out_dtr(BIT(m_pctrl, 0));
 }
 
-u16 hplj3p_state::pdata_r(offs_t offset, u16 mem_mask)
+void hp_lj3p_base::strobe_w(int state)
+{
+	// the data is latched on the falling edge of /STROBE
+	if (m_strobe && !state && !m_pfull)
+	{
+		m_pdata = m_data;
+		m_pfull = true;
+		update_parallel();
+	}
+	m_strobe = state;
+}
+
+void hp_lj3p_base::init_w(int state)
+{
+	if (!state)
+		LOG("%s: /INIT from the host (not handled)\n", machine().describe_context());
+}
+
+TIMER_CALLBACK_MEMBER(hp_lj3p_base::ack_end)
+{
+	out_ack(1);
+}
+
+u16 hp_lj3p_base::pdata_r(offs_t offset, u16 mem_mask)
 {
 	return m_pdata;
 }
 
-void hplj3p_state::pctrl_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::pctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_pctrl;
 	COMBINE_DATA(&m_pctrl);
-	if (BIT(m_pctrl, 7) && !BIT(old, 7) && m_pfull)
+	if (BIT(m_pctrl, 7) && !BIT(old, 7))
+	{
+		// acknowledge: the latch is free again, /ACK pulses low
 		m_pfull = false;
-	// the interrupt is only requested while the formatter accepts data
-	m_maincpu->set_input_line(M68K_IRQ_2, (m_pfull && BIT(m_pctrl, 15)) ? ASSERT_LINE : CLEAR_LINE);
+		out_ack(0);
+		m_ack_timer->adjust(attotime::from_usec(5));
+	}
+	update_parallel();
 	if ((m_pctrl ^ old) & 0x7f7f)
 		LOG("%s: parallel control %04x\n", machine().describe_context(), m_pctrl);
 }
 
-TIMER_CALLBACK_MEMBER(hplj3p_state::print_step)
+TIMER_CALLBACK_MEMBER(hp_lj3p_base::print_step)
 {
 	switch (param)
 	{
@@ -434,7 +584,7 @@ TIMER_CALLBACK_MEMBER(hplj3p_state::print_step)
 	}
 }
 
-void hplj3p_state::irqctl_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::irqctl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_irqctl;
 	COMBINE_DATA(&m_irqctl);
@@ -452,7 +602,7 @@ void hplj3p_state::irqctl_w(offs_t offset, u16 data, u16 mem_mask)
 		LOG("%s: 3e0004 %04x\n", machine().describe_context(), m_irqctl);
 }
 
-void hplj3p_state::video_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::video_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_video[offset];
 	COMBINE_DATA(&m_video[offset]);
@@ -468,7 +618,7 @@ void hplj3p_state::video_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-TIMER_CALLBACK_MEMBER(hplj3p_state::video_line)
+TIMER_CALLBACK_MEMBER(hp_lj3p_base::video_line)
 {
 	if (!m_band_lines || BIT(m_video[3], 12))
 		return;
@@ -505,7 +655,7 @@ TIMER_CALLBACK_MEMBER(hplj3p_state::video_line)
 	}
 }
 
-void hplj3p_state::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (offset)
 		m_blt_pat = (m_blt_pat & 0xffff0000) | data;
@@ -514,7 +664,7 @@ void hplj3p_state::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
 	m_blt_patrow = 0;
 }
 
-void hplj3p_state::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (offset)
 		m_blt_dest = (m_blt_dest & 0xffff0000) | (data & mem_mask) | (m_blt_dest & ~mem_mask & 0xffff);
@@ -525,7 +675,7 @@ void hplj3p_state::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 	m_blt_spill = 0;
 }
 
-void hplj3p_state::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	switch (offset)
 	{
@@ -542,7 +692,7 @@ void hplj3p_state::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-void hplj3p_state::blt_out(u16 data)
+void hp_lj3p_base::blt_out(u16 data)
 {
 	if (m_blt_dest == 0xffffffff || m_blt_ptr < 0xb00000 || m_blt_ptr > 0xfffffe)
 		return;
@@ -561,7 +711,7 @@ void hplj3p_state::blt_out(u16 data)
 	m_blt_ptr += 2;
 }
 
-void hplj3p_state::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	int const sh = m_blt_ctrl & 0x0f;
 	u16 const out = m_blt_spill | (data >> sh);
@@ -579,7 +729,7 @@ void hplj3p_state::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-void hplj3p_state::eject_page()
+void hp_lj3p_base::eject_page()
 {
 	if (m_page_dirty || m_page_y)
 	{
@@ -597,7 +747,7 @@ void hplj3p_state::eject_page()
 
 // 280000 written: control panel HD44780 in 4 bit mode, bits 0-3 D4-D7,
 // bit 6 RS, bit 7 E; bit 4 Form Feed and bit 5 On Line indicators (active low)
-void hplj3p_state::panel_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj3p_base::panel_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_panel;
 	COMBINE_DATA(&m_panel);
@@ -611,72 +761,45 @@ void hplj3p_state::panel_w(offs_t offset, u16 data, u16 mem_mask)
 		LOG("%s: panel %04x\n", machine().describe_context(), m_panel);
 }
 
-HD44780_PIXEL_UPDATE(hplj3p_state::lcd_pixel_update)
+HD44780_PIXEL_UPDATE(hp_lj3p_base::lcd_pixel_update)
 {
 	// two rows of eight characters (user's manual)
 	if (x < 5 && y < 8 && line < 2 && pos < 8)
 		bitmap.pix(line * 9 + y, pos * 6 + x) = state;
 }
 
-void hplj3p_state::main_map(address_map &map)
+void hp_lj3p_base::main_map(address_map &map)
 {
-	map(0x000000, 0xffffff).rw(FUNC(hplj3p_state::unk_r), FUNC(hplj3p_state::unk_w));
+	map(0x000000, 0xffffff).rw(FUNC(hp_lj3p_base::unk_r), FUNC(hp_lj3p_base::unk_w));
 	map(0x000000, 0x1fffff).rom().region("maincpu", 0);
-	map(0x200000, 0x200001).rw(FUNC(hplj3p_state::pdata_r), FUNC(hplj3p_state::pctrl_w));
-	map(0x240000, 0x240001).w(FUNC(hplj3p_state::ctrl_w));
-	map(0x280000, 0x280001).rw(FUNC(hplj3p_state::status_r), FUNC(hplj3p_state::panel_w));
-	map(0x380000, 0x380007).w(FUNC(hplj3p_state::video_w));
-	map(0x3a0000, 0x3a0003).w(FUNC(hplj3p_state::blt_pat_w));
-	map(0x3a0004, 0x3a0007).w(FUNC(hplj3p_state::blt_dest_w));
-	map(0x3c0000, 0x3c0005).w(FUNC(hplj3p_state::blt_ctrl_w));
-	map(0x3e0000, 0x3e0003).w(FUNC(hplj3p_state::blt_data_w));
-	map(0x3e0004, 0x3e0005).w(FUNC(hplj3p_state::irqctl_w));
-	map(0x3e0006, 0x3e0007).rw(FUNC(hplj3p_state::ctrl2_r), FUNC(hplj3p_state::ctrl2_w));
+	map(0x200000, 0x200001).rw(FUNC(hp_lj3p_base::pdata_r), FUNC(hp_lj3p_base::pctrl_w));
+	map(0x240000, 0x240001).w(FUNC(hp_lj3p_base::ctrl_w));
+	map(0x280000, 0x280001).rw(FUNC(hp_lj3p_base::status_r), FUNC(hp_lj3p_base::panel_w));
+	map(0x300000, 0x300003).rw(m_acia, FUNC(acia6850_device::read), FUNC(acia6850_device::write)).umask16(0x00ff);
+	map(0x380000, 0x380007).w(FUNC(hp_lj3p_base::video_w));
+	map(0x3a0000, 0x3a0003).w(FUNC(hp_lj3p_base::blt_pat_w));
+	map(0x3a0004, 0x3a0007).w(FUNC(hp_lj3p_base::blt_dest_w));
+	map(0x3c0000, 0x3c0005).w(FUNC(hp_lj3p_base::blt_ctrl_w));
+	map(0x3e0000, 0x3e0003).w(FUNC(hp_lj3p_base::blt_data_w));
+	map(0x3e0004, 0x3e0005).w(FUNC(hp_lj3p_base::irqctl_w));
+	map(0x3e0006, 0x3e0007).rw(FUNC(hp_lj3p_base::ctrl2_r), FUNC(hp_lj3p_base::ctrl2_w));
 	map(0xb00000, 0xbfffff).ram();
 }
 
-
-static INPUT_PORTS_START( hplj3p )
-	// control panel: the secondary functions (Reset, Continue, Print Fonts,
-	// Test, minus) are selected by holding Shift while clicking the key
-	PORT_START("KEYS")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("On Line / Reset") PORT_CODE(KEYCODE_O)
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Form Feed / Continue") PORT_CODE(KEYCODE_F)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Menu / Print Fonts") PORT_CODE(KEYCODE_M)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Enter / Test") PORT_CODE(KEYCODE_ENTER)
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("+ / -") PORT_CODE(KEYCODE_PLUS_PAD)
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("Shift") PORT_CODE(KEYCODE_LSHIFT)
-	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNUSED )
-
-	PORT_START("CONFIG")
-	PORT_CONFNAME( 0x07, 0x00, "Lower cassette (LC)" )
-	PORT_CONFSETTING(    0x00, "Not installed" )
-	PORT_CONFSETTING(    0x01, "Letter" )
-	PORT_CONFSETTING(    0x02, "Legal" )
-	PORT_CONFSETTING(    0x03, "A4" )
-	PORT_CONFSETTING(    0x04, "Executive" )
-	PORT_CONFNAME( 0x08, 0x08, "Paper in MP tray" )
-	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
-	PORT_CONFSETTING(    0x08, DEF_STR( Yes ) )
-	PORT_CONFNAME( 0x10, 0x10, "Paper in lower cassette" )
-	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
-	PORT_CONFSETTING(    0x10, DEF_STR( Yes ) )
-	PORT_CONFNAME( 0x20, 0x00, "Paper path door" )
-	PORT_CONFSETTING(    0x00, "Closed" )
-	PORT_CONFSETTING(    0x20, "Open" )
-INPUT_PORTS_END
-
-
-void hplj3p_state::hplj3p(machine_config &config)
+void hp_lj3p_base::device_add_mconfig(machine_config &config)
 {
 	M68000(config, m_maincpu, 32_MHz_XTAL / 2);
-	m_maincpu->set_addrmap(AS_PROGRAM, &hplj3p_state::main_map);
-	// system tick on level 3: the firmware counts 167 ticks per second (source and acknowledge not known)
-	m_maincpu->set_periodic_int(FUNC(hplj3p_state::irq3_line_hold), attotime::from_hz(32_MHz_XTAL / 192000));
+	m_maincpu->set_addrmap(AS_PROGRAM, &hp_lj3p_base::main_map);
 
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
-	BITBANGER(config, m_host, 0);   // data from the host on the parallel port
+	// serial interface: the receive interrupt handler (b3d86) is installed on level 6
+	ACIA6850(config, m_acia, 0);
+	m_acia->txd_handler().set([this] (int state) { out_rxd(state); });
+	m_acia->irq_handler().set_inputline(m_maincpu, M68K_IRQ_6);
+	CLOCK(config, m_acia_clock, 19200);
+	m_acia_clock->signal_handler().set(m_acia, FUNC(acia6850_device::write_txc));
+	m_acia_clock->signal_handler().append(m_acia, FUNC(acia6850_device::write_rxc));
 
 	PDF_PRINTER(config, m_printout);
 
@@ -691,20 +814,79 @@ void hplj3p_state::hplj3p(machine_config &config)
 
 	HD44780(config, m_lcdc, 270'000);   // clock not measured
 	m_lcdc->set_lcd_size(2, 8);
-	m_lcdc->set_pixel_update_cb(FUNC(hplj3p_state::lcd_pixel_update));
+	m_lcdc->set_pixel_update_cb(FUNC(hp_lj3p_base::lcd_pixel_update));
 }
 
 
-ROM_START( hplj3p )
-	ROM_REGION16_BE( 0x200000, "maincpu", 0 )
-	ROM_LOAD16_WORD_SWAP( "1818-5008.bin", 0x000000, 0x200000, CRC(900d4ea8) SHA1(c28333147b125bf332ce034e817df82887539cb3) )
+//**************************************************************************
+//  INTERFACES
+//**************************************************************************
 
-	ROM_REGION16_BE( 0x80, "eeprom", 0 )
-	ROM_LOAD16_WORD_SWAP( "93c46.bin", 0x00, 0x80, CRC(f8bf50ea) SHA1(1257d5b3912f8696f6843a13ac7e7bc7afdcef4e) )
-ROM_END
+// one device for both built-in interfaces
+class hp_lj3p_device : public hp_lj3p_base, public device_centronics_peripheral_interface, public device_rs232_port_interface
+{
+public:
+	hp_lj3p_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
+		hp_lj3p_base(mconfig, HP_LJ3P, tag, owner, clock),
+		device_centronics_peripheral_interface(mconfig, *this),
+		device_rs232_port_interface(mconfig, *this),
+		m_parallel(dynamic_cast<centronics_device *>(owner) != nullptr),
+		m_serial(dynamic_cast<rs232_port_device *>(owner) != nullptr)
+	{
+	}
+
+	// parallel interface
+	virtual void input_strobe(int state) override { strobe_w(state); }
+	virtual void input_init(int state) override { init_w(state); }
+	virtual void input_data0(int state) override { if (state) m_data |= 0x01; else m_data &= ~0x01; }
+	virtual void input_data1(int state) override { if (state) m_data |= 0x02; else m_data &= ~0x02; }
+	virtual void input_data2(int state) override { if (state) m_data |= 0x04; else m_data &= ~0x04; }
+	virtual void input_data3(int state) override { if (state) m_data |= 0x08; else m_data &= ~0x08; }
+	virtual void input_data4(int state) override { if (state) m_data |= 0x10; else m_data &= ~0x10; }
+	virtual void input_data5(int state) override { if (state) m_data |= 0x20; else m_data &= ~0x20; }
+	virtual void input_data6(int state) override { if (state) m_data |= 0x40; else m_data &= ~0x40; }
+	virtual void input_data7(int state) override { if (state) m_data |= 0x80; else m_data &= ~0x80; }
+
+	// serial interface: data from the computer arrives on the printer's RxD
+	virtual void input_txd(int state) override { txd_w(state); }
+
+protected:
+	virtual bool supports_pin35_5v() override { return true; }
+
+	virtual void device_reset() override ATTR_COLD
+	{
+		hp_lj3p_base::device_reset();
+		if (m_serial)
+		{
+			output_rxd(1);
+			output_dcd(0);
+		}
+	}
+
+	virtual void out_busy(int state) override { if (m_parallel) output_busy(state); }
+	virtual void out_ack(int state) override { if (m_parallel) output_ack(state); }
+	virtual void out_perror(int state) override { if (m_parallel) output_perror(state); }
+	virtual void out_fault(int state) override { if (m_parallel) output_fault(state); }
+	virtual void out_select(int state) override { if (m_parallel) output_select(state); }
+	virtual void out_rxd(int state) override { if (m_serial) output_rxd(state); }
+	virtual void out_dtr(int state) override
+	{
+		// the printer's DTR (pin 20) goes to the computer as DSR and CTS; the
+		// line driver inverts, so a clear bit asserts DTR (the firmware keeps it
+		// clear when it is ready in serial mode)
+		if (m_serial)
+		{
+			output_dsr(state);
+			output_cts(state);
+		}
+	}
+
+private:
+	bool const m_parallel;
+	bool const m_serial;
+};
 
 } // anonymous namespace
 
 
-//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY            FULLNAME          FLAGS
-COMP( 1991, hplj3p, 0,      0,      hplj3p,  hplj3p, hplj3p_state, empty_init, "Hewlett-Packard", "LaserJet IIIP",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+DEFINE_DEVICE_TYPE_PRIVATE(HP_LJ3P, device_t, hp_lj3p_device, "hplj3p", "HP LaserJet IIIP")
