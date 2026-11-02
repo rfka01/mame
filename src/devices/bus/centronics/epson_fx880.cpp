@@ -307,6 +307,9 @@ void epson_fx880_device::device_reset()
 	m_pending = false;
 	m_hold = true;
 	output_busy(1);
+	// PE and SLCT are not known from the gate array: paper loaded, selected
+	output_perror(0);
+	output_select(1);
 	memset(m_ga, 0, sizeof(m_ga));
 	update_leds(0x00);
 	m_beep->write(0);

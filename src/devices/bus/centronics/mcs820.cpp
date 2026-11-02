@@ -136,6 +136,9 @@ void mcs820_device::device_reset()
 	m_cmd = 0;
 	update_busy();
 	output_ack(1);
+	// PE and SLCT are not known from the interface module: paper loaded, selected
+	output_perror(0);
+	output_select(1);
 }
 
 void mcs820_device::input_strobe(int state)

@@ -52,6 +52,9 @@
 
     TODO:
     - /INIT, PC7, serial interface option
+    - e002 bit 4 (cleared at the end of the power-on reset) and bit 7 (set once
+      the printer is ready) are not known; PE and SLCT are modelled from the
+      paper sensor and held high
     - keys held at power on (self test, hex dump)
     - crystal and TI clock are guesses that give the specified 160 cps
 
@@ -355,6 +358,11 @@ void citizen_200gx_device::device_reset()
 	m_cr_period = attotime::never;
 	m_cr_step_time = machine().time();
 	std::fill(std::begin(m_ga), std::end(m_ga), 0);
+
+	// the firmware drives neither PE nor SLCT (going off line changes only the
+	// lamps): PE follows the paper end sensor, SLCT is held active (guess)
+	output_perror(paper() ? 0 : 1);
+	output_select(1);
 }
 
 void citizen_200gx_device::input_strobe(int state)
@@ -602,7 +610,10 @@ u8 citizen_200gx_device::pa_r()
 	if (!paper())
 		data |= 0x02;       // PA1: paper end sensor, high without paper
 	if (!machine().side_effects_disabled())
+	{
 		m_paper_led = !paper();     // the PAPER OUT lamp follows the sensor
+		output_perror(paper() ? 0 : 1);
+	}
 	if (BIT(m_ga[3], 6))
 		data = (data & 0x0f) | (m_panel->read() & 0xf0);    // keys
 	else
