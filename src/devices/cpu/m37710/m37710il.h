@@ -9,38 +9,51 @@
 /* ================================= MEMORY =============================== */
 /* ======================================================================== */
 
+inline void m37710_cpu_device::m37710i_ext_wait(uint32_t address, int bytes)
+{
+	if (address >= m_ext_start)
+		CLK(m_ext_wait * bytes);
+}
+
 inline uint32_t m37710_cpu_device::m37710i_read_8_normal(uint32_t address)
 {
+	m37710i_ext_wait(address, 1);
 	return m37710_read_8(address);
 }
 
 inline uint32_t m37710_cpu_device::m37710i_read_8_immediate(uint32_t address)
 {
+	m37710i_ext_wait(address, 1);
 	return m37710_read_8_immediate(address);
 }
 
 inline uint32_t m37710_cpu_device::m37710i_read_8_direct(uint32_t address)
 {
+	m37710i_ext_wait(address, 1);
 	return m37710_read_8(address);
 }
 
 inline void m37710_cpu_device::m37710i_write_8_normal(uint32_t address, uint32_t value)
 {
+	m37710i_ext_wait(address, 1);
 	m37710_write_8(address, value);
 }
 
 inline void m37710_cpu_device::m37710i_write_8_direct(uint32_t address, uint32_t value)
 {
+	m37710i_ext_wait(address, 1);
 	m37710_write_8(address, value);
 }
 
 inline uint32_t m37710_cpu_device::m37710i_read_16_normal(uint32_t address)
 {
+	m37710i_ext_wait(address, 2);
 	return m37710_read_16(address);
 }
 
 inline uint32_t m37710_cpu_device::m37710i_read_16_immediate(uint32_t address)
 {
+	m37710i_ext_wait(address, 2);
 	if (!WORD_ALIGNED(address))
 		return m37710_read_8_immediate(address) | (m37710_read_8_immediate(address+1)<<8);
 	else
@@ -49,21 +62,25 @@ inline uint32_t m37710_cpu_device::m37710i_read_16_immediate(uint32_t address)
 
 inline uint32_t m37710_cpu_device::m37710i_read_16_direct(uint32_t address)
 {
+	m37710i_ext_wait(address, 2);
 	return m37710_read_16(address);
 }
 
 inline void m37710_cpu_device::m37710i_write_16_normal(uint32_t address, uint32_t value)
 {
+	m37710i_ext_wait(address, 2);
 	m37710_write_16(address, value);
 }
 
 inline void m37710_cpu_device::m37710i_write_16_direct(uint32_t address, uint32_t value)
 {
+	m37710i_ext_wait(address, 2);
 	m37710_write_16(address, value);
 }
 
 inline uint32_t m37710_cpu_device::m37710i_read_24_normal(uint32_t address)
 {
+	m37710i_ext_wait(address, 3);
 	if (!WORD_ALIGNED(address))
 		return m37710_read_8(address) | (m37710_read_16(address+1)<<8);
 	else
@@ -72,6 +89,7 @@ inline uint32_t m37710_cpu_device::m37710i_read_24_normal(uint32_t address)
 
 inline uint32_t m37710_cpu_device::m37710i_read_24_immediate(uint32_t address)
 {
+	m37710i_ext_wait(address, 3);
 	if (!WORD_ALIGNED(address))
 		return m37710_read_8_immediate(address) | (m37710_read_16_immediate(address+1)<<8);
 	else
@@ -80,6 +98,7 @@ inline uint32_t m37710_cpu_device::m37710i_read_24_immediate(uint32_t address)
 
 inline uint32_t m37710_cpu_device::m37710i_read_24_direct(uint32_t address)
 {
+	m37710i_ext_wait(address, 3);
 	if (!WORD_ALIGNED(address))
 		return m37710_read_8(address) | (m37710_read_16(address+1)<<8);
 	else

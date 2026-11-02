@@ -129,6 +129,11 @@ public:
 	auto an6_cb() { return m_analog_cb[6].bind(); }
 	auto an7_cb() { return m_analog_cb[7].bind(); }
 
+	// Extra CPU cycles charged per byte for accesses at or above
+	// 'external_start' (external memory).  Models a slow external bus
+	// (8-bit BYTE mode, wait states) for firmware with cycle-counted loops.
+	void set_external_bus_wait(u32 external_start, int cycles_per_byte) { m_ext_start = external_start; m_ext_wait = cycles_per_byte; }
+
 protected:
 	void ad_register_map(address_map &map) ATTR_COLD;
 	void uart0_register_map(address_map &map) ATTR_COLD;
@@ -269,6 +274,8 @@ private:
 	uint32_t m_im4;       /* Immediate load target */
 	uint32_t m_irq_delay;     /* delay 1 instruction before checking irq */
 	int m_ICount;     /* cycle count */
+	u32 m_ext_start = 0x1000000; /* start of external memory for bus wait modelling */
+	int m_ext_wait = 0; /* extra cycles per external byte access */
 	uint32_t m_source;        /* temp register */
 	uint32_t m_destination;   /* temp register */
 	memory_access<24, 1, 0, ENDIANNESS_LITTLE>::cache m_cache;
@@ -383,6 +390,7 @@ private:
 	void m37710_set_irq_line(int line, int state);
 	void m37710_restore_state();
 	uint32_t m37710i_read_8_normal(uint32_t address);
+	void m37710i_ext_wait(uint32_t address, int bytes);
 	uint32_t m37710i_read_8_immediate(uint32_t address);
 	uint32_t m37710i_read_8_direct(uint32_t address);
 	void m37710i_write_8_normal(uint32_t address, uint32_t value);
