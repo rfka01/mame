@@ -21390,12 +21390,6 @@ hp2622a
 hp2641
 hp2645
 
-@source:hp/hplj3p.cpp
-hplj3p
-
-@source:hp/hplj4l.cpp
-hplj4l
-
 @source:hp/hp16500.cpp
 hp16500b
 hp1650b

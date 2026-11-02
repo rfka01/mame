@@ -8,21 +8,24 @@
     - Motorola 1TY4 SC414210FT: 68000 core and the printer logic in one chip
     - 2 MB mask ROM 1818-5601 (16 bit)
     - 1 MB DRAM (2x HM514260), the firmware detects 1 MB more on a memory card
+      (a configuration setting)
     - 31.3076 MHz crystal
     - Bi-Tronics parallel port, one button, four LEDs, Canon print engine
 
     The formatter logic in the 1TY4 works like the separate gate arrays of the
-    LaserJet IIIP (hp/hplj3p.cpp): the same merger, the same serial link to the
+    LaserJet IIIP (hp_lj3p.cpp): the same merger, the same serial link to the
     engine's DC controller and the same band output.  The register meanings
     come from the firmware; timings of the engine are not measured.
 
-    Working: self test page (hold the button for two seconds), PCL jobs from a
-    file through the bitbanger ("-bitb job.pcl"), pages go to the PDF printer.
-    After the job the host model negotiates the reverse channel (IEEE 1284
-    nibble mode, or the device ID when selected in the configuration); the
-    printer's answers (PJL INFO, USTATUS, device ID) are written to the
-    bitbanger: with a file they are appended after the job, with a socket
-    ("-bitb socket.localhost:port") they go to the program on the other end.
+    Host interface (user's manual, appendix A): the Bi-Tronics parallel port,
+    a Centronics port with the IEEE 1284 reverse channel in nibble mode.  The
+    device plugs into a Centronics port.  The 1TY4 negotiates 1284 itself
+    and tells the firmware the extensibility byte (00 nibble mode, 04 device
+    ID); the bytes the firmware writes for the reverse channel (PJL USTATUS
+    and INFO answers, the device ID) go to the host in nibble mode.
+
+    Working: self test page (hold the button for two seconds), print jobs
+    from the computer, pages go to the PDF printer ("printout" device).
 
     Front panel: LEDs Ready, Data, Paper and Error (outputs ready_led,
     data_led, paper_led, error_led), one button.
@@ -45,6 +48,11 @@
       handshake is not understood: answered with one status, the firmware
       skips the parameter byte, a second /SBSY right after the first one
       stops the engine communication
+    - the parallel port's status lines in compatibility mode (SELECT,
+      PERROR, /FAULT): the register that drives them is not known, the
+      device reports a selected printer without errors
+    - IEEE 1284 modes other than nibble mode (ECP, EPP) and the exact line
+      timing of the negotiation
     - meaning of the parallel port events in 820002 bits 2 and 3 (the
       firmware acknowledges them with 820006 bits 2 and 1 and only counts
       them as host activity, which ends Intelligent Off)
@@ -59,10 +67,10 @@
 ***************************************************************************/
 
 #include "emu.h"
+#include "hp_lj4l.h"
+
 #include "cpu/m68000/m68000.h"
-#include "imagedev/bitbngr.h"
 #include "imagedev/pdfprinter.h"
-#include "machine/ram.h"
 
 #include <bit>
 
@@ -72,35 +80,43 @@
 
 namespace {
 
-class hplj4l_state : public driver_device
+class hp_lj4l_device : public device_t, public device_centronics_peripheral_interface
 {
 public:
-	hplj4l_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag)
-		, m_maincpu(*this, "maincpu")
-		, m_ram(*this, RAM_TAG)
-		, m_config(*this, "CONFIG")
-		, m_ready_led(*this, "ready_led")
-		, m_data_led(*this, "data_led")
-		, m_paper_led(*this, "paper_led")
-		, m_error_led(*this, "error_led")
-		, m_button(*this, "BUTTON")
-		, m_host(*this, "host")
-		, m_printout(*this, "printout")
-	{ }
+	hp_lj4l_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
 
-	void hplj4l(machine_config &config) ATTR_COLD;
+	DECLARE_INPUT_CHANGED_MEMBER(button_changed);
+
+	// Centronics interface
+	virtual void input_strobe(int state) override;
+	virtual void input_autofd(int state) override;
+	virtual void input_select_in(int state) override;
+	virtual void input_init(int state) override;
+	virtual void input_data0(int state) override { if (state) m_data |= 0x01; else m_data &= ~0x01; }
+	virtual void input_data1(int state) override { if (state) m_data |= 0x02; else m_data &= ~0x02; }
+	virtual void input_data2(int state) override { if (state) m_data |= 0x04; else m_data &= ~0x04; }
+	virtual void input_data3(int state) override { if (state) m_data |= 0x08; else m_data &= ~0x08; }
+	virtual void input_data4(int state) override { if (state) m_data |= 0x10; else m_data &= ~0x10; }
+	virtual void input_data5(int state) override { if (state) m_data |= 0x20; else m_data &= ~0x20; }
+	virtual void input_data6(int state) override { if (state) m_data |= 0x40; else m_data &= ~0x40; }
+	virtual void input_data7(int state) override { if (state) m_data |= 0x80; else m_data &= ~0x80; }
+
+protected:
+	// device_t implementation
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 private:
 	required_device<m68000_device> m_maincpu;
-	required_device<ram_device> m_ram;
 	required_ioport m_config;
 	output_finder<> m_ready_led;
 	output_finder<> m_data_led;
 	output_finder<> m_paper_led;
 	output_finder<> m_error_led;
-
-	virtual void machine_start() override ATTR_COLD;
+	std::unique_ptr<u16[]> m_ram;   // 1 MB on the formatter, 1 MB on the memory card
 
 	// merger (glyph and rule blitter), the same unit as in the LaserJet IIIP:
 	// 900000 long shading pattern pointer, 900004 long destination,
@@ -132,9 +148,6 @@ private:
 	void update_irq();
 	required_ioport m_button;
 	u16 button_r(offs_t offset, u16 mem_mask);
-public:
-	DECLARE_INPUT_CHANGED_MEMBER(button_changed);
-private:
 	TIMER_CALLBACK_MEMBER(tick);
 	emu_timer *m_tick_timer;
 	u16 irqmask_r(offs_t offset, u16 mem_mask);
@@ -175,24 +188,42 @@ private:
 	//        ready, bit 5 mode change, bit 6 negotiation (bits 1, 4: bits 3, 2)
 	// 82000c read: extensibility byte of the negotiation (04: device ID);
 	//        written: acknowledges the negotiation
-	// The host model sends the bitbanger data in compatibility mode and,
-	// 100 ms after the last byte, negotiates the reverse channel like a host
-	// polling for status; the printer's answers go back to the bitbanger.
-	required_device<bitbanger_device> m_host;
+	// The bus side follows IEEE 1284: compatibility mode (the byte is latched
+	// on the falling edge of /STROBE, BUSY until the firmware reads it, then
+	// an /ACK pulse), negotiation (1284 active with /SELECT IN high and
+	// /AUTOFD low, the extensibility byte latched with /STROBE) and nibble
+	// mode (the host requests each nibble with /AUTOFD low, the printer puts
+	// it on /FAULT, SELECT, PERROR and BUSY and pulses /ACK; /FAULT low tells
+	// the host that data is waiting).
+	enum
+	{
+		P_COMPAT = 0,   // compatibility mode
+		P_NEG,          // negotiation: waiting for the extensibility byte
+		P_NEG_LATCHED,  // extensibility byte latched, waiting for /AUTOFD high
+		P_REVERSE       // nibble mode reverse idle
+	};
+	u8 m_data;          // Centronics data lines
+	int m_strobe;
+	int m_autofd;
+	int m_slctin;
+	int m_pmode;
+	int m_nibble;       // nibble being sent (0 low, 1 high), -1 none
 	u8 m_pdata;
 	bool m_pfull;
+	u8 m_tx;            // byte for the reverse channel
+	bool m_tx_full;
 	u16 m_pen;
 	u16 m_pevt;         // latched events: bit 6 1284 line change, bit 8 negotiation
 	u8 m_pext;          // extensibility byte of the last negotiation
-	bool m_p1284;       // host in a 1284 mode (status bit 7)
-	bool m_phost_data;  // host sent data since the last negotiation
-	int m_pidle;        // host poll periods without data
 	u16 m_pcfg;         // 82000c low bits written by the firmware
+	emu_timer *m_ack_timer;
+	TIMER_CALLBACK_MEMBER(ack_end);
+	void set_lines(int busy, int ack, int perror, int select, int fault);
+	void start_negotiation();
+	void update_lines();
 	u16 pext_r(offs_t offset, u16 mem_mask);
 	void pext_w(offs_t offset, u16 data, u16 mem_mask);
 	void pack_w(offs_t offset, u16 data, u16 mem_mask);
-	emu_timer *m_host_timer;
-	TIMER_CALLBACK_MEMBER(host_poll);
 	void update_pirq();
 	u16 pdata_r(offs_t offset, u16 mem_mask);
 	void pdata_w(offs_t offset, u16 data, u16 mem_mask);
@@ -247,19 +278,67 @@ private:
 	void unk_w(offs_t offset, u16 data, u16 mem_mask);
 };
 
-u16 hplj4l_state::unk_r(offs_t offset, u16 mem_mask)
+
+ROM_START( hp_lj4l )
+	ROM_REGION16_BE( 0x200000, "maincpu", 0 )
+	ROM_LOAD16_WORD_SWAP( "1818-5601.bin", 0x000000, 0x200000, CRC(75773ecb) SHA1(f7a14f591976a4bf74d9847f2bee7f86c119f3a2) )
+ROM_END
+
+
+static INPUT_PORTS_START( hp_lj4l )
+	PORT_START("BUTTON")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYPAD ) PORT_NAME("LaserJet Front Panel Button") PORT_CODE(KEYCODE_ENTER) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(hp_lj4l_device::button_changed), 0)
+
+	PORT_START("CONFIG")
+	PORT_CONFNAME( 0x01, 0x01, "Paper in cassette" )
+	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
+	PORT_CONFSETTING(    0x01, DEF_STR( Yes ) )
+	PORT_CONFNAME( 0x02, 0x00, "Top door" )
+	PORT_CONFSETTING(    0x00, "Closed" )
+	PORT_CONFSETTING(    0x02, "Open" )
+	PORT_CONFNAME( 0x04, 0x00, "Memory card (1 MB)" )
+	PORT_CONFSETTING(    0x00, "Not installed" )
+	PORT_CONFSETTING(    0x04, "Installed" )
+INPUT_PORTS_END
+
+
+hp_lj4l_device::hp_lj4l_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock) :
+	device_t(mconfig, HP_LJ4L, tag, owner, clock),
+	device_centronics_peripheral_interface(mconfig, *this),
+	m_maincpu(*this, "maincpu"),
+	m_config(*this, "CONFIG"),
+	m_ready_led(*this, "ready_led"),
+	m_data_led(*this, "data_led"),
+	m_paper_led(*this, "paper_led"),
+	m_error_led(*this, "error_led"),
+	m_button(*this, "BUTTON"),
+	m_printout(*this, "printout")
+{
+}
+
+const tiny_rom_entry *hp_lj4l_device::device_rom_region() const
+{
+	return ROM_NAME( hp_lj4l );
+}
+
+ioport_constructor hp_lj4l_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME( hp_lj4l );
+}
+
+u16 hp_lj4l_device::unk_r(offs_t offset, u16 mem_mask)
 {
 	if (!machine().side_effects_disabled())
 		LOG("%s: read %06x & %04x\n", machine().describe_context(), offset << 1, mem_mask);
 	return 0;
 }
 
-void hplj4l_state::unk_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::unk_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	LOG("%s: write %06x = %04x & %04x\n", machine().describe_context(), offset << 1, data, mem_mask);
 }
 
-void hplj4l_state::machine_start()
+void hp_lj4l_device::device_start()
 {
 	m_blt_pat = m_blt_dest = m_blt_row = m_blt_ptr = 0;
 	m_blt_ctrl = m_blt_mask = m_blt_mode = m_blt_spill = m_blt_cfg = 0;
@@ -280,15 +359,15 @@ void hplj4l_state::machine_start()
 	save_item(NAME(m_irq_mask));
 	save_item(NAME(m_irq_pend));
 	// the firmware converts times at 370 ticks per second (routines at 1178/119a)
-	m_tick_timer = timer_alloc(FUNC(hplj4l_state::tick), this);
+	m_tick_timer = timer_alloc(FUNC(hp_lj4l_device::tick), this);
 	m_tick_timer->adjust(attotime::from_hz(370), 0, attotime::from_hz(370));
 
 	m_eng_ctrl = 0xffff;
 	m_eng_cmd = m_eng_sts = 0;
 	m_eng_cbits = m_eng_bits = 0;
 	m_eng_sbsy = m_eng_out = false;
-	m_eng_timer = timer_alloc(FUNC(hplj4l_state::eng_reply), this);
-	m_top_timer = timer_alloc(FUNC(hplj4l_state::eng_top), this);
+	m_eng_timer = timer_alloc(FUNC(hp_lj4l_device::eng_reply), this);
+	m_top_timer = timer_alloc(FUNC(hp_lj4l_device::eng_top), this);
 	save_item(NAME(m_eng_ctrl));
 	save_item(NAME(m_eng_cmd));
 	save_item(NAME(m_eng_sts));
@@ -300,27 +379,37 @@ void hplj4l_state::machine_start()
 	m_leds = 0x1f;
 	save_item(NAME(m_leds));
 
-	// 1 MB on the formatter at 600000, the memory card follows at 700000
-	m_maincpu->space(AS_PROGRAM).install_ram(0x600000, 0x600000 + m_ram->size() - 1, m_ram->pointer());
 
+	m_ram = std::make_unique<u16[]>(0x100000);
+	save_pointer(NAME(m_ram), 0x100000);
+
+	m_data = 0;
+	m_strobe = m_autofd = m_slctin = 1;
+	m_pmode = P_COMPAT;
+	m_nibble = -1;
 	m_pdata = 0;
 	m_pfull = false;
+	m_tx = 0;
+	m_tx_full = false;
 	m_pen = 0;
 	m_pevt = 0;
 	m_pext = 0;
-	m_p1284 = false;
-	m_phost_data = false;
-	m_pidle = 0;
 	m_pcfg = 0;
-	save_item(NAME(m_pevt));
-	save_item(NAME(m_pext));
-	save_item(NAME(m_p1284));
-	save_item(NAME(m_phost_data));
-	save_item(NAME(m_pidle));
-	save_item(NAME(m_pcfg));
+	m_ack_timer = timer_alloc(FUNC(hp_lj4l_device::ack_end), this);
+	save_item(NAME(m_data));
+	save_item(NAME(m_strobe));
+	save_item(NAME(m_autofd));
+	save_item(NAME(m_slctin));
+	save_item(NAME(m_pmode));
+	save_item(NAME(m_nibble));
 	save_item(NAME(m_pdata));
 	save_item(NAME(m_pfull));
+	save_item(NAME(m_tx));
+	save_item(NAME(m_tx_full));
 	save_item(NAME(m_pen));
+	save_item(NAME(m_pevt));
+	save_item(NAME(m_pext));
+	save_item(NAME(m_pcfg));
 	std::fill(std::begin(m_video), std::end(m_video), 0);
 	m_cur = m_next = band_t{ 0, 0, 0, 0, false };
 	m_cur_active = m_next_valid = m_stop_pending = false;
@@ -328,7 +417,7 @@ void hplj4l_state::machine_start()
 	m_page.fill(0xffffff);
 	m_page_y = 0;
 	m_page_dirty = false;
-	m_line_timer = timer_alloc(FUNC(hplj4l_state::video_line), this);
+	m_line_timer = timer_alloc(FUNC(hp_lj4l_device::video_line), this);
 	save_item(NAME(m_video));
 	save_item(NAME(m_cur.addr));
 	save_item(NAME(m_cur.words));
@@ -347,11 +436,24 @@ void hplj4l_state::machine_start()
 	save_item(NAME(m_page_y));
 	save_item(NAME(m_page_dirty));
 
-	m_host_timer = timer_alloc(FUNC(hplj4l_state::host_poll), this);
-	m_host_timer->adjust(attotime::from_usec(20), 0, attotime::from_usec(20));
 }
 
-hplj4l_state::band_t hplj4l_state::latch_band() const
+void hp_lj4l_device::device_reset()
+{
+	// 1 MB on the formatter at 600000, the memory card follows at 700000
+	address_space &space = m_maincpu->space(AS_PROGRAM);
+	space.install_ram(0x600000, 0x6fffff, &m_ram[0]);
+	if (BIT(m_config->read(), 2))
+		space.install_ram(0x700000, 0x7fffff, &m_ram[0x80000]);
+	else
+		space.install_readwrite_handler(0x700000, 0x7fffff, read16s_delegate(*this, FUNC(hp_lj4l_device::unk_r)), write16s_delegate(*this, FUNC(hp_lj4l_device::unk_w)));
+
+	m_pmode = P_COMPAT;
+	m_nibble = -1;
+	update_lines();
+}
+
+hp_lj4l_device::band_t hp_lj4l_device::latch_band() const
 {
 	band_t b;
 	b.addr = (u32(m_video[0] & 0x7f) << 16) | (m_video[1] & 0xfffe);
@@ -363,7 +465,7 @@ hplj4l_state::band_t hplj4l_state::latch_band() const
 	return b;
 }
 
-void hplj4l_state::video_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::video_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_video[offset]);
 	LOG("%s: video %06x = %04x at %.3f\n", machine().describe_context(), 0x840000 + offset * 2, m_video[offset], machine().time().as_double());
@@ -394,7 +496,7 @@ void hplj4l_state::video_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-TIMER_CALLBACK_MEMBER(hplj4l_state::video_line)
+TIMER_CALLBACK_MEMBER(hp_lj4l_device::video_line)
 {
 	if (!m_cur_active)
 		return;
@@ -444,7 +546,7 @@ TIMER_CALLBACK_MEMBER(hplj4l_state::video_line)
 	}
 }
 
-void hplj4l_state::eject_page()
+void hp_lj4l_device::eject_page()
 {
 	if (m_page_dirty || m_page_y)
 	{
@@ -456,9 +558,9 @@ void hplj4l_state::eject_page()
 	m_page_dirty = false;
 }
 
-void hplj4l_state::update_pirq()
+void hp_lj4l_device::update_pirq()
 {
-	bool const irq = (m_pfull && BIT(m_pen, 0)) || BIT(m_pen, 3)
+	bool const irq = (m_pfull && BIT(m_pen, 0)) || (!m_tx_full && BIT(m_pen, 3))
 			|| (BIT(m_pevt, 6) && BIT(m_pen, 5)) || (BIT(m_pevt, 8) && BIT(m_pen, 6));
 	if (irq)
 		m_irq_pend |= 0x10;
@@ -467,66 +569,213 @@ void hplj4l_state::update_pirq()
 	update_irq();
 }
 
-TIMER_CALLBACK_MEMBER(hplj4l_state::host_poll)
+void hp_lj4l_device::set_lines(int busy, int ack, int perror, int select, int fault)
 {
-	// data is only offered while the formatter accepts it (receive interrupt enabled)
-	if (m_pfull || !BIT(m_pen, 0))
-		return;
-	u8 b;
-	if (m_host->input(&b, 1) == 1)
+	output_busy(busy);
+	output_ack(ack);
+	output_perror(perror);
+	output_select(select);
+	output_fault(fault);
+}
+
+// status lines outside a nibble transfer
+void hp_lj4l_device::update_lines()
+{
+	switch (m_pmode)
 	{
-		if (m_p1284)
+	case P_COMPAT:
+		// BUSY while a byte waits in the latch or the formatter does not accept
+		// data (receive interrupt disabled)
+		output_busy((m_pfull || !BIT(m_pen, 0)) ? 1 : 0);
+		output_perror(0);
+		output_select(1);
+		output_fault(1);
+		break;
+	case P_NEG:
+		// event 2: the printer answers the negotiation request
+		set_lines(0, 0, 1, 1, 1);
+		break;
+	case P_NEG_LATCHED:
+		break;
+	case P_REVERSE:
+		// reverse idle: /FAULT (nDataAvail) low while a byte waits for the host
+		if (m_nibble < 0)
 		{
-			// back to compatibility mode before sending
-			LOG("host: 1284 termination at %.3f\n", machine().time().as_double());
-			m_p1284 = false;
-			m_pevt |= 0x0040;
+			output_busy(0);
+			output_perror(m_tx_full ? 0 : 1);
+			output_fault(m_tx_full ? 0 : 1);
 		}
-		m_pdata = b;
-		m_pfull = true;
-		m_phost_data = true;
-		m_pidle = 0;
-		update_pirq();
-	}
-	else if (m_phost_data && ++m_pidle == 5000)
-	{
-		// 100 ms without data: the host negotiates nibble mode to read the
-		// reverse channel (extensibility byte 00), or asks for the IEEE 1284
-		// device ID (04)
-		LOG("host: 1284 negotiation at %.3f\n", machine().time().as_double());
-		m_phost_data = false;
-		m_p1284 = true;
-		m_pext = BIT(m_config->read(), 2) ? 0x04 : 0x00;
-		m_pevt |= 0x0140;
-		update_pirq();
+		break;
 	}
 }
 
-u16 hplj4l_state::pdata_r(offs_t offset, u16 mem_mask)
+// event 1: 1284 active (/SELECT IN high) with HostBusy (/AUTOFD) low, the
+// extensibility byte is on the data lines
+void hp_lj4l_device::start_negotiation()
+{
+	LOG("1284 negotiation request at %.6f\n", machine().time().as_double());
+	m_pmode = P_NEG;
+	m_nibble = -1;
+	m_pevt |= 0x0040;
+}
+
+void hp_lj4l_device::input_select_in(int state)
+{
+	if (state == m_slctin)
+		return;
+	m_slctin = state;
+	if (state && !m_autofd && m_pmode == P_COMPAT)
+		start_negotiation();
+	else if (!state && m_pmode != P_COMPAT)
+	{
+		// termination: back to compatibility mode
+		LOG("1284 termination at %.6f\n", machine().time().as_double());
+		m_pmode = P_COMPAT;
+		m_nibble = -1;
+		m_pevt |= 0x0040;
+		output_ack(1);
+	}
+	update_lines();
+	update_pirq();
+}
+
+void hp_lj4l_device::input_autofd(int state)
+{
+	if (state == m_autofd)
+		return;
+	m_autofd = state;
+	switch (m_pmode)
+	{
+	case P_COMPAT:
+		if (!state && m_slctin)
+		{
+			start_negotiation();
+			update_lines();
+			update_pirq();
+		}
+		break;
+	case P_NEG_LATCHED:
+		if (state)
+		{
+			// events 5 and 6: SELECT is the XFlag (set for a supported
+			// extensibility request, the device ID; nibble mode needs none),
+			// PERROR and /FAULT tell whether reverse data is waiting
+			output_perror(m_tx_full ? 0 : 1);
+			output_select(m_pext ? 1 : 0);
+			output_fault(m_tx_full ? 0 : 1);
+			output_busy(0);
+			output_ack(1);
+			m_pmode = P_REVERSE;
+			m_pevt |= 0x0100;
+			update_pirq();
+		}
+		break;
+	case P_REVERSE:
+		if (!state && m_tx_full && m_nibble < 0)
+			m_nibble = 0;
+		if (!state && m_nibble >= 0)
+		{
+			// event 8: nibble on /FAULT (bit 0), SELECT, PERROR, BUSY (bit 3), then /ACK low
+			u8 const n = m_nibble ? (m_tx >> 4) : (m_tx & 0x0f);
+			output_fault(BIT(n, 0));
+			output_select(BIT(n, 1));
+			output_perror(BIT(n, 2));
+			output_busy(BIT(n, 3));
+			output_ack(0);
+		}
+		else if (state && m_nibble >= 0)
+		{
+			// event 10: /ACK high; after the high nibble the byte is done
+			output_ack(1);
+			if (m_nibble)
+			{
+				LOG("reverse channel %02x '%c'\n", m_tx, (m_tx >= 0x20 && m_tx < 0x7f) ? m_tx : '.');
+				m_nibble = -1;
+				m_tx_full = false;
+				update_lines();
+				update_pirq();
+			}
+			else
+				m_nibble = 1;
+		}
+		break;
+	}
+}
+
+void hp_lj4l_device::input_strobe(int state)
+{
+	int const old = m_strobe;
+	m_strobe = state;
+	if (!old || state)
+		return;
+	switch (m_pmode)
+	{
+	case P_COMPAT:
+		// the byte is latched on the falling edge of /STROBE
+		if (!m_pfull)
+		{
+			m_pdata = m_data;
+			m_pfull = true;
+			output_busy(1);
+			update_pirq();
+		}
+		break;
+	case P_NEG:
+		// event 3: the extensibility byte
+		m_pext = m_data;
+		m_pmode = P_NEG_LATCHED;
+		LOG("1284 extensibility byte %02x\n", m_pext);
+		break;
+	}
+}
+
+void hp_lj4l_device::input_init(int state)
+{
+	if (!state)
+		LOG("%s: /INIT from the host (not handled)\n", machine().describe_context());
+}
+
+TIMER_CALLBACK_MEMBER(hp_lj4l_device::ack_end)
+{
+	if (m_pmode == P_COMPAT)
+	{
+		output_ack(1);
+		update_lines();
+	}
+}
+
+u16 hp_lj4l_device::pdata_r(offs_t offset, u16 mem_mask)
 {
 	u16 const data = m_pdata;
 	if (!machine().side_effects_disabled() && m_pfull)
 	{
+		// the byte is taken: /ACK pulse, BUSY goes away with it
 		m_pfull = false;
+		if (m_pmode == P_COMPAT)
+		{
+			output_ack(0);
+			m_ack_timer->adjust(attotime::from_usec(5));
+		}
 		update_pirq();
 	}
 	return data;
 }
 
-void hplj4l_state::pdata_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::pdata_w(offs_t offset, u16 data, u16 mem_mask)
 {
-	u8 const b = data & 0xff;
-	m_host->output(b);
-	LOG("reverse channel %02x '%c'\n", b, (b >= 0x20 && b < 0x7f) ? b : '.');
+	m_tx = data & 0xff;
+	m_tx_full = true;
+	update_lines();
+	update_pirq();
 }
 
-u16 hplj4l_state::pstat_r(offs_t offset, u16 mem_mask)
+u16 hp_lj4l_device::pstat_r(offs_t offset, u16 mem_mask)
 {
-	return (m_pfull ? 0x0001 : 0x0000) | 0x0022 | (m_p1284 ? 0x0080 : 0x0000) | m_pevt;
+	return (m_pfull ? 0x0001 : 0x0000) | (m_tx_full ? 0x0000 : 0x0022) | ((m_pmode != P_COMPAT) ? 0x0080 : 0x0000) | m_pevt;
 }
 
 // 820006 written: acknowledges events (bit 3: 1284 line change)
-void hplj4l_state::pack_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::pack_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	LOG("%s: 820006 = %04x & %04x\n", machine().describe_context(), data, mem_mask);
 	if (BIT(data, 3))
@@ -534,13 +783,13 @@ void hplj4l_state::pack_w(offs_t offset, u16 data, u16 mem_mask)
 	update_pirq();
 }
 
-u16 hplj4l_state::pext_r(offs_t offset, u16 mem_mask)
+u16 hp_lj4l_device::pext_r(offs_t offset, u16 mem_mask)
 {
 	return m_pext | (m_pcfg & 1);
 }
 
 // 82000c written: acknowledges the negotiation, bit 0 set while the device ID is sent
-void hplj4l_state::pext_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::pext_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	LOG("%s: 82000c = %04x & %04x\n", machine().describe_context(), data, mem_mask);
 	m_pcfg = data & 1;
@@ -548,13 +797,14 @@ void hplj4l_state::pext_w(offs_t offset, u16 data, u16 mem_mask)
 	update_pirq();
 }
 
-void hplj4l_state::pen_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::pen_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_pen);
 	update_pirq();
+	update_lines();
 }
 
-void hplj4l_state::leds_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::leds_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_leds);
 	m_ready_led = BIT(m_leds, 0);
@@ -567,7 +817,7 @@ void hplj4l_state::leds_w(offs_t offset, u16 data, u16 mem_mask)
 // IIIP's (bit 7 set with bit 6 clear: command not supported):
 //   02  bit 2 top door open or no EP cartridge
 //   2a  bit 6 paper in the cassette
-u8 hplj4l_state::eng_status(u8 cmd)
+u8 hp_lj4l_device::eng_status(u8 cmd)
 {
 	u8 const cfg = m_config->read();
 	u8 data = 0x00;
@@ -587,7 +837,7 @@ u8 hplj4l_state::eng_status(u8 cmd)
 	return data;
 }
 
-TIMER_CALLBACK_MEMBER(hplj4l_state::eng_reply)
+TIMER_CALLBACK_MEMBER(hp_lj4l_device::eng_reply)
 {
 	m_eng_sts = eng_status(m_eng_cmd);
 	m_eng_bits = 0;
@@ -595,7 +845,7 @@ TIMER_CALLBACK_MEMBER(hplj4l_state::eng_reply)
 	LOG("engine cmd %02x -> sts %02x\n", m_eng_cmd, m_eng_sts);
 }
 
-TIMER_CALLBACK_MEMBER(hplj4l_state::eng_top)
+TIMER_CALLBACK_MEMBER(hp_lj4l_device::eng_top)
 {
 	// paper at the top of page: interrupt source 1 (level 5)
 	LOG("engine TOP at %.3f\n", machine().time().as_double());
@@ -603,7 +853,7 @@ TIMER_CALLBACK_MEMBER(hplj4l_state::eng_top)
 	update_irq();
 }
 
-u16 hplj4l_state::eng_r(offs_t offset, u16 mem_mask)
+u16 hp_lj4l_device::eng_r(offs_t offset, u16 mem_mask)
 {
 	u16 data = m_eng_ctrl & 0x00ff;
 	if (!m_eng_out)
@@ -614,7 +864,7 @@ u16 hplj4l_state::eng_r(offs_t offset, u16 mem_mask)
 	return data;
 }
 
-void hplj4l_state::eng_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::eng_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_eng_ctrl;
 	COMBINE_DATA(&m_eng_ctrl);
@@ -646,13 +896,13 @@ void hplj4l_state::eng_w(offs_t offset, u16 data, u16 mem_mask)
 		LOG("%s: engine ctrl %04x\n", machine().describe_context(), m_eng_ctrl);
 }
 
-TIMER_CALLBACK_MEMBER(hplj4l_state::tick)
+TIMER_CALLBACK_MEMBER(hp_lj4l_device::tick)
 {
 	m_irq_pend |= 0x04;
 	update_irq();
 }
 
-void hplj4l_state::update_irq()
+void hp_lj4l_device::update_irq()
 {
 	// source n requests level 6 - n (the firmware masks source 2 around the
 	// tick counter on level 4, source 3 around the button handler on level 3
@@ -662,7 +912,7 @@ void hplj4l_state::update_irq()
 		m_maincpu->set_input_line(6 - n, BIT(act, n) ? ASSERT_LINE : CLEAR_LINE);
 }
 
-INPUT_CHANGED_MEMBER(hplj4l_state::button_changed)
+INPUT_CHANGED_MEMBER(hp_lj4l_device::button_changed)
 {
 	m_irq_pend |= 0x08;
 	update_irq();
@@ -671,7 +921,7 @@ INPUT_CHANGED_MEMBER(hplj4l_state::button_changed)
 // 850002 read: front panel button, bit 0 pressed, bit 1 released (the
 // firmware runs the continuous self test when bit 1 is clear at power on);
 // the read acknowledges the button interrupt
-u16 hplj4l_state::button_r(offs_t offset, u16 mem_mask)
+u16 hp_lj4l_device::button_r(offs_t offset, u16 mem_mask)
 {
 	u16 const data = m_button->read() ? 0x0001 : 0x0002;
 	if (!machine().side_effects_disabled() && BIT(m_irq_pend, 3))
@@ -682,25 +932,25 @@ u16 hplj4l_state::button_r(offs_t offset, u16 mem_mask)
 	return data;
 }
 
-u16 hplj4l_state::irqmask_r(offs_t offset, u16 mem_mask)
+u16 hp_lj4l_device::irqmask_r(offs_t offset, u16 mem_mask)
 {
 	return m_irq_mask;
 }
 
-void hplj4l_state::irqmask_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::irqmask_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 		m_irq_mask = data & 0xff;
 	update_irq();
 }
 
-void hplj4l_state::irqack_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::irqack_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	m_irq_pend &= ~data;
 	update_irq();
 }
 
-void hplj4l_state::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (offset)
 		m_blt_pat = (m_blt_pat & 0xffff0000) | data;
@@ -709,7 +959,7 @@ void hplj4l_state::blt_pat_w(offs_t offset, u16 data, u16 mem_mask)
 	m_blt_patrow = 0;
 }
 
-void hplj4l_state::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	if (offset)
 		m_blt_dest = (m_blt_dest & 0xffff0000) | (data & mem_mask) | (m_blt_dest & ~mem_mask & 0xffff);
@@ -720,7 +970,7 @@ void hplj4l_state::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 	m_blt_spill = 0;
 }
 
-void hplj4l_state::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	switch (offset)
 	{
@@ -731,7 +981,7 @@ void hplj4l_state::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-void hplj4l_state::blt_cfg_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::blt_cfg_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	u16 const old = m_blt_cfg;
 	COMBINE_DATA(&m_blt_cfg);
@@ -739,7 +989,7 @@ void hplj4l_state::blt_cfg_w(offs_t offset, u16 data, u16 mem_mask)
 		LOG("%s: merger config %04x\n", machine().describe_context(), m_blt_cfg);
 }
 
-void hplj4l_state::blt_out(u16 data)
+void hp_lj4l_device::blt_out(u16 data)
 {
 	// destination ffffffff: pipeline priming, nothing is written
 	if (m_blt_dest == 0xffffffff || m_blt_ptr < 0x600000 || m_blt_ptr > 0x7ffffe)
@@ -757,7 +1007,7 @@ void hplj4l_state::blt_out(u16 data)
 	m_blt_ptr += 2;
 }
 
-void hplj4l_state::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
+void hp_lj4l_device::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	int const sh = m_blt_ctrl & 0x0f;
 	u16 const out = m_blt_spill | (data >> sh);
@@ -775,61 +1025,37 @@ void hplj4l_state::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
-void hplj4l_state::main_map(address_map &map)
+void hp_lj4l_device::main_map(address_map &map)
 {
-	map(0x000000, 0xffffff).rw(FUNC(hplj4l_state::unk_r), FUNC(hplj4l_state::unk_w));
+	map(0x000000, 0xffffff).rw(FUNC(hp_lj4l_device::unk_r), FUNC(hp_lj4l_device::unk_w));
 	map(0x000000, 0x1fffff).rom().region("maincpu", 0);
-	map(0x800000, 0x800001).rw(FUNC(hplj4l_state::irqmask_r), FUNC(hplj4l_state::irqmask_w));
-	map(0x800004, 0x800005).w(FUNC(hplj4l_state::irqack_w));
-	map(0x820000, 0x820001).rw(FUNC(hplj4l_state::pdata_r), FUNC(hplj4l_state::pdata_w));
-	map(0x820002, 0x820003).r(FUNC(hplj4l_state::pstat_r));
-	map(0x820006, 0x820007).w(FUNC(hplj4l_state::pack_w));
-	map(0x82000a, 0x82000b).rw(FUNC(hplj4l_state::pen_r), FUNC(hplj4l_state::pen_w));
-	map(0x82000c, 0x82000d).rw(FUNC(hplj4l_state::pext_r), FUNC(hplj4l_state::pext_w));
-	map(0x840000, 0x840007).w(FUNC(hplj4l_state::video_w));
-	map(0x84001e, 0x84001f).rw(FUNC(hplj4l_state::eng_r), FUNC(hplj4l_state::eng_w));
-	map(0x850000, 0x850001).rw(FUNC(hplj4l_state::leds_r), FUNC(hplj4l_state::leds_w));
-	map(0x850002, 0x850003).r(FUNC(hplj4l_state::button_r));
-	map(0x900000, 0x900003).w(FUNC(hplj4l_state::blt_pat_w));
-	map(0x900004, 0x900007).w(FUNC(hplj4l_state::blt_dest_w));
-	map(0x900008, 0x90000f).w(FUNC(hplj4l_state::blt_ctrl_w));
-	map(0x900010, 0x900013).w(FUNC(hplj4l_state::blt_data_w));
-	map(0x900016, 0x900017).w(FUNC(hplj4l_state::blt_cfg_w));
+	map(0x800000, 0x800001).rw(FUNC(hp_lj4l_device::irqmask_r), FUNC(hp_lj4l_device::irqmask_w));
+	map(0x800004, 0x800005).w(FUNC(hp_lj4l_device::irqack_w));
+	map(0x820000, 0x820001).rw(FUNC(hp_lj4l_device::pdata_r), FUNC(hp_lj4l_device::pdata_w));
+	map(0x820002, 0x820003).r(FUNC(hp_lj4l_device::pstat_r));
+	map(0x820006, 0x820007).w(FUNC(hp_lj4l_device::pack_w));
+	map(0x82000a, 0x82000b).rw(FUNC(hp_lj4l_device::pen_r), FUNC(hp_lj4l_device::pen_w));
+	map(0x82000c, 0x82000d).rw(FUNC(hp_lj4l_device::pext_r), FUNC(hp_lj4l_device::pext_w));
+	map(0x840000, 0x840007).w(FUNC(hp_lj4l_device::video_w));
+	map(0x84001e, 0x84001f).rw(FUNC(hp_lj4l_device::eng_r), FUNC(hp_lj4l_device::eng_w));
+	map(0x850000, 0x850001).rw(FUNC(hp_lj4l_device::leds_r), FUNC(hp_lj4l_device::leds_w));
+	map(0x850002, 0x850003).r(FUNC(hp_lj4l_device::button_r));
+	map(0x900000, 0x900003).w(FUNC(hp_lj4l_device::blt_pat_w));
+	map(0x900004, 0x900007).w(FUNC(hp_lj4l_device::blt_dest_w));
+	map(0x900008, 0x90000f).w(FUNC(hp_lj4l_device::blt_ctrl_w));
+	map(0x900010, 0x900013).w(FUNC(hp_lj4l_device::blt_data_w));
+	map(0x900016, 0x900017).w(FUNC(hp_lj4l_device::blt_cfg_w));
 }
 
-static INPUT_PORTS_START( hplj4l )
-	PORT_START("BUTTON")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYPAD ) PORT_NAME("Front Panel Button") PORT_CODE(KEYCODE_ENTER) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(hplj4l_state::button_changed), 0)
-
-	PORT_START("CONFIG")
-	PORT_CONFNAME( 0x01, 0x01, "Paper in cassette" )
-	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
-	PORT_CONFSETTING(    0x01, DEF_STR( Yes ) )
-	PORT_CONFNAME( 0x02, 0x00, "Top door" )
-	PORT_CONFSETTING(    0x00, "Closed" )
-	PORT_CONFSETTING(    0x02, "Open" )
-	PORT_CONFNAME( 0x04, 0x00, "Host reads the IEEE 1284 device ID" )
-	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
-	PORT_CONFSETTING(    0x04, DEF_STR( Yes ) )
-INPUT_PORTS_END
-
-void hplj4l_state::hplj4l(machine_config &config)
+void hp_lj4l_device::device_add_mconfig(machine_config &config)
 {
 	M68000(config, m_maincpu, 31.3076_MHz_XTAL / 2);
-	m_maincpu->set_addrmap(AS_PROGRAM, &hplj4l_state::main_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &hp_lj4l_device::main_map);
 
-	RAM(config, m_ram).set_default_size("1M").set_extra_options("2M");
-
-	BITBANGER(config, m_host, 0);   // host on the parallel port
 	PDF_PRINTER(config, m_printout);
 }
 
-ROM_START( hplj4l )
-	ROM_REGION16_BE( 0x200000, "maincpu", 0 )
-	ROM_LOAD16_WORD_SWAP( "1818-5601.bin", 0x000000, 0x200000, CRC(75773ecb) SHA1(f7a14f591976a4bf74d9847f2bee7f86c119f3a2) )
-ROM_END
-
 } // anonymous namespace
 
-//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY            FULLNAME         FLAGS
-COMP( 1993, hplj4l, 0,      0,      hplj4l,  hplj4l, hplj4l_state, empty_init, "Hewlett-Packard", "LaserJet 4L",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+
+DEFINE_DEVICE_TYPE_PRIVATE(HP_LJ4L, device_centronics_peripheral_interface, hp_lj4l_device, "hplj4l", "HP LaserJet 4L")
