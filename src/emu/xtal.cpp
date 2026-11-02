@@ -433,6 +433,7 @@ const double XTAL::known_xtals[] = {
 	 30'476'180, // 30.47618_MHz_XTAL      Taito F3, JC, Under Fire
 	 30'800'000, // 30.8_MHz_XTAL          15IE-00-013
 	 31'279'500, // 31.2795_MHz_XTAL       Wyse WY-30+
+	 31'307'600, // 31.3076_MHz_XTAL       HP LaserJet 4L
 	 31'334'400, // 31.3344_MHz_XTAL       Macintosh II
 	 31'684'000, // 31.684_MHz_XTAL        TeleVideo TVI-955 132-column display clock
 	 31'948'800, // 31.9488_MHz_XTAL       NEC PC-88xx, PC-98xx
