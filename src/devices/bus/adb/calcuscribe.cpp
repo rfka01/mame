@@ -63,10 +63,13 @@
     UART0 RX/TX (IR), watchdog.
 
     The ADB protocol is bit-banged with cycle-counted delay loops, so the
-    CPU clock and the 7700 cycle timings matter.
+    CPU clock and the 7700 cycle timings matter: the external bus wait
+    states are modelled with set_external_bus_wait().  Checked with a
+    test ADB host: Talk R0 key reports and "Send" (typing a stored file
+    into the host) produce correct ADB keycodes and bit timing.
 
     TODO:
-    - verify the "cable present" polarity and the left/right LCD halves
+    - test against a real Mac ROM (macse, maclc, ...)
     - PS/2 keyboard emulation port, infrared port, beeper
     - proper power switch handling (the firmware powers down with STP)
 
@@ -411,6 +414,11 @@ void calcuscribe_device::device_add_mconfig(machine_config &config)
 {
 	M37702S1(config, m_maincpu, 19.6608_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &calcuscribe_device::program_map);
+	// The external bus runs in 8-bit (BYTE) mode with wait states, which
+	// makes everything outside the internal RAM much slower than the core's
+	// cycle tables.  3 extra cycles per byte gives ADB bit cells of
+	// ~35/65 us from the firmware's counted delay loops.
+	m_maincpu->set_external_bus_wait(0x000280, 3);
 	// Unused inputs must read as 0: when no file is open the firmware
 	// follows a NULL pointer and expects the bytes at 000009-00000B
 	// (P3 direction, P4, P5) to be zero.
@@ -603,7 +611,6 @@ void calcuscribe_device::latch_w(unsigned bit, int state)
 		{
 			LOGMASKED(LOG_ADB, "%s: ADB drive %s\n", machine().describe_context(), state ? "low" : "released");
 			adb_drive_w(state ? CLEAR_LINE : ASSERT_LINE);
-			m_maincpu->yield();
 		}
 		break;
 
@@ -661,4 +668,4 @@ TIMER_CALLBACK_MEMBER(calcuscribe_device::anykey_tick)
 
 } // anonymous namespace
 
-DEFINE_DEVICE_TYPE_PRIVATE(ADB_CALCUSCRIBE, adb_slot_card_interface, calcuscribe_device, "calcuscribe", "CalcuScribe Duo")
+DEFINE_DEVICE_TYPE_PRIVATE(ADB_CALCUSCRIBE, adb_slot_card_interface, calcuscribe_device, "calcuscribe", "CalcuScribe Duo ADB keyboard")
