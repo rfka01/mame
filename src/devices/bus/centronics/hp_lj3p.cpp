@@ -105,13 +105,31 @@ private:
 	// video output: the formatter streams bands of the page from DRAM, one line
 	// per engine BD pulse; 380000 high byte: words per line, 380000 low byte and
 	// 380002: start address (word aligned, CPU address - 0x800000), 380004: left
-	// margin, 380006: bits 0-11 line count, bit 12 stop, bits 13-15 mode
+	// margin, 380006: bits 0-11 line count, bit 12 stop, bit 14 data (else
+	// blank lines), bit 15 set for the bands before the last one
 	emu_timer *m_line_timer;
 	TIMER_CALLBACK_MEMBER(video_line);
 	bitmap_rgb32 m_page;
 	int m_page_y;
 	bool m_page_dirty;
-	int m_band_lines;
+	// the band registers are double buffered (as in the 4L): a band written
+	// while another one is output waits and is taken over when the current
+	// band ends; the end of every band requests IRQ 5.  The firmware writes
+	// the blank top margin and the first band with data back to back.
+	struct band_t
+	{
+		u32 addr;
+		u16 words;
+		s16 x0;
+		u16 lines;
+		bool data;
+	};
+	band_t m_cur;
+	band_t m_next;
+	bool m_cur_active;
+	bool m_next_valid;
+	bool m_stop_pending;
+	band_t latch_band() const;
 	// Left margin offset: 380004 holds the start of the image in pixels after
 	// the beam detect signal of each laser line, not after the paper edge.
 	// The firmware writes 0x8d; with the paper edge 91 pixels after the
@@ -120,7 +138,8 @@ private:
 	// on the LaserJet 4L.  Taken from printed rules, not measured on a
 	// printer; without it the image is 141 pixels to the right.
 	static constexpr int MARGIN_OFFSET = 91;
-	u32 m_band_addr;
+	// line period: about 50 mm/s at 300 lines per inch (not measured)
+	static inline const attotime LINE_PERIOD = attotime::from_usec(1690);
 	void eject_page();
 
 	// glyph and rule merger: 3a0004 destination (CPU address, bits 0-22),
@@ -302,8 +321,8 @@ void hp_lj3p_base::device_start()
 	m_page.fill(0xffffff);
 	m_page_y = 0;
 	m_page_dirty = false;
-	m_band_lines = 0;
-	m_band_addr = 0;
+	m_cur = m_next = band_t{ 0, 0, 0, 0, false };
+	m_cur_active = m_next_valid = m_stop_pending = false;
 	m_panel = 0;
 	m_pctrl = 0;
 	m_pdata = 0;
@@ -332,8 +351,19 @@ void hp_lj3p_base::device_start()
 	save_item(NAME(m_page));
 	save_item(NAME(m_page_y));
 	save_item(NAME(m_page_dirty));
-	save_item(NAME(m_band_lines));
-	save_item(NAME(m_band_addr));
+	save_item(NAME(m_cur.addr));
+	save_item(NAME(m_cur.words));
+	save_item(NAME(m_cur.x0));
+	save_item(NAME(m_cur.lines));
+	save_item(NAME(m_cur.data));
+	save_item(NAME(m_next.addr));
+	save_item(NAME(m_next.words));
+	save_item(NAME(m_next.x0));
+	save_item(NAME(m_next.lines));
+	save_item(NAME(m_next.data));
+	save_item(NAME(m_cur_active));
+	save_item(NAME(m_next_valid));
+	save_item(NAME(m_stop_pending));
 	save_item(NAME(m_irqctl));
 	save_item(NAME(m_irq4));
 	save_item(NAME(m_irq5));
@@ -602,39 +632,63 @@ void hp_lj3p_base::irqctl_w(offs_t offset, u16 data, u16 mem_mask)
 		LOG("%s: 3e0004 %04x\n", machine().describe_context(), m_irqctl);
 }
 
+hp_lj3p_base::band_t hp_lj3p_base::latch_band() const
+{
+	band_t b;
+	b.addr = ((u32(m_video[0] & 0x7f) << 16) | (m_video[1] & 0xfffe)) + 0x800000;
+	b.words = m_video[0] >> 8;
+	b.x0 = (m_video[2] & 0x0fff) - MARGIN_OFFSET;
+	b.lines = m_video[3] & 0x0fff;
+	b.data = BIT(m_video[3], 14);
+	return b;
+}
+
 void hp_lj3p_base::video_w(offs_t offset, u16 data, u16 mem_mask)
 {
-	u16 const old = m_video[offset];
 	COMBINE_DATA(&m_video[offset]);
 	LOG("%s: video %06x = %04x\n", machine().describe_context(), 0x380000 + offset * 2, m_video[offset]);
-	if (offset == 3 && BIT(m_video[3], 12) && !BIT(old, 12) && !m_band_lines)
-		eject_page();   // video stopped after the last band: the page is complete
-	if (offset == 3 && !BIT(m_video[3], 12))
+	if (offset != 3)
+		return;
+	if (BIT(m_video[3], 12))
 	{
-		m_band_lines = m_video[3] & 0x0fff;
-		m_band_addr = ((u32(m_video[0] & 0x7f) << 16) | (m_video[1] & 0xfffe)) + 0x800000;
-		if (m_band_lines && !m_line_timer->enabled())
-			m_line_timer->adjust(attotime::from_usec(1690));   // line period: about 50 mm/s at 300 lines per inch (not measured)
+		// stop: the page ends after the bands already queued
+		if (!m_cur_active && !m_next_valid)
+			eject_page();
+		else
+			m_stop_pending = true;
+	}
+	else if (m_video[3] & 0x0fff)
+	{
+		m_stop_pending = false;
+		if (!m_cur_active)
+		{
+			m_cur = latch_band();
+			m_cur_active = true;
+			m_line_timer->adjust(LINE_PERIOD);
+		}
+		else
+		{
+			m_next = latch_band();
+			m_next_valid = true;
+		}
 	}
 }
 
 TIMER_CALLBACK_MEMBER(hp_lj3p_base::video_line)
 {
-	if (!m_band_lines || BIT(m_video[3], 12))
+	if (!m_cur_active)
 		return;
-	int const words = m_video[0] >> 8;
-	int const x0 = (m_video[2] & 0x0fff) - MARGIN_OFFSET;
-	if (BIT(m_video[3], 14) && m_page_y < m_page.height())
+	if (m_cur.data && m_page_y < m_page.height())
 	{
 		address_space &space = m_maincpu->space(AS_PROGRAM);
 		u32 *const line = &m_page.pix(m_page_y);
-		for (int w = 0; w < words; w++)
+		for (int w = 0; w < m_cur.words; w++)
 		{
-			u16 const d = space.read_word(m_band_addr + w * 2);
-			space.write_word(m_band_addr + w * 2, 0);   // the band memory is cleared as it is read out (the firmware never clears it)
+			u16 const d = space.read_word(m_cur.addr + w * 2);
+			space.write_word(m_cur.addr + w * 2, 0);   // the band memory is cleared as it is read out (the firmware never clears it)
 			for (int b = 0; b < 16; b++)
 			{
-				int const x = x0 + w * 16 + b;
+				int const x = m_cur.x0 + w * 16 + b;
 				if (BIT(d, 15 - b) && x >= 0 && x < m_page.width())
 				{
 					line[x] = 0x000000;
@@ -642,16 +696,31 @@ TIMER_CALLBACK_MEMBER(hp_lj3p_base::video_line)
 				}
 			}
 		}
-		m_band_addr += words * 2;
+		m_cur.addr += m_cur.words * 2;
 	}
 	m_page_y++;
-	if (--m_band_lines)
-		m_line_timer->adjust(attotime::from_usec(1690));
+	if (--m_cur.lines)
+	{
+		m_line_timer->adjust(LINE_PERIOD);
+		return;
+	}
+	LOG("band done, page line %d\n", m_page_y);
+	m_irq5 = true;
+	m_maincpu->set_input_line(M68K_IRQ_5, ASSERT_LINE);
+	if (m_next_valid)
+	{
+		m_cur = m_next;
+		m_next_valid = false;
+		m_line_timer->adjust(LINE_PERIOD);
+	}
 	else
 	{
-		LOG("band done, page line %d\n", m_page_y);
-		m_irq5 = true;
-		m_maincpu->set_input_line(M68K_IRQ_5, ASSERT_LINE);
+		m_cur_active = false;
+		if (m_stop_pending)
+		{
+			m_stop_pending = false;
+			eject_page();
+		}
 	}
 }
 
@@ -670,8 +739,8 @@ void hp_lj3p_base::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 		m_blt_dest = (m_blt_dest & 0xffff0000) | (data & mem_mask) | (m_blt_dest & ~mem_mask & 0xffff);
 	else
 		m_blt_dest = (m_blt_dest & 0x0000ffff) | (u32(data & mem_mask) << 16) | (m_blt_dest & (u32(~mem_mask & 0xffff) << 16));
-	m_blt_row = m_blt_dest + (m_blt_ctrl >> 4) * 2;
-	m_blt_ptr = m_blt_row;
+	m_blt_row = m_blt_dest;
+	m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
 	m_blt_spill = 0;
 }
 
@@ -679,7 +748,13 @@ void hp_lj3p_base::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	switch (offset)
 	{
-	case 0: COMBINE_DATA(&m_blt_ctrl); break;
+	case 0:
+		// x position: the row continues from this word (the span fill
+		// routines for HP-GL/2 areas and vectors set it for every row)
+		COMBINE_DATA(&m_blt_ctrl);
+		m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
+		m_blt_spill = 0;
+		break;
 	case 1: COMBINE_DATA(&m_blt_mask); break;
 	case 2:
 	{
@@ -724,7 +799,7 @@ void hp_lj3p_base::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 			blt_out(m_blt_spill);
 		m_blt_spill = 0;
 		m_blt_row += (m_ctrl2 & 0xff) * 2;   // line stride in words: 3e0006 low byte
-		m_blt_ptr = m_blt_row;
+		m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
 		m_blt_patrow++;
 	}
 }
