@@ -27,8 +27,9 @@
     Working: self test page (hold the button for two seconds), print jobs
     from the computer, pages go to the PDF printer ("printout" device).
 
-    Front panel: LEDs Ready, Data, Paper and Error (outputs ready_led,
-    data_led, paper_led, error_led), one button.
+    Front panel: LEDs Ready, Data, Paper and Error (outputs hplj4l_ready_led,
+    hplj4l_data_led, hplj4l_paper_led, hplj4l_error_led), one button; the
+    layout shows it next to the paper.
 
     Registers that are written but not emulated (the PDF output is not
     affected):
@@ -72,10 +73,14 @@
 #include "cpu/m68000/m68000.h"
 #include "imagedev/pdfprinter.h"
 
+#include "screen.h"
+
 #include <bit>
 
 #define VERBOSE 0
 #include "logmacro.h"
+
+#include "hplj4l.lh"
 
 
 namespace {
@@ -273,6 +278,15 @@ private:
 	void video_w(offs_t offset, u16 data, u16 mem_mask);
 	void eject_page();
 
+	// paper view: the page being printed (or the last one) at a quarter of
+	// the resolution, each pixel the coverage of a 4 x 4 dot cell
+	static constexpr int VIEW_W = 2550 / 4;
+	static constexpr int VIEW_H = 3508 / 4;
+	bitmap_rgb32 m_view;
+	bool m_view_clear;
+	void view_dot(int x, int y);
+	u32 paper_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+
 	void main_map(address_map &map) ATTR_COLD;
 	u16 unk_r(offs_t offset, u16 mem_mask);
 	void unk_w(offs_t offset, u16 data, u16 mem_mask);
@@ -307,10 +321,10 @@ hp_lj4l_device::hp_lj4l_device(const machine_config &mconfig, const char *tag, d
 	device_centronics_peripheral_interface(mconfig, *this),
 	m_maincpu(*this, "maincpu"),
 	m_config(*this, "CONFIG"),
-	m_ready_led(*this, "ready_led"),
-	m_data_led(*this, "data_led"),
-	m_paper_led(*this, "paper_led"),
-	m_error_led(*this, "error_led"),
+	m_ready_led(*this, "hplj4l_ready_led"),
+	m_data_led(*this, "hplj4l_data_led"),
+	m_paper_led(*this, "hplj4l_paper_led"),
+	m_error_led(*this, "hplj4l_error_led"),
 	m_button(*this, "BUTTON"),
 	m_printout(*this, "printout")
 {
@@ -415,6 +429,11 @@ void hp_lj4l_device::device_start()
 	m_cur_active = m_next_valid = m_stop_pending = false;
 	m_page.allocate(2550, 3508);   // 8.5 x 11.69 inches: Letter width, A4 length
 	m_page.fill(0xffffff);
+	m_view.allocate(VIEW_W, VIEW_H);
+	m_view.fill(0xffffff);
+	m_view_clear = false;
+	save_item(NAME(m_view));
+	save_item(NAME(m_view_clear));
 	m_page_y = 0;
 	m_page_dirty = false;
 	m_line_timer = timer_alloc(FUNC(hp_lj4l_device::video_line), this);
@@ -514,6 +533,7 @@ TIMER_CALLBACK_MEMBER(hp_lj4l_device::video_line)
 				if (BIT(d, 15 - b) && x >= 0 && x < m_page.width())
 				{
 					line[x] = 0x000000;
+					view_dot(x, m_page_y);
 					m_page_dirty = true;
 				}
 			}
@@ -546,8 +566,30 @@ TIMER_CALLBACK_MEMBER(hp_lj4l_device::video_line)
 	}
 }
 
+void hp_lj4l_device::view_dot(int x, int y)
+{
+	if (m_view_clear)
+	{
+		m_view.fill(0xffffff);
+		m_view_clear = false;
+	}
+	if (x / 4 < VIEW_W && y / 4 < VIEW_H)
+	{
+		u32 &p = m_view.pix(y / 4, x / 4);
+		u32 const v = std::max<int>(int(p & 0xff) - 16, 0);
+		p = (v << 16) | (v << 8) | v;
+	}
+}
+
+u32 hp_lj4l_device::paper_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	copybitmap(bitmap, m_view, 0, 0, 0, 0, cliprect);
+	return 0;
+}
+
 void hp_lj4l_device::eject_page()
 {
+	m_view_clear = true;   // the next page replaces the view
 	if (m_page_dirty || m_page_y)
 	{
 		LOG("page complete, %d lines\n", m_page_y);
@@ -1059,6 +1101,15 @@ void hp_lj4l_device::device_add_mconfig(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &hp_lj4l_device::main_map);
 
 	PDF_PRINTER(config, m_printout);
+
+	screen_device &paper(SCREEN(config, "paper"));
+	paper.set_refresh_hz(10);
+	paper.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	paper.set_size(VIEW_W, VIEW_H);
+	paper.set_visarea_full();
+	paper.set_screen_update(FUNC(hp_lj4l_device::paper_update));
+
+	config.set_default_layout(layout_hplj4l);
 }
 
 } // anonymous namespace
