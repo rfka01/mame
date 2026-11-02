@@ -16,6 +16,7 @@
 #include "a9m0115.h"
 #include "a9m0330.h"
 #include "a9m0331.h"
+#include "calcuscribe.h"
 #include "kb305.h"
 #include "tk3000.h"
 
@@ -31,6 +32,7 @@ void adb_devices(device_slot_interface &device)
 	device.option_add("kbd_ii", ADB_A9M0487);
 	device.option_add("apple_mouse", ADB_A9M0331);
 	device.option_add("monitor", ADB_MONITOR);
+	device.option_add("calcuscribe", ADB_CALCUSCRIBE);
 	device.option_add("kb305", ADB_KB305);
 	device.option_add("tk3000", ADB_TK3000);
 }

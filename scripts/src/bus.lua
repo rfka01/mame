@@ -563,6 +563,8 @@ if BUSES["ADB"] then
 		MAME_DIR .. "src/devices/bus/adb/adbhlepippin.h",
 		MAME_DIR .. "src/devices/bus/adb/adbmonitor.cpp",
 		MAME_DIR .. "src/devices/bus/adb/adbmonitor.h",
+		MAME_DIR .. "src/devices/bus/adb/calcuscribe.cpp",
+		MAME_DIR .. "src/devices/bus/adb/calcuscribe.h",
 		MAME_DIR .. "src/devices/bus/adb/cards.cpp",
 		MAME_DIR .. "src/devices/bus/adb/cards.h",
 		MAME_DIR .. "src/devices/bus/adb/kb305.cpp",

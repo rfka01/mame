@@ -30648,6 +30648,9 @@ brglitz
 @source:misc/buster.cpp
 buster
 
+@source:misc/calcuscribe.cpp
+cscribed
+
 @source:misc/calomega.cpp
 cas21iwc
 comg074
