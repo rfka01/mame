@@ -965,8 +965,8 @@ void hp_lj4l_device::blt_dest_w(offs_t offset, u16 data, u16 mem_mask)
 		m_blt_dest = (m_blt_dest & 0xffff0000) | (data & mem_mask) | (m_blt_dest & ~mem_mask & 0xffff);
 	else
 		m_blt_dest = (m_blt_dest & 0x0000ffff) | (u32(data & mem_mask) << 16) | (m_blt_dest & (u32(~mem_mask & 0xffff) << 16));
-	m_blt_row = (m_blt_dest & 0x7ffffe) + (m_blt_ctrl >> 4) * 2;
-	m_blt_ptr = m_blt_row;
+	m_blt_row = m_blt_dest & 0x7ffffe;
+	m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
 	m_blt_spill = 0;
 }
 
@@ -974,7 +974,13 @@ void hp_lj4l_device::blt_ctrl_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	switch (offset)
 	{
-	case 0: COMBINE_DATA(&m_blt_ctrl); break;
+	case 0:
+		// x position: the row continues from this word (the span fill
+		// routines for HP-GL/2 areas and vectors set it for every row)
+		COMBINE_DATA(&m_blt_ctrl);
+		m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
+		m_blt_spill = 0;
+		break;
 	case 1: COMBINE_DATA(&m_blt_mask); break;
 	case 2: COMBINE_DATA(&m_blt_mode); break;
 	default: LOG("%s: merger 90000e = %04x\n", machine().describe_context(), data); break;
@@ -1020,7 +1026,7 @@ void hp_lj4l_device::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 			blt_out(m_blt_spill);
 		m_blt_spill = 0;
 		m_blt_row += (m_blt_cfg & 0xff) * 2;
-		m_blt_ptr = m_blt_row;
+		m_blt_ptr = m_blt_row + (m_blt_ctrl >> 4) * 2;
 		m_blt_patrow++;
 	}
 }
