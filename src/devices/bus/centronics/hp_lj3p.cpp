@@ -60,6 +60,8 @@
 #define VERBOSE 0
 #include "logmacro.h"
 
+#include "hplj3p.lh"
+
 
 namespace {
 
@@ -141,6 +143,15 @@ private:
 	// line period: about 50 mm/s at 300 lines per inch (not measured)
 	static inline const attotime LINE_PERIOD = attotime::from_usec(1690);
 	void eject_page();
+
+	// paper view: the page being printed (or the last one) at a quarter of
+	// the resolution, each pixel the coverage of a 4 x 4 dot cell
+	static constexpr int VIEW_W = 2550 / 4;
+	static constexpr int VIEW_H = 3508 / 4;
+	bitmap_rgb32 m_view;
+	bool m_view_clear;
+	void view_dot(int x, int y);
+	u32 paper_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	// glyph and rule merger: 3a0004 destination (CPU address, bits 0-22),
 	// 3e0006 low byte line stride in words,
@@ -231,14 +242,14 @@ ROM_END
 
 static INPUT_PORTS_START( hp_lj3p )
 	// control panel: the secondary functions (Reset, Continue, Print Fonts,
-	// Test, minus) are selected by holding Shift while clicking the key
+	// Test, minus) are selected by holding Alt while clicking the key
 	PORT_START("KEYS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet On Line / Reset") PORT_CODE(KEYCODE_O)
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Form Feed / Continue") PORT_CODE(KEYCODE_F)
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Menu / Print Fonts") PORT_CODE(KEYCODE_M)
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Enter / Test") PORT_CODE(KEYCODE_ENTER)
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet + / -") PORT_CODE(KEYCODE_PLUS_PAD)
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Shift") PORT_CODE(KEYCODE_LSHIFT)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_KEYPAD ) PORT_NAME("LaserJet Alt") PORT_CODE(KEYCODE_LSHIFT)
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("CONFIG")
@@ -270,8 +281,8 @@ hp_lj3p_base::hp_lj3p_base(const machine_config &mconfig, device_type type, cons
 	m_acia_clock(*this, "acia_clock"),
 	m_config(*this, "CONFIG"),
 	m_keys(*this, "KEYS"),
-	m_online_led(*this, "online_led"),
-	m_formfeed_led(*this, "formfeed_led"),
+	m_online_led(*this, "hplj3p_online_led"),
+	m_formfeed_led(*this, "hplj3p_formfeed_led"),
 	m_printout(*this, "printout")
 {
 }
@@ -319,6 +330,11 @@ void hp_lj3p_base::device_start()
 	m_blt_patrow = 0;
 	m_page.allocate(2550, 3508);   // 8.5 x 11.69 inches: Letter width, A4 length
 	m_page.fill(0xffffff);
+	m_view.allocate(VIEW_W, VIEW_H);
+	m_view.fill(0xffffff);
+	m_view_clear = false;
+	save_item(NAME(m_view));
+	save_item(NAME(m_view_clear));
 	m_page_y = 0;
 	m_page_dirty = false;
 	m_cur = m_next = band_t{ 0, 0, 0, 0, false };
@@ -692,6 +708,7 @@ TIMER_CALLBACK_MEMBER(hp_lj3p_base::video_line)
 				if (BIT(d, 15 - b) && x >= 0 && x < m_page.width())
 				{
 					line[x] = 0x000000;
+					view_dot(x, m_page_y);
 					m_page_dirty = true;
 				}
 			}
@@ -804,8 +821,30 @@ void hp_lj3p_base::blt_data_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
+void hp_lj3p_base::view_dot(int x, int y)
+{
+	if (m_view_clear)
+	{
+		m_view.fill(0xffffff);
+		m_view_clear = false;
+	}
+	if (x / 4 < VIEW_W && y / 4 < VIEW_H)
+	{
+		u32 &p = m_view.pix(y / 4, x / 4);
+		u32 const v = std::max<int>(int(p & 0xff) - 16, 0);
+		p = (v << 16) | (v << 8) | v;
+	}
+}
+
+u32 hp_lj3p_base::paper_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	copybitmap(bitmap, m_view, 0, 0, 0, 0, cliprect);
+	return 0;
+}
+
 void hp_lj3p_base::eject_page()
 {
+	m_view_clear = true;   // the next page replaces the view
 	if (m_page_dirty || m_page_y)
 	{
 		LOG("page complete, %d lines\n", m_page_y);
@@ -878,7 +917,16 @@ void hp_lj3p_base::device_add_mconfig(machine_config &config)
 
 	PDF_PRINTER(config, m_printout);
 
-	screen_device &screen(SCREEN(config, "screen").set_lcd());
+	screen_device &paper(SCREEN(config, "paper"));
+	paper.set_refresh_hz(10);
+	paper.set_vblank_time(ATTOSECONDS_IN_USEC(0));
+	paper.set_size(VIEW_W, VIEW_H);
+	paper.set_visarea_full();
+	paper.set_screen_update(FUNC(hp_lj3p_base::paper_update));
+
+	config.set_default_layout(layout_hplj3p);
+
+	screen_device &screen(SCREEN(config, "lcd").set_lcd());
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
 	screen.set_screen_update(m_lcdc, FUNC(hd44780_device::screen_update));
