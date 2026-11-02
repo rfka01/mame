@@ -18,18 +18,43 @@
 
     Working: self test page (hold the button for two seconds), PCL jobs from a
     file through the bitbanger ("-bitb job.pcl"), pages go to the PDF printer.
-    The reverse channel of the parallel port is sent to the bitbanger, but
-    IEEE 1284 negotiation is not emulated.
+    After the job the host model negotiates the reverse channel (IEEE 1284
+    nibble mode, or the device ID when selected in the configuration); the
+    printer's answers (PJL INFO, USTATUS, device ID) are written to the
+    bitbanger: with a file they are appended after the job, with a socket
+    ("-bitb socket.localhost:port") they go to the program on the other end.
 
     Front panel: LEDs Ready, Data, Paper and Error (outputs ready_led,
     data_led, paper_led, error_led), one button.
 
+    Registers that are written but not emulated (the PDF output is not
+    affected):
+    - 830000: EconoMode (0a on, 00 off)
+    - 870000: 0f2e, 0faf on another engine status; probably laser timing
+    - 87000a: Resolution Enhancement on (1) or off (0), 870002-870008 its
+      pulse widths (30 70 f8 1fc for Medium, 30 70 fc 3fe for Dark)
+
     TODO:
-    - status meanings of the 4L engine commands 1c, 3e, 40, 4f, 51, 9d, f1
-      (the firmware reads two status bytes for 9d, a7 and f1)
-    - IEEE 1284 negotiation, manual feed
-    - the 870000 registers (written before every page, probably the laser
-      timing and Resolution Enhancement)
+    - status meanings of the 4L engine commands 1c, 3e, 40, 4f, 51, 7f, 9d,
+      a7, f1 (7f is only sent for a print density other than the default;
+      all of them are answered with 00, which the firmware accepts)
+    - status 2a: only bit 6 (paper in the cassette) is emulated; with bit 7
+      set the firmware reports ENGINE ERROR
+    - the firmware's tables follow f1 and 9d with a parameter byte (0e, 00)
+      and it expects a second status for them (routine at 16ac6); the
+      handshake is not understood: answered with one status, the firmware
+      skips the parameter byte, a second /SBSY right after the first one
+      stops the engine communication
+    - meaning of the parallel port events in 820002 bits 2 and 3 (the
+      firmware acknowledges them with 820006 bits 2 and 1 and only counts
+      them as host activity, which ends Intelligent Off)
+    - manual feed: the firmware keeps status 2a bit 5 in 60089a, which the
+      print start code at 17d1a checks before it asserts engine output
+      bit 13 instead of bit 11; setting the bit changed nothing in tests,
+      and a manual feed job (ESC &l2H) prints at once
+    - engine timings are estimates: 2 s from the print request to TOP,
+      1.69 ms per line; the left margin offset (MARGIN_OFFSET) comes from
+      printed rules, not from a printer
 
 ***************************************************************************/
 
@@ -140,14 +165,32 @@ private:
 	u16 leds_r(offs_t offset, u16 mem_mask) { return m_leds; }
 	void leds_w(offs_t offset, u16 data, u16 mem_mask);
 
-	// Bi-Tronics parallel port: 820000 data (read: received byte, written:
-	// byte for the reverse channel), 820002 status (bit 0 data received,
-	// bit 5 reverse channel ready), 82000a interrupt enables (bit 0 data
-	// received, bit 3 reverse channel ready)
+	// Bi-Tronics parallel port with IEEE 1284 negotiation in hardware:
+	// 820000 data (read: received byte, written: byte for the reverse channel)
+	// 820002 status: bit 0 data received, bit 1 and bit 5 reverse channel
+	//        ready, bit 6 1284 mode changed, bit 7 host in a 1284 mode,
+	//        bit 8 negotiation done (bits 2 and 3 further events, not used here)
+	// 820006 written: event acknowledge (bit 3: mode change)
+	// 82000a interrupt enables: bit 0 data received, bit 3 reverse channel
+	//        ready, bit 5 mode change, bit 6 negotiation (bits 1, 4: bits 3, 2)
+	// 82000c read: extensibility byte of the negotiation (04: device ID);
+	//        written: acknowledges the negotiation
+	// The host model sends the bitbanger data in compatibility mode and,
+	// 100 ms after the last byte, negotiates the reverse channel like a host
+	// polling for status; the printer's answers go back to the bitbanger.
 	required_device<bitbanger_device> m_host;
 	u8 m_pdata;
 	bool m_pfull;
 	u16 m_pen;
+	u16 m_pevt;         // latched events: bit 6 1284 line change, bit 8 negotiation
+	u8 m_pext;          // extensibility byte of the last negotiation
+	bool m_p1284;       // host in a 1284 mode (status bit 7)
+	bool m_phost_data;  // host sent data since the last negotiation
+	int m_pidle;        // host poll periods without data
+	u16 m_pcfg;         // 82000c low bits written by the firmware
+	u16 pext_r(offs_t offset, u16 mem_mask);
+	void pext_w(offs_t offset, u16 data, u16 mem_mask);
+	void pack_w(offs_t offset, u16 data, u16 mem_mask);
 	emu_timer *m_host_timer;
 	TIMER_CALLBACK_MEMBER(host_poll);
 	void update_pirq();
@@ -263,6 +306,18 @@ void hplj4l_state::machine_start()
 	m_pdata = 0;
 	m_pfull = false;
 	m_pen = 0;
+	m_pevt = 0;
+	m_pext = 0;
+	m_p1284 = false;
+	m_phost_data = false;
+	m_pidle = 0;
+	m_pcfg = 0;
+	save_item(NAME(m_pevt));
+	save_item(NAME(m_pext));
+	save_item(NAME(m_p1284));
+	save_item(NAME(m_phost_data));
+	save_item(NAME(m_pidle));
+	save_item(NAME(m_pcfg));
 	save_item(NAME(m_pdata));
 	save_item(NAME(m_pfull));
 	save_item(NAME(m_pen));
@@ -403,7 +458,8 @@ void hplj4l_state::eject_page()
 
 void hplj4l_state::update_pirq()
 {
-	bool const irq = (m_pfull && BIT(m_pen, 0)) || BIT(m_pen, 3);
+	bool const irq = (m_pfull && BIT(m_pen, 0)) || BIT(m_pen, 3)
+			|| (BIT(m_pevt, 6) && BIT(m_pen, 5)) || (BIT(m_pevt, 8) && BIT(m_pen, 6));
 	if (irq)
 		m_irq_pend |= 0x10;
 	else
@@ -419,8 +475,29 @@ TIMER_CALLBACK_MEMBER(hplj4l_state::host_poll)
 	u8 b;
 	if (m_host->input(&b, 1) == 1)
 	{
+		if (m_p1284)
+		{
+			// back to compatibility mode before sending
+			LOG("host: 1284 termination at %.3f\n", machine().time().as_double());
+			m_p1284 = false;
+			m_pevt |= 0x0040;
+		}
 		m_pdata = b;
 		m_pfull = true;
+		m_phost_data = true;
+		m_pidle = 0;
+		update_pirq();
+	}
+	else if (m_phost_data && ++m_pidle == 5000)
+	{
+		// 100 ms without data: the host negotiates nibble mode to read the
+		// reverse channel (extensibility byte 00), or asks for the IEEE 1284
+		// device ID (04)
+		LOG("host: 1284 negotiation at %.3f\n", machine().time().as_double());
+		m_phost_data = false;
+		m_p1284 = true;
+		m_pext = BIT(m_config->read(), 2) ? 0x04 : 0x00;
+		m_pevt |= 0x0140;
 		update_pirq();
 	}
 }
@@ -445,7 +522,30 @@ void hplj4l_state::pdata_w(offs_t offset, u16 data, u16 mem_mask)
 
 u16 hplj4l_state::pstat_r(offs_t offset, u16 mem_mask)
 {
-	return (m_pfull ? 0x0001 : 0x0000) | 0x0022;
+	return (m_pfull ? 0x0001 : 0x0000) | 0x0022 | (m_p1284 ? 0x0080 : 0x0000) | m_pevt;
+}
+
+// 820006 written: acknowledges events (bit 3: 1284 line change)
+void hplj4l_state::pack_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	LOG("%s: 820006 = %04x & %04x\n", machine().describe_context(), data, mem_mask);
+	if (BIT(data, 3))
+		m_pevt &= ~0x0040;
+	update_pirq();
+}
+
+u16 hplj4l_state::pext_r(offs_t offset, u16 mem_mask)
+{
+	return m_pext | (m_pcfg & 1);
+}
+
+// 82000c written: acknowledges the negotiation, bit 0 set while the device ID is sent
+void hplj4l_state::pext_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	LOG("%s: 82000c = %04x & %04x\n", machine().describe_context(), data, mem_mask);
+	m_pcfg = data & 1;
+	m_pevt &= ~0x0100;
+	update_pirq();
 }
 
 void hplj4l_state::pen_w(offs_t offset, u16 data, u16 mem_mask)
@@ -683,7 +783,9 @@ void hplj4l_state::main_map(address_map &map)
 	map(0x800004, 0x800005).w(FUNC(hplj4l_state::irqack_w));
 	map(0x820000, 0x820001).rw(FUNC(hplj4l_state::pdata_r), FUNC(hplj4l_state::pdata_w));
 	map(0x820002, 0x820003).r(FUNC(hplj4l_state::pstat_r));
+	map(0x820006, 0x820007).w(FUNC(hplj4l_state::pack_w));
 	map(0x82000a, 0x82000b).rw(FUNC(hplj4l_state::pen_r), FUNC(hplj4l_state::pen_w));
+	map(0x82000c, 0x82000d).rw(FUNC(hplj4l_state::pext_r), FUNC(hplj4l_state::pext_w));
 	map(0x840000, 0x840007).w(FUNC(hplj4l_state::video_w));
 	map(0x84001e, 0x84001f).rw(FUNC(hplj4l_state::eng_r), FUNC(hplj4l_state::eng_w));
 	map(0x850000, 0x850001).rw(FUNC(hplj4l_state::leds_r), FUNC(hplj4l_state::leds_w));
@@ -706,6 +808,9 @@ static INPUT_PORTS_START( hplj4l )
 	PORT_CONFNAME( 0x02, 0x00, "Top door" )
 	PORT_CONFSETTING(    0x00, "Closed" )
 	PORT_CONFSETTING(    0x02, "Open" )
+	PORT_CONFNAME( 0x04, 0x00, "Host reads the IEEE 1284 device ID" )
+	PORT_CONFSETTING(    0x00, DEF_STR( No ) )
+	PORT_CONFSETTING(    0x04, DEF_STR( Yes ) )
 INPUT_PORTS_END
 
 void hplj4l_state::hplj4l(machine_config &config)
