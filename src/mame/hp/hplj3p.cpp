@@ -88,6 +88,14 @@ private:
 	int m_page_y;
 	bool m_page_dirty;
 	int m_band_lines;
+	// Left margin offset: 380004 holds the start of the image in pixels after
+	// the beam detect signal of each laser line, not after the paper edge.
+	// The firmware writes 0x8d; with the paper edge 91 pixels after the
+	// signal the PCL logical page starts 71 pixels (0.24 inch) from the edge
+	// of an A4 sheet as specified, and a Letter image starts 50 pixels in, as
+	// on the LaserJet 4L.  Taken from printed rules, not measured on a
+	// printer; without it the image is 141 pixels to the right.
+	static constexpr int MARGIN_OFFSET = 91;
 	u32 m_band_addr;
 	void eject_page();
 
@@ -465,7 +473,7 @@ TIMER_CALLBACK_MEMBER(hplj3p_state::video_line)
 	if (!m_band_lines || BIT(m_video[3], 12))
 		return;
 	int const words = m_video[0] >> 8;
-	int const x0 = m_video[2] & 0x0fff;
+	int const x0 = (m_video[2] & 0x0fff) - MARGIN_OFFSET;
 	if (BIT(m_video[3], 14) && m_page_y < m_page.height())
 	{
 		address_space &space = m_maincpu->space(AS_PROGRAM);
@@ -477,7 +485,7 @@ TIMER_CALLBACK_MEMBER(hplj3p_state::video_line)
 			for (int b = 0; b < 16; b++)
 			{
 				int const x = x0 + w * 16 + b;
-				if (BIT(d, 15 - b) && x < m_page.width())
+				if (BIT(d, 15 - b) && x >= 0 && x < m_page.width())
 				{
 					line[x] = 0x000000;
 					m_page_dirty = true;

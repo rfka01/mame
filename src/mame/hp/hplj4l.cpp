@@ -165,11 +165,22 @@ private:
 	// one is output waits in the second set and is taken over when the
 	// current band ends; the end of every band requests interrupt source 0
 	// (level 6)
+	// Left margin offset: 840004 holds the start of the image in pixels after
+	// the beam detect signal of each laser line, not after the paper edge.
+	// The firmware writes 0x87 for the cassette (plus the registration
+	// adjustment).  With the paper edge 85 pixels after the signal a Letter
+	// image (154 words, 2464 pixels) starts 50 pixels in: the PCL logical
+	// page then starts 75 pixels (1/4 inch) from the edge on Letter and 71
+	// pixels (0.24 inch) on A4 as specified, and the frame of the self test
+	// page sits 1/4 inch from both edges.  Taken from printed rules, not
+	// measured on a printer; without it the image is 135 pixels to the right
+	// and the right part of the frame falls off the sheet.
+	static constexpr int MARGIN_OFFSET = 85;
 	struct band_t
 	{
 		u32 addr;
 		u16 words;
-		u16 x0;
+		s16 x0;
 		u16 lines;
 		bool data;
 	};
@@ -290,7 +301,8 @@ hplj4l_state::band_t hplj4l_state::latch_band() const
 	band_t b;
 	b.addr = (u32(m_video[0] & 0x7f) << 16) | (m_video[1] & 0xfffe);
 	b.words = m_video[0] >> 8;
-	b.x0 = m_video[2] & 0x0fff;
+	// margin from the beam detect signal, converted to the paper edge
+	b.x0 = (m_video[2] & 0x0fff) - MARGIN_OFFSET;
 	b.lines = m_video[3] & 0x0fff;
 	b.data = BIT(m_video[3], 14);
 	return b;
@@ -342,7 +354,7 @@ TIMER_CALLBACK_MEMBER(hplj4l_state::video_line)
 			for (int b = 0; b < 16; b++)
 			{
 				int const x = m_cur.x0 + w * 16 + b;
-				if (BIT(d, 15 - b) && x < m_page.width())
+				if (BIT(d, 15 - b) && x >= 0 && x < m_page.width())
 				{
 					line[x] = 0x000000;
 					m_page_dirty = true;
