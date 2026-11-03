@@ -10,10 +10,25 @@
     *   printhead position given in m_xpos and m_ypos
     *   also provides a cr_stepper and a pf_stepper
     *   moving the cr_stepper/pf_stepper will update m_xpos/m_ypos according to ratio specified
+    *   single sheets: always loaded (the printer sees endless paper, each new
+        sheet starts like a loaded one), from a sheet feeder or inserted by hand,
+        with a paper sensor and the distance from the sensor to the print line
+    *   the paper screen keeps the physical proportions of the paper (width,
+        visible height, horizontal and vertical resolution); set_paper_view()
+        sets the visible height in inches; printers with a dot style are shown
+        with full-size dots, the dot view is rebuilt only when the page changed
+        or scrolled
+    *   set_paper_texture() lets a printer draw its paper under the dots of
+        the PDF pages
+    *   a page of an endless roll starts at its first ink and is one paper
+        length long; ink printed before the first paper feed is kept
+    *   overlapping dots of different inks mix (each colour channel keeps the
+        darker value)
 
  */
 
 #include "screen.h"
+#include "imagedev/pdfprinter.h"
 #include "machine/steppers.h"
 
 #ifndef MAME_MACHINE_BITMAP_PRINTER_H
@@ -41,6 +56,58 @@ public:
 
 	void write_snapshot_to_file();
 
+	// PDF output: dot appearance of the pages filed to the "printout" image
+	void set_dot_style(const printer_dot_style &style) { m_dot_style = style; m_dot_style_set = true; }
+
+	// paper that isn't plain white (coated, tinted), drawn under the dots of the
+	// PDF pages; the canvas is greyscale unless the ink is colored (configuration time only)
+	void set_paper_texture(std::function<void (printer_page_canvas &)> &&texture) { m_paper_texture = std::move(texture); }
+
+	// height of the paper shown on the paper screen, in inches (configuration time only)
+	void set_paper_view(double inches);
+
+	// selectable paper (configuration time only): the bitmap is the printer's
+	// mechanism; the selected sheet lies in it and is what is filed as a page
+	enum : int
+	{
+		PAPER_FANFOLD_12 = 0,   // 240 mm x 12" fanfold
+		PAPER_FANFOLD_11,       // 9.5" x 11" fanfold
+		PAPER_A4,               // A4 single sheet
+		PAPER_LETTER,           // US Letter single sheet
+		PAPER_FORMATS
+	};
+	void set_paper_formats(u8 mask, int default_format);
+
+	// paper sensor: a single sheet's trailing edge passes it the load offset before
+	// the end of the sheet reaches the print line
+	bool paper_present() const { return sheet_in() && (!sheet_handling() || (m_ypos < m_sheet_height - m_sensor_rows)); }
+	bool sheet_in() const { return !m_paper_mask || m_sheet_fanfold || m_sheet_loaded; }
+
+	// the printer handles single sheets (friction feed, paper sensor sees each sheet);
+	// false for fanfold paper and for sheets that are always loaded, which the
+	// printer takes for endless paper
+	bool sheet_handling() const { return single_sheet() && !m_always_loaded; }
+	bool single_sheet() const { return m_paper_mask && !m_sheet_fanfold; }
+	DECLARE_INPUT_CHANGED_MEMBER(insert_sheet);
+	DECLARE_INPUT_CHANGED_MEMBER(paper_changed);
+
+	// single sheets: distance from the paper sensor, where a new sheet's top edge stops,
+	// to the print line; the firmware's loading feed moves it up from there
+	// (configuration time only)
+	void set_sheet_load_offset(double inches) { m_load_offset = inches; }
+
+	// single sheets: a sheet is already in when the printer is switched on, instead of
+	// arriving a moment later (configuration time only)
+	void set_sheet_in_at_power_on(bool in) { m_sheet_at_power_on = in; }
+
+	// "always loaded" single sheets: first print line of a new sheet, in inches from its
+	// top edge, where the printer's own loading puts it (configuration time only)
+	void set_sheet_top(double inches) { m_sheet_top = inches; }
+
+	// lowest print position: a sheet being loaded is still below the print line
+	int min_ypos() const { return m_paper_mask ? -m_paper_height : 0; }
+	pdf_printer_device &pdf() { return *m_pdf; }
+
 	void draw_pixel(int x, int y, int pixelval);
 	int get_pixel(int x, int y);
 	unsigned int &pix(int y, int x);
@@ -51,6 +118,7 @@ public:
 
 	int get_top_margin();
 	int get_bottom_margin();
+	int sheet_start_row();
 	bool check_new_page();
 
 	int update_stepper_delta(stepper_device *stepper, uint8_t pattern);
@@ -79,17 +147,19 @@ protected:
 
 private:
 	required_device<screen_device> m_screen;
+	required_device<pdf_printer_device> m_pdf;
 	required_device<stepper_device> m_pf_stepper;
 	required_device<stepper_device> m_cr_stepper;
 
 	required_ioport m_top_margin_ioport;
 	required_ioport m_bottom_margin_ioport;
 	required_ioport m_draw_marks_ioport;
+	optional_ioport m_paper_ioport;
 
 	bitmap_rgb32 m_page_bitmap; // page bitmap
 	bitmap_rgb32 m_roll_bitmap; // continuous feed: rows retired from the page bitmap, held until a lap is ready to write
 
-	static constexpr int PAPER_SCREEN_HEIGHT = 384; // match the height of the apple II driver
+	static constexpr int DEFAULT_SCREEN_HEIGHT = 384; // match the height of the apple II driver
 	static constexpr int m_distfrombottom = 50;  // print position from bottom of screen
 	static constexpr int MAX_LEDS = 5;
 	static constexpr u32 paper_color = 0xffffff;
@@ -111,8 +181,8 @@ private:
 	int m_feed_lo;  // visited, never more than a paper length apart
 	bool m_roll_dirty;
 	bool m_roll_collected;
-	int m_roll_first;      // roll coordinates of the collected run, so a
-	int m_roll_last;       // discontiguous row can be spotted and close it out
+	int m_roll_first;      // roll coordinates of the collected run: a page starts at
+	int m_roll_last;       // its first ink, a discontiguous row closes it out
 	bool m_feed_forward;   // which end of the roll last exposed new paper
 	int m_led_state[MAX_LEDS];
 	int m_num_leds;
@@ -121,6 +191,47 @@ private:
 	int m_cr_stepper_ratio0;
 	int m_cr_stepper_ratio1;
 
+	printer_dot_style m_dot_style;
+	bool m_dot_style_set;
+	int m_screen_height;     // paper screen height in pixels
+	bitmap_rgb32 m_dot_view; // paper screen: unexpanded view of the page
+	bitmap_rgb32 m_view_cache; // paper screen: page with full-size dots
+	u32 m_view_serial;       // bumped whenever the page bitmap changes
+	u32 m_view_cached_serial;
+	int m_view_cached_scroll;
+
+	// selectable paper
+	u8 m_paper_mask;         // formats the mechanism takes, 0 = fixed paper (old behaviour)
+	int m_paper_default;
+	int m_sheet_height;      // rows of the selected sheet
+	int m_sheet_left;        // columns of the selected sheet in the mechanism
+	int m_sheet_right;
+	bool m_sheet_fanfold;
+	bool m_greenbar;
+	std::function<void (printer_page_canvas &)> m_paper_texture;
+	bool m_unlimited_sheets;
+	bool m_always_loaded;
+	bool m_sheet_loaded;
+	double m_load_offset;
+	bool m_sheet_at_power_on;
+	double m_sheet_top;
+	int m_sensor_rows;
+	attotime m_last_feed;        // last paper motor step
+	emu_timer *m_feeder_timer;   // single sheets: the next sheet arrives a moment after the last left
+
+	TIMER_CALLBACK_MEMBER(feed_sheet);
+	void load_sheet();
+
+	void apply_paper();
+	int page_rows() const { return m_paper_mask ? m_sheet_height : m_page_bitmap.height(); }
+	void render_paper(bitmap_rgb32 &dst, int page_row0, int col0, bool screen);
+	void paper_canvas(printer_page_canvas &page);
+
+	void configure_screen(screen_device &screen);
+	void touch() { m_view_serial++; }
+
+	void flush_to_pdf();
+	void expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &dst);   // stamps the ink of src onto dst
 	void draw_printhead(bitmap_rgb32 &bitmap, int x, int y);
 	u32 dimcolor(u32 incolor, int factor);
 
@@ -128,7 +239,9 @@ private:
 	void reset_feed_marks();
 	void clear_roll_rows(int from_row, int to_row, u32 color = 0xffffff);
 	bool flush_roll();
+	bool collect_roll_row(int src);
 	bool retire_roll_rows(int from_row, int to_row, bool forward);
+	void finish_roll();
 	bool row_has_ink(bitmap_rgb32 &bitmap, int row) const;
 	void write_roll_page(bitmap_rgb32 &bitmap, int first_row);
 	void write_bitmap_to_file(bitmap_rgb32 &bitmap);
