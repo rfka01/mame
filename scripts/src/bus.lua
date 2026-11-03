@@ -1722,6 +1722,8 @@ if BUSES["CBMIEC"] then
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1200.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1224.cpp",
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1224.h",
+		MAME_DIR .. "src/devices/bus/cbmiec/mps1230.cpp",
+		MAME_DIR .. "src/devices/bus/cbmiec/mps1230.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1270a.cpp",
 		MAME_DIR .. "src/devices/bus/cbmiec/mps1270a.h",
 		MAME_DIR .. "src/devices/bus/cbmiec/prodos.cpp",
@@ -4418,6 +4420,8 @@ end
 
 if BUSES["NSCSI"] then
 	files {
+		MAME_DIR .. "src/devices/bus/nscsi/acb4070.cpp",
+		MAME_DIR .. "src/devices/bus/nscsi/acb4070.h",
 		MAME_DIR .. "src/devices/bus/nscsi/applecd.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/applecd.h",
 		MAME_DIR .. "src/devices/bus/nscsi/cd.cpp",
@@ -4430,6 +4434,8 @@ if BUSES["NSCSI"] then
 		MAME_DIR .. "src/devices/bus/nscsi/cdrn820s.h",
 		MAME_DIR .. "src/devices/bus/nscsi/cdu75s.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/cdu75s.h",
+		MAME_DIR .. "src/devices/bus/nscsi/cdu76s.cpp",
+		MAME_DIR .. "src/devices/bus/nscsi/cdu76s.h",
 		MAME_DIR .. "src/devices/bus/nscsi/cdu415.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/cdu415.h",
 		MAME_DIR .. "src/devices/bus/nscsi/cdu561.cpp",
@@ -4442,6 +4448,8 @@ if BUSES["NSCSI"] then
 		MAME_DIR .. "src/devices/bus/nscsi/crd254sh.h",
 		MAME_DIR .. "src/devices/bus/nscsi/cw7501.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/cw7501.h",
+		MAME_DIR .. "src/devices/bus/nscsi/d9060hd.cpp",
+		MAME_DIR .. "src/devices/bus/nscsi/d9060hd.h",
 		MAME_DIR .. "src/devices/bus/nscsi/devices.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/devices.h",
 		MAME_DIR .. "src/devices/bus/nscsi/dtc510.cpp",
@@ -4452,6 +4460,8 @@ if BUSES["NSCSI"] then
 		MAME_DIR .. "src/devices/bus/nscsi/et532.h",
 		MAME_DIR .. "src/devices/bus/nscsi/hd.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/hd.h",
+		MAME_DIR .. "src/devices/bus/nscsi/omti5100.cpp",
+		MAME_DIR .. "src/devices/bus/nscsi/omti5100.h",
 		MAME_DIR .. "src/devices/bus/nscsi/pc8801_30.cpp",
 		MAME_DIR .. "src/devices/bus/nscsi/pc8801_30.h",
 		MAME_DIR .. "src/devices/bus/nscsi/pc98_hd.cpp",
@@ -5579,38 +5589,6 @@ if BUSES["SBUS"] then
 		MAME_DIR .. "src/devices/bus/sbus/sunpc.h",
 		MAME_DIR .. "src/devices/bus/sbus/sbus.cpp",
 		MAME_DIR .. "src/devices/bus/sbus/sbus.h",
-	}
-end
-
-
----------------------------------------------------
---
---@src/devices/bus/scsi/scsi.h,BUSES["SCSI"] = true
----------------------------------------------------
-if BUSES["SCSI"] then
-	files {
-		MAME_DIR .. "src/devices/bus/scsi/scsi.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/scsi.h",
-		MAME_DIR .. "src/devices/bus/scsi/scsicd.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/scsicd.h",
-		MAME_DIR .. "src/devices/bus/scsi/scsihd.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/scsihd.h",
-		MAME_DIR .. "src/devices/bus/scsi/scsihle.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/scsihle.h",
-		MAME_DIR .. "src/devices/bus/scsi/cdu76s.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/cdu76s.h",
-		MAME_DIR .. "src/devices/bus/scsi/scsicd512.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/scsicd512.h",
-		MAME_DIR .. "src/devices/bus/scsi/acb4070.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/acb4070.h",
-		MAME_DIR .. "src/devices/bus/scsi/d9060hd.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/d9060hd.h",
-		MAME_DIR .. "src/devices/bus/scsi/sa1403d.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/sa1403d.h",
-		MAME_DIR .. "src/devices/bus/scsi/s1410.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/s1410.h",
-		MAME_DIR .. "src/devices/bus/scsi/omti5100.cpp",
-		MAME_DIR .. "src/devices/bus/scsi/omti5100.h",
 	}
 end
 
