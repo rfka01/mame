@@ -126,6 +126,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "epson_ex800.h"
 #include "epson_fx80.h"
 #include "epson_lx800.h"
+#include "etibuffer.h"
 #include "epson_lx810l.h"
 #include "epson_rx80.h"
 #include "hardlock.h"
@@ -134,6 +135,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "mz1p16.h"
 #include "nec_p72.h"
 #include "nlq401.h"
+#include "pb642.h"
 #include "pc6022.h"
 #include "printer.h"
 #include "samdac.h"
@@ -154,6 +156,8 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("rx80", EPSON_RX80);
 	device.option_add("p72", NEC_P72);
 	device.option_add("printer", CENTRONICS_PRINTER);
+	device.option_add("pb642", CENTRONICS_PB642);
+	device.option_add("etibuffer", ETIPRINTBUFFER);
 	device.option_add("digiblst", CENTRONICS_DIGIBLASTER);
 	device.option_add("covox", CENTRONICS_COVOX);
 	device.option_add("covox_stereo", CENTRONICS_COVOX_STEREO);
