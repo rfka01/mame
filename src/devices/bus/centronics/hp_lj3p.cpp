@@ -2,17 +2,44 @@
 // copyright-holders:rfka01
 /***************************************************************************
 
-    HP LaserJet IIIP (33481A), 1991
+HP Laserjet IIIP, Hewlett Packard, April 1991
+Hardware Info By Guru
+---------------------
 
-    Formatter board RH6-3107 / 33481-80003:
-    - Toshiba TMP68HC000T-16, 16 MHz (32 MHz oscillator / 2)
-    - Toshiba TC5316200 2 MB mask ROM 1818-5008 (16 bit)
-    - 1 MB DRAM (8x KM44C256), expansion to 5 MB
-    - 93C46 serial EEPROM (settings, page count)
-    - MC6850 compatible ACIA for the serial interface
-    - National SD9212AL (1820-6339), HP 1TW7-0301, HP 1TU3-0201 (19.401 MHz,
-      Resolution Enhancement)
-    - font cartridge slot, control panel, Canon print engine (DC controller)
+The LaserJet IIIP (product# 33481A) was the Resolution Enhancement Technology version of the LaserJet IIP.
+Features include...
+4 Pages Per Minute.
+1MB RAM as Standard. RAM expansions in 1MB or 2MB modules (maximum 2, maximum 5MB).
+300DPI Resolution (8" x 7" bitmap graphic with standard RAM, 1 full-page bitmap with additional 1MB RAM)
+Built in Fonts (14 Bitmapped Fonts, 8 Scalable Fonts). Many optional font carts were available.
+PCL5 Printer Language (Postscript requires an additional 1MB RAM).
+Serial and Parallel Interface (optional 10BaseT, JetDirect, LocalTalk)
+
+This is the main controller board. PCB# RH6-3107 33481-80003 REV A
+Main components are....
+- 32MHz Oscillator
+- Toshiba TMP68HC000T-16 CPU. Clock Input 16MHz [32/2]
+- Samsung KM44C256 256kB x4-bit CMOS DRAM with Fast-Page Mode (x8 chips, total 1024kB DRAM)
+  Specification shows RAM was expandable up to maximum 5MBytes with 2x 2MB RAM Boards.
+- Toshiba TC5316200AF-F125 2MB SOP44 mask ROM
+- 93C46 SOIC8 EEPROM
+- National SD9212AL (PLCC84). HP Part# 1820-6339.
+- HP 1TW7-0301 92171 EPG56 (QFP120). Most likely this is the Print Engine, possibly related to Canon's CX Print Engine.
+- HP 1TU3-0201 92147 (PLCC28)
+- 19.401MHz Crystal, connected to PLCC28 chip on pins 23 and 25.
+- Some LS245 Logic Chips.
+- ST TL7705 Reset Chip.
+- Slot for Font Cartridge.
+- Several Connectors.
+
+Additional notes
+----------------
+
+    - mask ROM 1818-5008 (16 bit)
+    - the 93C46 EEPROM holds the control panel settings and the page count
+    - the serial interface works like an MC6850 ACIA and is emulated as one
+      (which chip contains it is not known)
+    - control panel: HD44780 compatible LCD controller, keys and indicators
 
     Host interfaces (user's manual, appendix D): a Centronics parallel port
     and an RS-232C serial port; the control panel selects one of them
@@ -27,7 +54,22 @@
     Canon engine with the MP tray and the optional lower cassette as
     configuration settings, the glyph/rule merger and the band video output.
     Printed pages go to the "printout" device (PDF, or PNG files in the
-    snapshot directory).
+    snapshot directory) and to a paper view, which the layout shows next to
+    the control panel (display, six keys, On Line and Form Feed indicators).
+
+    Implementation notes:
+    - serial port: MC6850 compatible ACIA at 300000 on IRQ 6; the baud rate
+      clock comes from 3e0006 bits 13-15 (19200 Hz doubled per step; the
+      firmware sets the ACIA to divide by 64 for 300 and 600 baud, by 16
+      above)
+    - merger: a write to the x position register (3c0000) moves the write
+      pointer within the current row; the HP-GL/2 span fill routines set
+      it for every row
+    - the band registers are double buffered: the firmware writes the
+      blank top margin and the first band back to back
+    - the left margin register counts pixels from the beam detect signal;
+      MARGIN_OFFSET converts it to the paper edge (PCL logical page 75
+      pixels from the edge on Letter, 71 on A4)
 
     Not verified against hardware: the engine timing (TOP after PRNT, line
     period), the merger's raster operations, which are modelled as ROP3

@@ -2,15 +2,35 @@
 // copyright-holders:rfka01
 /***************************************************************************
 
-    HP LaserJet 4L (C2003A), 1993
+HP LaserJet 4L, Hewlett Packard, May 1993
+Hardware Info By Guru
+---------------------
 
-    Formatter C2004-80101:
+HP Product#: C2004
+PCB#: C2004-80101 REV A
+Sticker: C2004-60001 B-3401-46
+
+This is a low-end 300DPI GDI laser printer with 1MB or 2MB (max) memory.
+
+Main components are....
+- Motorola 1TY4 SC414210FT QFP160 all-in-1 custom chip
+- 16Mbit SOP44 mask ROM
+- 2x Hitachi HM514260AJ7 DRAM
+- Crystal 31.3076MHz
+- Centronics parallel port
+- 3 connectors (one is a pass-through on bottom side).
+    One connector appears to be for a custom plug-in RAM module (containing 2x HM514260 DRAMs) to increase the
+    on-board DRAM by an additional 1MB.
+- 4 LEDs
+
+Additional notes
+----------------
+
     - Motorola 1TY4 SC414210FT: 68000 core and the printer logic in one chip
-    - 2 MB mask ROM 1818-5601 (16 bit)
-    - 1 MB DRAM (2x HM514260), the firmware detects 1 MB more on a memory card
-      (a configuration setting)
-    - 31.3076 MHz crystal
-    - Bi-Tronics parallel port, one button, four LEDs, Canon print engine
+    - mask ROM 1818-5601 (16 bit)
+    - the firmware detects 1 MB more DRAM on a memory card (a configuration
+      setting)
+    - the parallel port is a Bi-Tronics port
 
     The formatter logic in the 1TY4 works like the separate gate arrays of the
     LaserJet IIIP (hp_lj3p.cpp): the same merger, the same serial link to the
@@ -29,7 +49,12 @@
 
     Front panel: LEDs Ready, Data, Paper and Error (outputs hplj4l_ready_led,
     hplj4l_data_led, hplj4l_paper_led, hplj4l_error_led), one button; the
-    layout shows it next to the paper.
+    layout shows it next to the paper view of the page being printed.
+
+    As in the IIIP, the merger's x position register (900008) moves the
+    write pointer within the current row, the band registers are double
+    buffered and MARGIN_OFFSET converts the margin counted from the beam
+    detect signal to the paper edge.
 
     Registers that are written but not emulated (the PDF output is not
     affected):
