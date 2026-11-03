@@ -1808,6 +1808,10 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/eeprom_dongle.h",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.h",
+		MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.h",
+		MAME_DIR .. "src/devices/bus/centronics/hp_lj4l.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/hp_lj4l.h",
 		MAME_DIR .. "src/devices/bus/centronics/epson_fx80.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/epson_fx80.h",
 		MAME_DIR .. "src/devices/bus/centronics/epson_lx800.cpp",
@@ -1846,6 +1850,8 @@ if BUSES["CENTRONICS"] then
 
 	dependency {
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",  GEN_DIR .. "emu/layout/ex800.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.cpp",      GEN_DIR .. "emu/layout/hplj3p.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/hp_lj4l.cpp",      GEN_DIR .. "emu/layout/hplj4l.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx800.cpp",  GEN_DIR .. "emu/layout/lx800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx810l.cpp", GEN_DIR .. "emu/layout/lx800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/etibuffer.cpp",    GEN_DIR .. "emu/layout/etibuffer.lh" },
@@ -1855,6 +1861,8 @@ if BUSES["CENTRONICS"] then
 
 	custombuildtask {
 		layoutbuildtask("emu/layout", "ex800"),
+		layoutbuildtask("emu/layout", "hplj3p"),
+		layoutbuildtask("emu/layout", "hplj4l"),
 		layoutbuildtask("emu/layout", "lx800"),
 		layoutbuildtask("emu/layout", "etibuffer"),
 		layoutbuildtask("emu/layout", "pb642"),
