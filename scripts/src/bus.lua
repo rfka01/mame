@@ -1833,6 +1833,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/mcs820.h",
 		MAME_DIR .. "src/devices/bus/centronics/nec_p72.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/nec_p72.h",
+		MAME_DIR .. "src/devices/bus/centronics/nixdorf_md16.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/nixdorf_md16.h",
 		MAME_DIR .. "src/devices/bus/centronics/nlq401.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/nlq401.h",
 		MAME_DIR .. "src/devices/bus/centronics/pb642.cpp",
@@ -1847,6 +1849,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/smartboard.h",
 		MAME_DIR .. "src/devices/bus/centronics/spjoy.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/spjoy.h",
+		MAME_DIR .. "src/devices/bus/centronics/star_nl10.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/star_nl10.h",
 	}
 
 	dependency {
@@ -1855,9 +1859,11 @@ if BUSES["CENTRONICS"] then
 		{ MAME_DIR .. "src/devices/bus/centronics/hp_lj4l.cpp",      GEN_DIR .. "emu/layout/hplj4l.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx800.cpp",  GEN_DIR .. "emu/layout/lx800.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/epson_lx810l.cpp", GEN_DIR .. "emu/layout/lx800.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/nixdorf_md16.cpp", GEN_DIR .. "emu/layout/nixdorf_md16.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/etibuffer.cpp",    GEN_DIR .. "emu/layout/etibuffer.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/pb642.cpp",        GEN_DIR .. "emu/layout/pb642.lh" },
 		{ MAME_DIR .. "src/devices/bus/centronics/smartboard.cpp",   GEN_DIR .. "emu/layout/smartboard.lh" },
+		{ MAME_DIR .. "src/devices/bus/centronics/star_nl10.cpp",    GEN_DIR .. "emu/layout/star_nl10.lh" },
 	}
 
 	custombuildtask {
@@ -1865,9 +1871,11 @@ if BUSES["CENTRONICS"] then
 		layoutbuildtask("emu/layout", "hplj3p"),
 		layoutbuildtask("emu/layout", "hplj4l"),
 		layoutbuildtask("emu/layout", "lx800"),
+		layoutbuildtask("emu/layout", "nixdorf_md16"),
 		layoutbuildtask("emu/layout", "etibuffer"),
 		layoutbuildtask("emu/layout", "pb642"),
 		layoutbuildtask("emu/layout", "smartboard"),
+		layoutbuildtask("emu/layout", "star_nl10"),
 	}
 end
 
