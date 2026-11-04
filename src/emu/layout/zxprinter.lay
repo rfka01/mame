@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Sinclair ZX Printer: the aluminium coated paper roll in the black case, the clear tear-off
+bar with the Sinclair logo, the red ZX PRINTER legend and the paper feed button at the
+right (after photos of a printer)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.07" green="0.07" blue="0.08" /></rect></element>
+	<element name="case_edge"><rect><color red="0.16" green="0.16" blue="0.17" /></rect></element>
+	<element name="bar"><rect><color red="0.62" green="0.64" blue="0.66" alpha="0.55" /></rect></element>
+	<!-- the aluminium coated paper: streaks of the rolled coating along the paper (so they
+	     scroll with it), the paper curving back over the roll at the top, a soft sheen -->
+	<element name="streaks">
+		<image><data>
+			iVBORw0KGgoAAAANSUhEUgAAAkAAAABACAIAAAB9Z19IAAADw0lEQVR42u3VQa7rSA5E0Yigav8r6x70ekSyB5R/LaFQwD1v8mDY
+			UibJzPB//vs/J463W07imd0Z27uTenZGVlIzLVmWdrU7u5ZWSsp295vEie3pkXZnekZSVWnleGdXk1TVs1rb/b7fMyXNOpYkWytJ
+			VbHdM7tre/cWluk3VZJ2V5JWsnZW0mqSp57q7jip7Gzi2dXu7SLJ/tYjq7sr6R7bSWbHkpMk033/2p6dJN19BbBl53uIVtLMJtFP
+			4tt+fB+u45mdnlt5VV2R7axWUndf9e5zyTN9T7MtW7up6vdN6srW3d/Pd5MktbtJ3n6ramdW2tl6anevRIklS+p+9ZVe98Zb1czU
+			82jvpdqZ9313187temYc74xWvX39s7zaJHZ213HsK8vu2rqVV1XP/PX8Jd1eerUzE3tXtrv7OvrrhZPs3kMsrZM41/EbgJmRdKur
+			p/bKnpqZ3f3GxH+2udfo+8e6P80387u7SV1fuvv3TTnpbq2S2LqSWt6dWcXunt2dHd9CV7Li9LTl932rInt66qnY3Z2q31m7Vt4K
+			vx5dnft9Z2a1lZJ9Bb3ezPbu3iskn92Rret76rcQ29pVz5vUnVz7a5y0cm6MU7W7sWc3jq47t/f7hZ1fC/p977pIVRLprgUnmel7
+			byrv+96QXE+vht+QJJavRLeQG4DpTj3fYFdpJe30b/Ds3dU3ElKiuwrkW/CdztvkTNfzXKGSrK5re9P1K6ws/3rnm5zbkR1Jd2+8
+			b9/hvfUnSWV67lHfUYpnbo/uGUuyK5Hc3cnNmO6A35KfqqvV7tj+6hZ3T1V1v8l33d3ibwqqbjIzc19r247v1lrt3WP6buu/78tf
+			NzX93q3yW3n99vsV9lq/q52+b+7KyaXA3SeufHPSrd/5ku6i6DuJV+Tu187dMH8m/G71VM3ONdTJzFRyN+pqn+f5c3hvsP9cL39f
+			uAAA/IsQYAAAAgwAAAIMAAACDABAgAEAQIABAECAAQAIMAAACDAAAAgwAAAIMAAAAQYAAAEGAAABBgAgwAAAIMAAACDAAAAEGAAA
+			BBgAAAQYAAAEGACAAAMAgAADAIAAAwAQYAAAEGAAABBgAAACDAAAAgwAAAIMAAACDABAgAEAQIABAECAAQAIMAAACDAAAAgwAAAB
+			BgAAAQYAAAEGAAABBgAgwAAAIMAAACDAAAAEGAAABBgAAAQYAIAAAwCAAAMAgAADAIAAAwAQYAAAEGAAABBgAAACDAAAAgwAAAIM
+			AECAAQBAgAEAQIABAECAAQAIMAAA/mn/B9UWhCfVJ1OjAAAAAElFTkSuQmCC
+		</data></image>
+	</element>
+	<element name="curve">
+		<image><data>
+			iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAIAAAB7vvvtAAABBElEQVR42u3dyw2DMBBF0YBtMLh1OuaXCjIby1IW55Zw9GY903Ec
+			H/0ut9YoAOoA2vedQgS0bRsFQB1AtVYKgDqA1nWlEAEty0IBEKBxQKUUChFQzpkCoA6glBIFQB1A8zxTCJqe56EQAb3vSyHIfQEC
+			BAgQIECAAAkQIECAAAECBEiAAAECBAgQIEACBAgQIECAAAECJECAAAECBAgQIAECBAgQIECAAAkQIECAAAECBAiQAAECBAgQIECA
+			BAgQIECAAAECJECAAAECBAgQIEACBAgQIECAAAESIECAAP1P2QM2C+pbkB+HTsyChgLd903BgixoHNB1XRQAARoHdJ4nhaAvCB4q
+			xFYTg/AAAAAASUVORK5CYII=
+		</data></image>
+	</element>
+	<element name="sheen">
+		<image><data>
+			iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAIAAAB7vvvtAAAAkUlEQVR42u3YwQnAIBBFQddN/x2rKSCwlyCIzJTw+AZjawAAAAAA
+			AHC/iAgVCl2C2mNBFmRBWwP1bkQWZEECCXRsoMxUwYIEcsTcgxwxP6sCCcT3G7TWUqEKNOdUQSCB9gUaY6hgQQI5Yu5BjpgFXSm9
+			Bwn0L5AENc8dAgEAAAAAAAAAAAAAAAAAAAAAAABwjBdmDyGLTkixJQAAAABJRU5ErkJggg==
+		</data></image>
+	</element>
+	<element name="key" defstate="0">
+		<rect><color red="0.02" green="0.02" blue="0.02" /></rect>
+		<rect state="0"><bounds x="0.1" y="0.1" width="0.8" height="0.8" /><color red="0.20" green="0.20" blue="0.21" /></rect>
+		<rect state="1"><bounds x="0.1" y="0.1" width="0.8" height="0.8" /><color red="0.10" green="0.10" blue="0.11" /></rect>
+	</element>
+	<element name="t_sinclair"><text string="sinclair"><color red="0.35" green="0.36" blue="0.38" /></text></element>
+	<element name="t_name"><text string="ZX PRINTER" align="1"><color red="0.85" green="0.10" blue="0.08" /></text></element>
+	<element name="t_feed"><text string="FEED"><color red="0.45" green="0.45" blue="0.47" /></text></element>
+
+	<view name="Paper and Case">
+		<element ref="case"><bounds x="0" y="0" width="760" height="680" /></element>
+		<screen tag="bitmap_printer:screen"><bounds x="80" y="20" width="576" height="432" /></screen>
+		<!-- the paper is aluminium coated, the burnt dots show the dark layer below -->
+		<element ref="streaks" blend="multiply"><bounds x="80" y="20" width="576" height="432" /></element>
+		<element ref="curve" blend="multiply"><bounds x="80" y="20" width="576" height="432" /></element>
+		<element ref="sheen" blend="add"><bounds x="80" y="20" width="576" height="432" /></element>
+		<element ref="case_edge"><bounds x="0" y="452" width="760" height="8" /></element>
+		<element ref="bar"><bounds x="70" y="440" width="596" height="70" /></element>
+		<element ref="t_sinclair"><bounds x="110" y="455" width="180" height="40" /></element>
+		<element ref="t_name"><bounds x="100" y="560" width="300" height="40" /></element>
+		<element id="feed" ref="key" inputtag="BUTTONS" inputmask="0x01"><bounds x="690" y="40" width="40" height="40" /></element>
+		<element ref="t_feed"><bounds x="680" y="85" width="60" height="22" /></element>
+	</view>
+
+	<view name="Paper">
+		<screen tag="bitmap_printer:screen"><bounds x="0" y="0" width="576" height="432" /></screen>
+		<element ref="streaks" blend="multiply"><bounds x="0" y="0" width="576" height="432" /></element>
+		<element ref="curve" blend="multiply"><bounds x="0" y="0" width="576" height="432" /></element>
+		<element ref="sheen" blend="add"><bounds x="0" y="0" width="576" height="432" /></element>
+	</view>
+</mamelayout>
