@@ -11,6 +11,14 @@
     does not stall), the page tree, catalog and cross-reference table
     follow when the image is unloaded or MAME exits.
 
+    Real numbers are written with a fixed decimal point, independent of
+    the C locale (a decimal comma, e.g. on a German Windows, made viewers
+    show empty pages).
+
+    Overlapping dots of different inks mix: each colour channel keeps the
+    darker value, so colour passes that land next to each other show the
+    mixed colour instead of blotches; black ink is unchanged.
+
 ***************************************************************************/
 
 #include "emu.h"

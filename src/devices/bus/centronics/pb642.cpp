@@ -38,6 +38,9 @@
         the self test (ROM 0198) is what first releases the computer
       - the COMPUTER 2 connector is not emulated
 
+    Configuration: the auto CR/FF jumper (status b7) is a configuration
+    setting; the front panel layout has clickable keys and the LEDs.
+
     Power-on key combos: START/END = endless banner self-test print,
     SELECT = jumper/LED test, PLUS = RAM burn-in loop.
 

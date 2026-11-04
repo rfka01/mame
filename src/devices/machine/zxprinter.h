@@ -24,6 +24,7 @@ public:
 	void write(uint8_t data);
 
 	DECLARE_INPUT_CHANGED_MEMBER(feed_w);
+	DECLARE_INPUT_CHANGED_MEMBER(off_w);
 
 protected:
 	zx_printer_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
@@ -42,10 +43,12 @@ private:
 	attotime pixel_period(int speed) const;
 	static void aluminium_paper(printer_page_canvas &page);
 	TIMER_CALLBACK_MEMBER(tick);
+	TIMER_CALLBACK_MEMBER(test_row);
 
 	required_device<bitmap_printer_device> m_bitmap_printer;
 	required_ioport m_buttons;
 	emu_timer *m_timer;
+	emu_timer *m_test_timer;
 
 	bool m_host;           // the computer runs the motor
 	int m_speed;           // 0 = stopped, 1 = slow, 2 = fast
@@ -54,8 +57,13 @@ private:
 	int m_pixel;           // position of the last write (encoder)
 	int m_filled;          // dots of the row already burnt or left blank
 	int m_stylus;
+	int m_on_x;            // dot at which the stylus was last switched on
 	bool m_row_done;
 	uint8_t m_row[DOTS];
+	bool m_off;            // Alphacom 32 out of the printing mode (OFF)
+	bool m_test;           // Alphacom 32 self test running
+	bool m_test_armed;     // OFF pressed while ON/ADVANCE is held
+	int m_test_row;        // self test: glyph row 0-7 of an 8 line, 8-15 of a 1 line
 };
 
 
@@ -63,6 +71,9 @@ class alphacom32_device : public zx_printer_device
 {
 public:
 	alphacom32_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+
+protected:
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 };
 
 

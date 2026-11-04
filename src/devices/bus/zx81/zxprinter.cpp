@@ -4,8 +4,10 @@
 
     Sinclair ZX Printer and Alphacom 32 for the ZX81
 
-    Port FB (A2 low). The printer passes the rest of the bus on to its
-    through connector, which is not emulated.
+    Port FB (A2 low; the Alphacom 32 also needs A7 high, see
+    https://www.robertprice.co.uk/robblog/tag/alphacom-32/). The printer
+    passes the rest of the bus on to its through connector, which is not
+    emulated.
 
 **********************************************************************/
 
@@ -38,14 +40,16 @@ protected:
 
 	virtual uint8_t iorq_r(offs_t offset) override
 	{
-		return BIT(offset, 2) ? 0xff : m_printer->read();
+		return selected(offset) ? m_printer->read() : 0xff;
 	}
 
 	virtual void iorq_w(offs_t offset, uint8_t data) override
 	{
-		if (!BIT(offset, 2))
+		if (selected(offset))
 			m_printer->write(data);
 	}
+
+	virtual bool selected(offs_t offset) const { return !BIT(offset, 2); }
 
 	required_device<zx_printer_device> m_printer;
 };
@@ -61,6 +65,7 @@ public:
 
 protected:
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD { ALPHACOM32(config, m_printer); }
+	virtual bool selected(offs_t offset) const override { return !BIT(offset, 2) && BIT(offset, 7); }
 };
 
 } // anonymous namespace

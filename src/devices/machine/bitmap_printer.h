@@ -10,6 +10,20 @@
     *   printhead position given in m_xpos and m_ypos
     *   also provides a cr_stepper and a pf_stepper
     *   moving the cr_stepper/pf_stepper will update m_xpos/m_ypos according to ratio specified
+    *   single sheets: always loaded (the printer sees endless paper, each new
+        sheet starts like a loaded one), from a sheet feeder or inserted by hand,
+        with a paper sensor and the distance from the sensor to the print line
+    *   the paper screen keeps the physical proportions of the paper (width,
+        visible height, horizontal and vertical resolution); set_paper_view()
+        sets the visible height in inches; printers with a dot style are shown
+        with full-size dots, the dot view is rebuilt only when the page changed
+        or scrolled
+    *   set_paper_texture() lets a printer draw its paper under the dots of
+        the PDF pages
+    *   a page of an endless roll starts at its first ink and is one paper
+        length long; ink printed before the first paper feed is kept
+    *   overlapping dots of different inks mix (each colour channel keeps the
+        darker value)
 
  */
 
