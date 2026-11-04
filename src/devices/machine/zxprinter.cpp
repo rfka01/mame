@@ -18,13 +18,33 @@
              D2  motor off
              D7  stylus power (burn a dot)
 
-    The Alphacom 32 is a thermal printer that answers the same port.
+    The Alphacom 32 is a thermal printer that connects to the same port.
+    It was also sold as the Timex Sinclair 2040.
 
     The timing follows IMC's xz80 model (as used by Fuse): a dot takes
     220 Spectrum T-states (440 at slow speed), a row 384 dot times of
     which 256 are on the paper, starting 64 dot times after the row.
+    A dot is burnt while the stylus passes it with the power on. The ROMs
+    switch the power off right after setting the last dot of a row, while
+    the stylus is still over it; a dot switched on and off again at the
+    same position therefore counts as burnt (otherwise the right edge of
+    COPY pictures was lost).
 
-    Not emulated: the Alphacom 32 self test and its OFF button.
+    Alphacom 32 keys (user's manual): OFF takes the printer out of the
+    printing mode, ON/ADVANCE puts it back into the printing mode and feeds
+    the paper while it is held. Holding ON/ADVANCE, pressing OFF once and
+    releasing ON/ADVANCE starts the self test, which prints a line of the
+    numeral 8 and a line of the numeral 1 again and again; OFF stops it,
+    ON/ADVANCE returns to the printing mode.
+
+    The self test printout of the identical Timex Sinclair 2040 (video
+    "Printing a Sinus Curve with the Timex Sinclair 2040" by Retroguy)
+    shows rows of 32 characters, 8s and 1s in turn without a gap, in a
+    character set like the ZX Spectrum's; the self test uses the Spectrum
+    glyphs of 8 and 1 (the Alphacom 32 logic is not dumped).
+
+    Assumptions: out of the printing mode the printer ignores the
+    computer's writes; the printer starts in the printing mode.
 
 **********************************************************************/
 
@@ -47,6 +67,11 @@ constexpr int END = ROW - START;        // row wraps here
 
 constexpr u32 SPECTRUM_CLOCK = 3'500'000;  // the T-states of the timing model
 
+// Alphacom 32 self test characters (the ZX Spectrum glyphs of 8 and 1)
+constexpr u8 TEST_GLYPHS[2][8] = {
+	{ 0x00, 0x3c, 0x42, 0x3c, 0x42, 0x42, 0x3c, 0x00 },    // 8
+	{ 0x00, 0x18, 0x28, 0x08, 0x08, 0x08, 0x3e, 0x00 } };  // 1
+
 } // anonymous namespace
 
 
@@ -59,9 +84,20 @@ static INPUT_PORTS_START( zx_printer )
 	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("Paper Feed") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(zx_printer_device::feed_w), 0)
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( alphacom32 )
+	PORT_START("BUTTONS")
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("ON/ADVANCE") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(zx_printer_device::feed_w), 0)
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("OFF") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(zx_printer_device::off_w), 0)
+INPUT_PORTS_END
+
 ioport_constructor zx_printer_device::device_input_ports() const
 {
 	return INPUT_PORTS_NAME( zx_printer );
+}
+
+ioport_constructor alphacom32_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME( alphacom32 );
 }
 
 
@@ -100,6 +136,7 @@ void zx_printer_device::device_add_mconfig(machine_config &config)
 void zx_printer_device::device_start()
 {
 	m_timer = timer_alloc(FUNC(zx_printer_device::tick), this);
+	m_test_timer = timer_alloc(FUNC(zx_printer_device::test_row), this);
 
 	save_item(NAME(m_host));
 	save_item(NAME(m_speed));
@@ -108,8 +145,13 @@ void zx_printer_device::device_start()
 	save_item(NAME(m_pixel));
 	save_item(NAME(m_filled));
 	save_item(NAME(m_stylus));
+	save_item(NAME(m_on_x));
 	save_item(NAME(m_row_done));
 	save_item(NAME(m_row));
+	save_item(NAME(m_off));
+	save_item(NAME(m_test));
+	save_item(NAME(m_test_armed));
+	save_item(NAME(m_test_row));
 }
 
 void zx_printer_device::device_reset()
@@ -121,9 +163,15 @@ void zx_printer_device::device_reset()
 	m_pixel = -1;
 	m_filled = 0;
 	m_stylus = 0;
+	m_on_x = -1;
 	m_row_done = false;
 	std::fill(std::begin(m_row), std::end(m_row), 0);
 	m_timer->adjust(attotime::never);
+	m_off = false;
+	m_test = false;
+	m_test_armed = false;
+	m_test_row = 0;
+	m_test_timer->adjust(attotime::never);
 }
 
 
@@ -204,7 +252,7 @@ void zx_printer_device::update()
 		int const x = current_x();
 		int const to = std::min(x, DOTS);
 		for (int i = std::max(m_filled, 0); i < to; i++)
-			m_row[i] = m_stylus;
+			m_row[i] |= m_stylus;
 		m_filled = std::max(m_filled, to);
 		if ((x >= DOTS) && !m_row_done)
 			output_row();
@@ -246,6 +294,8 @@ uint8_t zx_printer_device::read()
 
 void zx_printer_device::write(uint8_t data)
 {
+	if (m_off || m_test)
+		return;     // Alphacom 32 out of the printing mode
 	int const speed = BIT(data, 1) ? 1 : 2;
 	if (!m_host)
 	{
@@ -273,7 +323,7 @@ void zx_printer_device::write(uint8_t data)
 		if ((x >= 0) && (x < DOTS) && !m_row_done)
 		{
 			for (int i = std::max(m_filled, 0); i < DOTS; i++)
-				m_row[i] = m_stylus;
+				m_row[i] |= m_stylus;
 			output_row();
 		}
 		m_speed = 0;
@@ -293,8 +343,12 @@ void zx_printer_device::write(uint8_t data)
 		return;
 	}
 
-	m_stylus = BIT(data, 7);
 	int const x = current_x();
+	if (m_stylus && !BIT(data, 7) && (x == m_on_x) && (x >= 0) && (x < DOTS))
+		m_row[x] = 1;   // switched off before the stylus left the dot it was switched on at: it is burnt
+	if (!m_stylus && BIT(data, 7))
+		m_on_x = x;
+	m_stylus = BIT(data, 7);
 	if ((x < 0) && (speed != m_speed))
 	{
 		// before the paper: the new speed applies at once, from the position reached
@@ -309,6 +363,25 @@ void zx_printer_device::write(uint8_t data)
 
 INPUT_CHANGED_MEMBER(zx_printer_device::feed_w)
 {
+	if (!newval && m_test_armed)
+	{
+		// Alphacom 32: ON/ADVANCE released after OFF was pressed while it was held
+		m_test_armed = false;
+		update();
+		m_speed = 0;
+		m_stylus = 0;
+		m_timer->adjust(attotime::never);
+		m_test = true;
+		m_test_row = 0;
+		attotime const period = pixel_period(2) * ROW;
+		m_test_timer->adjust(period, 0, period);
+		return;
+	}
+	if (m_test)
+		return;
+	if (newval)
+		m_off = false;  // Alphacom 32: back into the printing mode
+
 	// the paper feed button runs the motor without printing
 	if (newval)
 	{
@@ -330,6 +403,53 @@ INPUT_CHANGED_MEMBER(zx_printer_device::feed_w)
 		m_stylus = 0;
 		m_timer->adjust(attotime::never);
 	}
+}
+
+INPUT_CHANGED_MEMBER(zx_printer_device::off_w)
+{
+	// Alphacom 32 OFF key
+	if (!newval)
+		return;
+	if (m_test)
+	{
+		// stops the self test, the printer stays out of the printing mode
+		m_test = false;
+		m_test_timer->adjust(attotime::never);
+		m_off = true;
+		return;
+	}
+	if (BIT(m_buttons->read(), 0))
+	{
+		// OFF while ON/ADVANCE is held: the self test starts when ON/ADVANCE is released
+		m_test_armed = true;
+		return;
+	}
+	m_off = true;
+	if (!m_host)
+		return;
+	// the motor stops, the row in progress is finished
+	update();
+	int const x = current_x();
+	if ((x >= 0) && (x < DOTS) && !m_row_done)
+	{
+		for (int i = std::max(m_filled, 0); i < DOTS; i++)
+			m_row[i] |= m_stylus;
+		output_row();
+	}
+	m_host = false;
+	m_speed = 0;
+	m_stylus = 0;
+	m_timer->adjust(attotime::never);
+}
+
+TIMER_CALLBACK_MEMBER(zx_printer_device::test_row)
+{
+	// Alphacom 32 self test: lines of 32 characters, 8s and 1s in turn
+	u8 const bits = TEST_GLYPHS[(m_test_row >> 3) & 1][m_test_row & 7];
+	for (int i = 0; i < DOTS; i++)
+		m_row[i] = BIT(bits, 7 - (i & 7));
+	output_row();
+	m_test_row = (m_test_row + 1) & 15;
 }
 
 TIMER_CALLBACK_MEMBER(zx_printer_device::tick)

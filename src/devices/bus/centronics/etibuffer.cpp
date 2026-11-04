@@ -14,6 +14,13 @@
         (pages 48-50 part 2: rom listing, memory map)
     Follow-up notes: 1985-09 p52, 1985-10 p58, 1985-11 p13
 
+    Hardware: Z80 at 2 MHz, 2 KB ROM, 16, 32 or 48 KB of 64K DRAMs.
+
+    Emulation: based on Golden Child's device, ported to the current API,
+    with initialised state, the RAM in the save state, BUSY held until
+    the firmware's dummy read at 0x00C8 (see below) and a layout with the
+    buffer fill graph, the LEDs and the TEST and CLEAR switches.
+
     Notes about the ROM code:
     * All state is held in the CPU registers so the entire RAM can be
       used: BC = write pointer, DE = read pointer, HL = byte count,
