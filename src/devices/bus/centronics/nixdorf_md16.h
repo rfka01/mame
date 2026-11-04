@@ -80,6 +80,7 @@ private:
 	u8 m_latch;
 	bool m_strobe;
 	bool m_busy;
+	bool m_latch_read;  // the firmware has read the latched byte
 
 	// outputs
 	u8 m_ga;

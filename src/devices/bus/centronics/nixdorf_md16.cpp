@@ -20,7 +20,9 @@
       c000-dfff  RAM
 
     Ports:
-      PA5-0, PB5-0  nozzles (one bit per nozzle, fired in six sub-phases)
+      PA5-0, PB5-0  nozzles (one bit per nozzle, fired in six sub-phases);
+                    only bits set to output in MA/MB drive them (the firmware
+                    writes ff to the ports while they are still inputs)
       PA6           carriage motor driver enable
       PA7           paper motor driver enable
       PB6           FORM FEED key        PC3  ON LINE key      PC6  LINE FEED key
@@ -35,7 +37,19 @@
 
     The carriage is a stepper (1 full step = 1/40", 4 nozzle columns);
     columns are timed by the extended timer, so the head position is
-    interpolated between steps.
+    interpolated between steps.  Carriage and paper motor share the phase
+    lines: the carriage only follows them while its driver (PA6) is on,
+    the paper motor while PA7 is on.
+
+    Paper: the paper formats of bitmap_printer.  The layout shows the
+    paper next to the control panel after the real printer (Power, Paper
+    Empty and On Line LEDs, On Line, Line Feed and Form Feed keys).
+
+    Centronics: /STROBE latches the data and sets BUSY; the /ACK pulse
+    releases BUSY once the firmware has read the latch.  When it goes on
+    line the firmware reads the latch and pulses /ACK once without data;
+    a byte strobed in between is kept (it was lost when every /ACK
+    released BUSY).
 
     The crystal is not visible on the photos; 12 MHz gives plausible speeds.
 
@@ -169,6 +183,7 @@ nixdorf_md16_device::nixdorf_md16_device(const machine_config &mconfig, const ch
 	m_latch(0),
 	m_strobe(true),
 	m_busy(false),
+	m_latch_read(false),
 	m_ga(0x3f),
 	m_pa(0),
 	m_pc(0xff),
@@ -219,6 +234,7 @@ void nixdorf_md16_device::device_start()
 	save_item(NAME(m_latch));
 	save_item(NAME(m_strobe));
 	save_item(NAME(m_busy));
+	save_item(NAME(m_latch_read));
 	save_item(NAME(m_ga));
 	save_item(NAME(m_pa));
 	save_item(NAME(m_pc));
@@ -234,7 +250,9 @@ void nixdorf_md16_device::device_start()
 
 void nixdorf_md16_device::device_reset()
 {
+	m_pc = 0xff;    // port C is an input after a reset, the lines are pulled high
 	m_busy = false;
+	m_latch_read = false;
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
 	m_power_on = machine().time();
@@ -250,7 +268,9 @@ INPUT_CHANGED_MEMBER(nixdorf_md16_device::power_switch)
 	if (newval)
 	{
 		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
+		m_pc = 0xff;
 		m_busy = false;
+		m_latch_read = false;
 		m_power_on = machine().time();
 		m_power_cycled = true;
 		update_status();
@@ -273,6 +293,8 @@ bool nixdorf_md16_device::keys_held(u8 mask) const
 
 u8 nixdorf_md16_device::ga_r()
 {
+	if (!machine().side_effects_disabled())
+		m_latch_read = true;
 	return m_latch;
 }
 
@@ -290,6 +312,7 @@ void nixdorf_md16_device::input_strobe(int state)
 	if (m_strobe && !state)
 	{
 		m_latch = m_data;
+		m_latch_read = false;
 		m_busy = true;
 		update_status();
 		m_maincpu->set_input_line(UPD7810_INTF1, ASSERT_LINE);
@@ -315,7 +338,7 @@ void nixdorf_md16_device::pa_w(u8 data)
 {
 	u8 const old = m_pa;
 	m_pa = data;
-	fire(0, data & 0x3f);
+	fire(0, data & ~m_maincpu->state_int(UPD7810_MA) & 0x3f);
 
 	// a driver that is switched on pulls its motor to the current phase
 	if ((data & ~old) & 0xc0)
@@ -329,7 +352,7 @@ u8 nixdorf_md16_device::pb_r()
 
 void nixdorf_md16_device::pb_w(u8 data)
 {
-	fire(1, data & 0x3f);
+	fire(1, data & ~m_maincpu->state_int(UPD7810_MB) & 0x3f);
 }
 
 u8 nixdorf_md16_device::pc_r()
@@ -347,11 +370,11 @@ void nixdorf_md16_device::pc_w(u8 data)
 	u8 const old = m_pc;
 	m_pc = data;
 
-	// /ACK pulse also releases BUSY
+	// /ACK pulse also releases BUSY, once the latch has been read
 	if (BIT(old, 0) != BIT(data, 0))
 	{
 		output_ack(BIT(data, 0));
-		if (!BIT(data, 0))
+		if (!BIT(data, 0) && m_latch_read)
 			m_busy = false;
 	}
 	if (BIT(old, 2) && !BIT(data, 2))
