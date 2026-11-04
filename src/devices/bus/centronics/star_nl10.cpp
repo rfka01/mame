@@ -33,10 +33,15 @@
       P24 out  1 = offline                        P54 out  BOLD LED (0 = on)
       P25 out  needle strobe (Tout2, active low)  P55 out  1 = busy / offline
       P26 in   home sensor (0 = home zone)        P56-57   mode LED code
-      P27 out  interface enable (?)
+      P27 out  0 = interface enabled
       P60-61   carriage stepper (2 phase, Gray code), 1 step = 1/60"
       P62      paper motor off, P63 motor power save
       P64-67   paper stepper (half steps of 1/432")
+
+    The firmware switches the printer on line (P55 low) before it clears
+    the data latch and enables the interface (P27 low); BUSY stays high
+    and strobes are ignored until then, otherwise a byte sent right after
+    power on was lost.
 
     Dot columns are timed by the firmware (not tied to carriage steps); the
     head position is interpolated between carriage steps.  The head lags
@@ -264,6 +269,9 @@ void star_nl10_device::device_start()
 
 void star_nl10_device::device_reset()
 {
+	// the ports are inputs after a reset, the lines are pulled high
+	m_port2 = 0xff;
+	m_port5 = 0xff;
 	m_data_ready = false;
 	m_cr_period = attotime::never;
 	m_cr_last_step = machine().time();
@@ -280,6 +288,8 @@ INPUT_CHANGED_MEMBER(star_nl10_device::power_switch)
 	if (newval)
 	{
 		m_maincpu->pulse_input_line(INPUT_LINE_RESET, attotime::zero);
+		m_port2 = 0xff;
+		m_port5 = 0xff;
 		m_data_ready = false;
 		m_power_on = machine().time();
 		m_power_cycled = true;
@@ -342,8 +352,8 @@ void star_nl10_device::cent_clear_w(u8 data)
 
 void star_nl10_device::input_strobe(int state)
 {
-	// the cartridge latches the data on the falling edge of /STROBE
-	if (m_strobe && !state)
+	// the cartridge latches the data on the falling edge of /STROBE, while the interface is enabled
+	if (m_strobe && !state && !BIT(m_port2, 7))
 	{
 		m_latch = m_data;
 		m_data_ready = true;
@@ -354,7 +364,7 @@ void star_nl10_device::input_strobe(int state)
 
 void star_nl10_device::update_busy()
 {
-	output_busy(m_data_ready || BIT(m_port5, 5));
+	output_busy(m_data_ready || BIT(m_port5, 5) || BIT(m_port2, 7));
 	output_select(!BIT(m_port5, 5));
 	output_perror(!BIT(m_port2, 2));
 }
@@ -384,7 +394,7 @@ void star_nl10_device::port2_w(u8 data)
 		fire(m_needles);
 
 	m_online_led = !BIT(data, 4);
-	if ((old ^ data) & 0x04)
+	if ((old ^ data) & 0x84)
 		update_busy();
 }
 
