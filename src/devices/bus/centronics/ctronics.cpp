@@ -133,6 +133,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "hasp_savquest.h"
 #include "neomania_adapter.h"
 #include "mz1p16.h"
+#include "mcs820.h"
 #include "hp_lj3p.h"
 #include "hp_lj4l.h"
 #include "nec_p72.h"
@@ -159,6 +160,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("p72", NEC_P72);
 	device.option_add("hplj3p", HP_LJ3P);
 	device.option_add("hplj4l", HP_LJ4L);
+	device.option_add("mcs820", MCS820);
 	device.option_add("printer", CENTRONICS_PRINTER);
 	device.option_add("pb642", CENTRONICS_PB642);
 	device.option_add("etibuffer", ETIPRINTBUFFER);

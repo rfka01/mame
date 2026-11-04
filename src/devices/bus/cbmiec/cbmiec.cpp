@@ -611,7 +611,6 @@ int cbm_iec_device::get_signal(int signal, const attotime &time)
 #include "interpod.h"
 #include "mcs801.h"
 #include "mcs810.h"
-#include "mcs820.h"
 #include "minichief.h"
 #include "mps1000.h"
 #include "mps1200.h"
@@ -622,6 +621,7 @@ int cbm_iec_device::get_signal(int signal, const attotime &time)
 #include "mps801.h"
 #include "mps803.h"
 #include "msdsd.h"
+#include "okimate20.h"
 #include "prodos.h"
 #include "prologicdos.h"
 #include "rapidos.h"
@@ -675,7 +675,6 @@ void cbm_iec_printer_devices(device_slot_interface &device)
 	device.option_add("interpod", CBM_INTERPOD);
 	device.option_add("mcs801", MCS801);
 	device.option_add("mcs810", MCS810);
-	device.option_add("mcs820", MCS820);
 	device.option_add("mps801", MPS801);
 	device.option_add("mps802", C1526);
 	device.option_add("mps803", MPS803);
@@ -687,6 +686,7 @@ void cbm_iec_printer_devices(device_slot_interface &device)
 	device.option_add("mps1270a", MPS1270A);
 	device.option_add("mps2020", MPS2020);
 	device.option_add("nl10", C64_NL10_INTERFACE);
+	device.option_add("okimat20", OKIMATE20);
 	device.option_add("serialbox", CBM_SERIAL_BOX);
 	device.option_add("vic1515", VIC1515);
 	device.option_add("vic1520", VIC1520);
