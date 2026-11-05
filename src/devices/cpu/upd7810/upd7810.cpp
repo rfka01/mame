@@ -490,12 +490,27 @@ upd78c14_device::upd78c14_device(const machine_config &mconfig, const char *tag,
 
 void upd7807_device::configure_ops()
 {
+	m_has_adc = false;
+
+	// the 7807 adds CMC to the 48 prefix
+	std::copy(std::begin(s_op48), std::end(s_op48), std::begin(m_op48_7807));
+	m_op48_7807[0xaa] = { &upd7810_device::CMC, 2, 8, 8, L0|L1 };
+
+	// the 7807 adds immediate operations on port T (sr5) to the 64 prefix
+	std::copy(std::begin(s_op64), std::end(s_op64), std::begin(m_op64_7807));
+	m_op64_7807[0xae] = { &upd7810_device::GTI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xbe] = { &upd7810_device::LTI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xce] = { &upd7810_device::ONI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xde] = { &upd7810_device::OFFI_PT_xx, 3, 14, 11, L0|L1 };
+	m_op64_7807[0xee] = { &upd7810_device::NEI_PT_xx,  3, 14, 11, L0|L1 };
+	m_op64_7807[0xfe] = { &upd7810_device::EQI_PT_xx,  3, 14, 11, L0|L1 };
+
 	m_opXX = s_opXX_7807;
-	m_op48 = s_op48;
+	m_op48 = m_op48_7807;
 	m_op4C = s_op4C;
 	m_op4D = s_op4D;
 	m_op60 = s_op60;
-	m_op64 = s_op64;
+	m_op64 = m_op64_7807;
 	m_op70 = s_op70;
 	m_op74 = s_op74;
 }
@@ -726,8 +741,8 @@ uint8_t upd7801_device::read_pc()
 	uint8_t data = (m_pc_in & inputs) | (m_pc_out & ~inputs);
 	if (!BIT(m_mc, 2))  /* TODO PC2 = -SCS input */
 		data = (data & ~0x04) | 0x04;
-	if (!BIT(m_mc, 7))  /* TODO PC7 = HOLD input */
-		data = (data & ~0x80);
+	// PC7 in control mode is the HOLD input; the pin can still be read
+	// (the Star Gemini-10X reads its parallel/serial interface selection there)
 	return data;
 }
 
@@ -1458,6 +1473,21 @@ void upd7810_device::update_sio(int cycles)
 	const int prescale[] = { 1, 1, 16, 64 };
 	const int interval = divider[SMH & 0x03] * prescale[SML & 0x03];
 
+	// In the x16 and x64 asynchronous modes the receiver runs from the undivided clock: it finds the
+	// falling edge of the start bit and samples every bit in its middle, independent of the phase of
+	// the transmit clock.
+	const bool oversample = (SML & 0x03) >= 2;
+	if (oversample)
+	{
+		const int rxclk = divider[SMH & 0x03];
+		m_rxovc += cycles;
+		while (m_rxovc >= rxclk)
+		{
+			m_rxovc -= rxclk;
+			upd7810_sio_rx_clock(prescale[SML & 0x03]);
+		}
+	}
+
 	OVCS += cycles;
 
 	while (OVCS >= interval / 2)
@@ -1465,14 +1495,61 @@ void upd7810_device::update_sio(int cycles)
 		OVCS -= (interval / 2);
 
 		if (0 == (EDGES ^= 1))
-			upd7810_sio_input(); // rising edge
+		{
+			if (!oversample)
+				upd7810_sio_input(); // rising edge
+		}
 		else
 			upd7810_sio_output(); // falling edge
 	}
 }
 
+void upd7810_device::upd7810_sio_rx_clock(int prescale)
+{
+	const uint8_t line = m_rxd_func() & 1;
+
+	// a frame started before the mode was switched to x16/x64 (the reset
+	// mode samples once per bit) continues at the oversampling clock
+	if (m_rxcnt && !m_rxwait)
+		m_rxwait = prescale;
+
+	if (m_rxwait)
+	{
+		if (0 == --m_rxwait)
+		{
+			if (0 == m_rxcnt)
+			{
+				// middle of the start bit: a high line was a glitch
+				if (!line && (SMH & 0x08))
+				{
+					m_rxs = 0x8000;
+					upd7810_sio_input();
+				}
+			}
+			else
+				upd7810_sio_input();
+			if (m_rxcnt)
+				m_rxwait = prescale;
+		}
+	}
+	else if (0 == m_rxcnt && (SMH & 0x08) && m_rxprev && !line)
+	{
+		m_rxwait = prescale / 2;
+	}
+	m_rxprev = line;
+}
+
 void upd7810_device::handle_timers(int cycles)
 {
+	// pulses at TI in this time slice, for the timers counting them
+	int ti = 0;
+	if (m_ti_clock && (((TMM & 0x0c) == 0x08) || ((TMM & 0x60) == 0x40)))
+	{
+		m_ti_accum += uint64_t(cycles) * m_ti_clock * 3;
+		ti = int(m_ti_accum / clock());
+		m_ti_accum %= clock();
+	}
+
 	/**** TIMER 0 ****/
 	if (TMM & 0x10)         /* timer 0 upcounter reset ? */
 		CNT0 = 0;
@@ -1487,6 +1564,8 @@ void upd7810_device::handle_timers(int cycles)
 			upd7810_handle_timer0(cycles, 128);
 			break;
 		case 0x08:  /* external signal at TI */
+			if (ti)
+				upd7810_handle_timer0(ti, 1);
 			break;
 		case 0x0c:  /* disabled */
 			break;
@@ -1507,6 +1586,8 @@ void upd7810_device::handle_timers(int cycles)
 			upd7810_handle_timer1(cycles, 128);
 			break;
 		case 0x40:  /* external signal at TI */
+			if (ti)
+				upd7810_handle_timer1(ti, 1);
 			break;
 		case 0x60:  /* clocked with timer 0 */
 			break;
@@ -1583,6 +1664,24 @@ void upd7810_device::handle_timers(int cycles)
 	if (((SMH & 0x03) == 0x01) || ((SMH & 0x03) == 0x02))
 	{
 		update_sio(cycles);
+	}
+
+	// the uPD7807 has no A/D converter
+	if (!m_has_adc)
+		return;
+
+	/**** AN4-AN7 falling edge flags (INTAN4-INTAN7) ****/
+	// the pins are also sampled digitally; a high to low transition sets the flag tested by SKIT ANn
+	bool const an_known = m_an_sample >= 0;
+	if (!an_known || (m_an_sample -= cycles) <= 0)
+	{
+		u8 msb = 0;
+		for (int i = 0; i < 4; i++)
+			msb |= BIT(m_an_func[4 + i](), 7) << i;
+		if (an_known)
+			ITF |= (m_an_msb & ~msb) & 0x0f;   // INTAN4..INTAN7 are ITF bits 0..3
+		m_an_msb = msb;
+		m_an_sample = 64;
 	}
 
 	/**** ADC ****/
@@ -1755,6 +1854,8 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_ti));
 	save_item(NAME(m_to));
 	save_item(NAME(m_ci));
+	save_item(NAME(m_an_msb));
+	save_item(NAME(m_an_sample));
 	save_item(NAME(m_lv0));
 	save_item(NAME(m_lv1));
 	save_item(NAME(m_co0));
@@ -1767,15 +1868,20 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_halt));
 
 	save_item(NAME(m_txs));
+	save_item(NAME(m_sio_s));
 	save_item(NAME(m_rxs));
 	save_item(NAME(m_txcnt));
 	save_item(NAME(m_rxcnt));
 	save_item(NAME(m_txbuf));
+	save_item(NAME(m_rxovc));
+	save_item(NAME(m_rxwait));
+	save_item(NAME(m_rxprev));
 	save_item(NAME(m_ovc0));
 	save_item(NAME(m_ovc1));
 	save_item(NAME(m_ovce));
 	save_item(NAME(m_ovcf));
 	save_item(NAME(m_ovcs));
+	save_item(NAME(m_ti_accum));
 	save_item(NAME(m_edges));
 	save_item(NAME(m_adcnt));
 	save_item(NAME(m_adtot));
@@ -1995,6 +2101,8 @@ void upd7810_device::device_reset()
 	m_ti = 0;
 	m_to = 0;
 	m_ci = 0;
+	m_an_msb = 0;
+	m_an_sample = -1;
 	m_lv0 = 0;
 	m_lv1 = 0;
 	m_co0 = 0;
@@ -2007,10 +2115,14 @@ void upd7810_device::device_reset()
 	m_halt = 0;
 
 	m_txs = 0;
+	m_sio_s = 0;
 	m_rxs = ~0;
 	m_txcnt = 0;
 	m_rxcnt = 0;
 	m_txbuf = 0;
+	m_rxovc = 0;
+	m_rxwait = 0;
+	m_rxprev = 1;
 	m_ovc0 = 0;
 	m_ovc1 = 0;
 	m_ovce = 0;
@@ -2200,6 +2312,18 @@ void upd7810_device::execute_set_input(int irqline, int state)
 			IRR |= INTF2;
 
 		m_int2 = !state;
+		break;
+	case UPD7810_CI_LINE:
+		/* CI is the physical level of PC5; ETMM can clear ECNT at its falling edge */
+		if (CI && !state)
+		{
+			if ((ETMM & 0x0c) == 0x08)
+			{
+				ECPT = ECNT;
+				ECNT = 0;
+			}
+		}
+		CI = state ? 1 : 0;
 		break;
 	default:
 		logerror("upd7810_set_irq_line invalid irq line #%d\n", irqline);

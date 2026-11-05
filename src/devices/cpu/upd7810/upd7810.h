@@ -35,10 +35,13 @@ enum
 #define UPD7810_INTF2       1
 #define UPD7810_INTF0       2
 #define UPD7810_INTFE1      4
+#define UPD7810_CI_LINE     5   // PC5/CI timer/event counter input
 
 
 class upd7810_device : public cpu_device
 {
+	friend class upd7807_device;
+
 public:
 	// construction/destruction
 	upd7810_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
@@ -68,6 +71,10 @@ public:
 	auto pc_out_cb() { return m_pc_out_cb.bind(); }
 	auto pd_out_cb() { return m_pd_out_cb.bind(); }
 	auto pf_out_cb() { return m_pf_out_cb.bind(); }
+
+	// clock at the TI input (PC3), for timers counting external pulses
+	void set_ti_clock(uint32_t clock) { m_ti_clock = clock; }
+	void set_ti_clock(const XTAL &clock) { m_ti_clock = clock.value(); }
 
 	void set_pa_pullups(uint8_t p) { m_pa_pullups = p; }
 	void set_pb_pullups(uint8_t p) { m_pb_pullups = p; }
@@ -305,6 +312,8 @@ protected:
 	uint8_t   m_ti;
 	uint8_t   m_to;
 	uint8_t   m_ci;
+	uint8_t   m_an_msb;     /* AN4-AN7 digital levels, for the falling edge flags */
+	int32_t   m_an_sample;  /* cycles until AN4-AN7 are sampled again, < 0 = levels unknown */
 	uint8_t   m_lv0;    /* level flip flop for co0 */
 	uint8_t   m_lv1;    /* level flip flop for co1 */
 	uint8_t   m_co0;
@@ -319,14 +328,20 @@ protected:
 	/* internal helper variables */
 	uint16_t  m_txs;    /* transmitter shift register */
 	uint16_t  m_rxs;    /* receiver shift register */
+	uint8_t   m_sio_s;  /* uPD7801 serial I/O register S */
 	uint8_t   m_txcnt;  /* transmitter shift register bit count */
 	uint8_t   m_rxcnt;  /* receiver shift register bit count */
 	uint8_t   m_txbuf;  /* transmitter buffer was written */
+	int32_t   m_rxovc;  /* receiver oversampling clock count (x16/x64 asynchronous mode) */
+	uint8_t   m_rxwait; /* oversampling clocks until the next receiver sample */
+	uint8_t   m_rxprev; /* RxD at the previous oversampling clock */
 	int32_t   m_ovc0;   /* overflow counter for timer 0 (for clock div 12/384) */
 	int32_t   m_ovc1;   /* overflow counter for timer 0 (for clock div 12/384) */
 	int32_t   m_ovce;   /* overflow counter for ecnt */
 	int32_t   m_ovcf;   /* overflow counter for fixed clock div 3 mode */
 	int32_t   m_ovcs;   /* overflow counter for serial I/O */
+	uint32_t  m_ti_clock = 0;   /* clock at TI, 0 = none */
+	uint64_t  m_ti_accum = 0;   /* TI phase, in units of clock()/3 */
 	uint8_t   m_edges;  /* rising/falling edge flag for serial I/O */
 	uint16_t  m_adcnt;  /* A/D converter cycle count */
 	uint8_t   m_adtot;  /* A/D converter total cycles per conversion */
@@ -336,6 +351,7 @@ protected:
 	int     m_adin;   /* currently selected A/D converter input */
 	int     m_adrange;/* in scan mode, A/D converter range (AN0-AN3 or AN4-AN7) */
 
+	bool m_has_adc = true;            /* false on the uPD7807 */
 	const struct opcode_s *m_opXX;    /* opcode table */
 	const struct opcode_s *m_op48;
 	const struct opcode_s *m_op4C;
@@ -355,6 +371,7 @@ protected:
 	void upd7810_write_TXB();
 	void upd7810_sio_output();
 	void upd7810_sio_input();
+	void upd7810_sio_rx_clock(int prescale);
 	void illegal();
 	void illegal2();
 	void SLRC_A();
@@ -1288,8 +1305,25 @@ protected:
 	void BIT_7_wa();
 	void SKN_bit();
 	void SETB();
+	void NOT_bit();
+	void MOV_bit_CY();
 	void CLR();
+	void OR_CY_bit();
 	void SK_bit();
+	void XOR_CY_bit();
+	void MOV_CY_bit();
+	void AND_CY_bit();
+	void CMC();
+	void GTI_PT_xx();
+	void LTI_PT_xx();
+	void NEI_PT_xx();
+	void EQI_PT_xx();
+	void ONI_PT_xx();
+	void OFFI_PT_xx();
+	void BLOCK_D_inc();
+	void BLOCK_D_dec();
+	int bit7807_r(uint8_t imm);
+	void bit7807_w(uint8_t imm, int state);
 	void PRE_60();
 	void DAA();
 	void RETI();
@@ -1406,6 +1440,10 @@ public:
 protected:
 	virtual std::unique_ptr<util::disasm_interface> create_disassembler() override;
 	virtual void configure_ops() override;
+
+private:
+	opcode_s m_op48_7807[256];  // the 48 prefix table with CMC
+	opcode_s m_op64_7807[256];  // the 64 prefix table with the port T immediate operations
 };
 
 
