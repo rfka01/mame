@@ -1507,6 +1507,12 @@ void upd7810_device::update_sio(int cycles)
 void upd7810_device::upd7810_sio_rx_clock(int prescale)
 {
 	const uint8_t line = m_rxd_func() & 1;
+
+	// a frame started before the mode was switched to x16/x64 (the reset
+	// mode samples once per bit) continues at the oversampling clock
+	if (m_rxcnt && !m_rxwait)
+		m_rxwait = prescale;
+
 	if (m_rxwait)
 	{
 		if (0 == --m_rxwait)
