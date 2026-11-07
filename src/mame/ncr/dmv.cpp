@@ -96,6 +96,7 @@ private:
 	void pit_out0(int state);
 	void timint_w(int state);
 	void fdd_motor_w(uint8_t data);
+	void fdc_us_w(uint8_t data);
 	void floppy_led_cb(floppy_image_device *floppy, int state);
 	uint8_t sys_status_r();
 	void tc_set_w(uint8_t data);
@@ -218,6 +219,7 @@ private:
 	int         m_dack3_line;
 	int         m_sd_poll_state;
 	int         m_floppy_motor;
+	int         m_floppy_sel;
 	int         m_busint[8];
 	int         m_irqs[8];
 	uint8_t     m_zoom_latch;   // horizontal display zoom latch on the graphics board (74LS175 B6)
@@ -287,6 +289,16 @@ void dmv_state::floppy_led_cb(floppy_image_device *floppy, int state)
 	m_floppy_leds[(floppy == m_floppy1->get_device()) ? 1 : 0] = state;
 }
 
+// The FDC's unit-select lines also pick which drive puts its READY on the
+// system status port, so remember the last one selected.  set_ds(-1) at the
+// end of a command arrives here as 0xff; the line keeps the last selection,
+// as it does on the machine.
+void dmv_state::fdc_us_w(uint8_t data)
+{
+	if (data < 2)
+		m_floppy_sel = data;
+}
+
 void dmv_state::fdd_motor_w(uint8_t data)
 {
 	m_pit->write_gate0(1);
@@ -319,7 +331,12 @@ uint8_t dmv_state::sys_status_r()
 	if (!(m_slot7->av16bit() || m_slot7a->av16bit()))
 		data |= 0x02;
 
-	if (m_floppy0->get_device() && !m_floppy0->get_device()->ready_r())
+	// READY of the drive the FDC has selected, not always drive 0: the line
+	// is the selected drive's, and a drive only reports ready two index
+	// pulses after it is selected or the motor starts.  Reading drive 0 here
+	// hid that delay for drive 1 entirely.
+	floppy_connector *sel = m_floppy_sel ? m_floppy1 : m_floppy0;
+	if (sel->get_device() && !sel->get_device()->ready_r())
 		data |= 0x04;
 
 	if (m_fdc->get_irq())
@@ -855,6 +872,7 @@ void dmv_state::machine_start()
 	save_item(NAME(m_dack3_line));
 	save_item(NAME(m_sd_poll_state));
 	save_item(NAME(m_floppy_motor));
+	save_item(NAME(m_floppy_sel));
 	save_item(NAME(m_busint));
 	save_item(NAME(m_irqs));
 	save_item(NAME(m_zoom_latch));
@@ -872,6 +890,7 @@ void dmv_state::machine_reset()
 	m_dack3_line = 0;
 	m_sd_poll_state = 0;
 	m_floppy_motor = 1;
+	m_floppy_sel = 0;
 	m_switch16 = 0;
 	m_thold7 = 0;
 	m_dma_hrq = 0;
@@ -1213,6 +1232,7 @@ void dmv_state::dmv(machine_config &config)
 	I8272A(config, m_fdc, 8'000'000, true);
 	m_fdc->intrq_wr_callback().set(FUNC(dmv_state::fdc_irq));
 	m_fdc->drq_wr_callback().set(m_dmac, FUNC(am9517a_device::dreq3_w));
+	m_fdc->us_wr_callback().set(FUNC(dmv_state::fdc_us_w));
 	FLOPPY_CONNECTOR(config, "i8272:0", dmv_floppies, "525dd", dmv_state::floppy_formats).enable_sound(true);
 	FLOPPY_CONNECTOR(config, "i8272:1", dmv_floppies, "525dd", dmv_state::floppy_formats).enable_sound(true);
 
