@@ -21446,6 +21446,9 @@ hp9k382
 hp_ipc
 hp9808a
 
+@source:hp/ljhost.cpp
+ljhost
+
 @source:hp/hpz80unk.cpp
 hpz80unk
 

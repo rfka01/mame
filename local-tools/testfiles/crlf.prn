@@ -1,0 +1,4 @@
+line1 CR onlyline2 after CR
+line3 after LF
+line4 after CRLF
+
