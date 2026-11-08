@@ -25,6 +25,8 @@ public:
 	// construction/destruction
 	dmv_k801_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	DECLARE_INPUT_CHANGED_MEMBER(cable_changed);
+
 protected:
 	dmv_k801_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
@@ -41,14 +43,24 @@ protected:
 	virtual void io_write(int ifsel, offs_t offset, uint8_t data) override;
 	virtual bool drives_irq() const override { return true; }
 
-	void pci_mconfig(machine_config &config, bool epci, const char *default_option);
+	void pci_mconfig(machine_config &config, bool epci, const char *default_option, void (*slot_options)(device_slot_interface &));
 
 	required_device<scn_pci_device> m_pci;
 	required_device<rs232_port_device> m_rs232;
 	required_ioport m_dsw;
+	optional_ioport m_cable;
 
 private:
 	void pci_irq_w(int state);
+	void pci_dtr_w(int state);
+	void rs232_dcd_w(int state);
+	void rs232_dsr_w(int state);
+	bool user_wired_cable() const;
+	void update_modem_inputs();
+
+	int m_pci_dtr;
+	int m_rs232_dcd;
+	int m_rs232_dsr;
 };
 
 
