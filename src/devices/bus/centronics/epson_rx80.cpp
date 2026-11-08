@@ -31,6 +31,11 @@
       AN4           interface type (high = parallel)
       AN6, AN7      DIP SW2-1 and SW2-4 (low = ON)
 
+    The carriage motor is a closed loop drive: the firmware switches the
+    phases at each PTS pulse, and a rotor model produces the PTS pulses
+    from the phases (1 step = 1/60").  Paper formats of bitmap_printer;
+    the layout shows the paper next to the control panel.
+
     Holding LINE FEED while the printer is switched on runs the self test,
     holding both keys the hex dump; select them under "Keys held at power on"
     and use the printer's power switch input, which restarts only the printer.
