@@ -24,7 +24,7 @@
       PC6 (CO0)     FIRE, needle pulse width
       PC7 (CO1)     buzzer
       AN0-AN2       DIP switch 2-1 to 2-3
-      AN3           line feed after CR (high): /AUTO FEED XT or DIP switch 2-4
+      AN3           line feed after CR (low): /AUTO FEED XT or DIP switch 2-4
       AN4           /SLCT IN
       AN5           +24 V supervision
 
@@ -486,8 +486,8 @@ u8 epson_lx800_device::an2_r()
 
 u8 epson_lx800_device::an3_r()
 {
-	// line feed after CR: high when /AUTO FEED XT is low or DIP switch 2-4 is on
-	return (BIT(m_dsw2->read(), 3) || !m_autofd) ? 0xff : 0x00;
+	// line feed after CR: low when /AUTO FEED XT is low or DIP switch 2-4 is on
+	return (BIT(m_dsw2->read(), 3) || !m_autofd) ? 0x00 : 0xff;
 }
 
 u8 epson_lx800_device::an4_r()
