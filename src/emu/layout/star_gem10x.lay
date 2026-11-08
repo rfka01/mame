@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Star Gemini-10X: paper and control panel (after photos: four lamps above the
+ON LINE, F.F and L.F keys on the beige case at the right)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.88" green="0.85" blue="0.77" /></rect></element>
+	<element name="case_dark"><rect><color red="0.76" green="0.73" blue="0.66" /></rect></element>
+	<element name="cover"><rect><color red="0.15" green="0.15" blue="0.16" /></rect></element>
+	<element name="lampfield"><rect><color red="0.93" green="0.91" blue="0.85" /></rect></element>
+
+	<element name="key" defstate="0">
+		<rect><color red="0.06" green="0.06" blue="0.07" /></rect>
+		<rect state="0"><bounds x="0.05" y="0.06" width="0.90" height="0.88" /><color red="0.17" green="0.17" blue="0.19" /></rect>
+		<rect state="1"><bounds x="0.05" y="0.06" width="0.90" height="0.88" /><color red="0.10" green="0.10" blue="0.11" /></rect>
+		<disk><bounds x="0.30" y="0.14" width="0.40" height="0.72" /><color red="0.22" green="0.22" blue="0.24" /></disk>
+	</element>
+	<element name="led_green" defstate="0">
+		<rect state="0"><color red="0.25" green="0.36" blue="0.28" /></rect>
+		<rect state="1"><color red="0.30" green="1.00" blue="0.45" /></rect>
+	</element>
+	<element name="led_red" defstate="0">
+		<rect state="0"><color red="0.40" green="0.20" blue="0.18" /></rect>
+		<rect state="1"><color red="1.00" green="0.22" blue="0.15" /></rect>
+	</element>
+	<element name="led_power"><rect><color red="0.30" green="1.00" blue="0.45" /></rect></element>
+
+	<element name="t_power"><text string="POWER" align="1"><color red="0.40" green="0.40" blue="0.38" /></text></element>
+	<element name="t_ready"><text string="READY" align="1"><color red="0.40" green="0.40" blue="0.38" /></text></element>
+	<element name="t_online"><text string="ON LINE" align="1"><color red="0.40" green="0.40" blue="0.38" /></text></element>
+	<element name="t_paper"><text string="PAPER OUT" align="1"><color red="0.40" green="0.40" blue="0.38" /></text></element>
+	<element name="t_k_on"><text string="ON"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_k_line"><text string="LINE"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_k_ff"><text string="F.F"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_k_lf"><text string="L.F"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_star"><text string="star" align="1"><color red="0.20" green="0.20" blue="0.22" /></text></element>
+
+	<group name="panel">
+		<element ref="case"><bounds x="0" y="0" width="1140" height="200" /></element>
+		<element ref="case_dark"><bounds x="0" y="0" width="1140" height="6" /></element>
+		<element ref="cover"><bounds x="0" y="6" width="560" height="120" /></element>
+		<element ref="t_star"><bounds x="40" y="140" width="160" height="44" /></element>
+
+		<!-- lamps -->
+		<element ref="lampfield"><bounds x="600" y="20" width="200" height="160" /></element>
+		<element ref="led_power"><bounds x="616" y="38" width="22" height="7" /></element>
+		<element ref="t_power"><bounds x="648" y="30" width="140" height="22" /></element>
+		<element name="gem10x_ready_led" ref="led_green"><bounds x="616" y="76" width="22" height="7" /></element>
+		<element ref="t_ready"><bounds x="648" y="68" width="140" height="22" /></element>
+		<element name="gem10x_online_led" ref="led_green"><bounds x="616" y="114" width="22" height="7" /></element>
+		<element ref="t_online"><bounds x="648" y="106" width="140" height="22" /></element>
+		<element name="gem10x_paper_led" ref="led_red"><bounds x="616" y="152" width="22" height="7" /></element>
+		<element ref="t_paper"><bounds x="648" y="144" width="140" height="22" /></element>
+
+		<!-- keys -->
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="830" y="40" width="90" height="120" /></element>
+		<element ref="t_k_on"><bounds x="840" y="72" width="70" height="24" /></element>
+		<element ref="t_k_line"><bounds x="840" y="98" width="70" height="24" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="930" y="40" width="90" height="120" /></element>
+		<element ref="t_k_ff"><bounds x="940" y="86" width="70" height="26" /></element>
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="1030" y="40" width="90" height="120" /></element>
+		<element ref="t_k_lf"><bounds x="1040" y="86" width="70" height="26" /></element>
+	</group>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<group ref="panel"><bounds x="0" y="360" width="1140" height="200" /></group>
+	</view>
+
+	<view name="Control Panel">
+		<group ref="panel"><bounds x="0" y="0" width="1140" height="200" /></group>
+	</view>
+</mamelayout>

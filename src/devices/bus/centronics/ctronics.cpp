@@ -126,6 +126,8 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "epson_ex800.h"
 #include "epson_fx80.h"
 #include "epson_mx80.h"
+#include "citizen_200gx.h"
+#include "bmc_bx80.h"
 #include "epson_fx880.h"
 #include "epson_ap3250.h"
 #include "epson_lx800.h"
@@ -148,6 +150,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "printer.h"
 #include "samdac.h"
 #include "smartboard.h"
+#include "star_gem10x.h"
 #include "star_nl10.h"
 #include "bus/cbmiec/mps1200.h"
 
@@ -161,6 +164,8 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("jx80", EPSON_JX80);
 	device.option_add("mx80", EPSON_MX80);
 	device.option_add("mx80dp", EPSON_MX80DP);
+	device.option_add("c200gx", CITIZEN_200GX);
+	device.option_add("bx80", BMC_BX80);
 	device.option_add("fx880", EPSON_FX880);
 	device.option_add("ap3250", EPSON_AP3250);
 	device.option_add("lx800", EPSON_LX800);
@@ -186,6 +191,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("mz1p16", MZ1P16);
 	device.option_add("pc6022", PC6022);
 	device.option_add("mps1250", MPS1250);
+	device.option_add("gem10x", STAR_GEMINI10X);
 	device.option_add("nl10", STAR_NL10);
 	device.option_add("md16", NIXDORF_MD16);
 
