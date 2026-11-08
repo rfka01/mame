@@ -59,6 +59,12 @@
                     a write sets the page
     The ROM sets come from two machines (see ROM_START( epson_fx85 )).
 
+    Emulation: the head position follows the carriage stepper, both print
+    directions are aligned; the JX-80 colour ribbon is modelled with the
+    real inks (yellow, magenta, cyan, black), overlapping colour passes mix
+    subtractively.  Paper formats of bitmap_printer; the layouts show the
+    paper next to the control panel after the real printers.
+
     Power-on key combinations: LINE FEED = self test, FORM FEED = hex
     dump.  Hold the keys (or select them under "Keys held at power on")
     and use the printer's power switch input, which restarts only the

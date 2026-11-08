@@ -48,15 +48,24 @@
 
     Control panel (INS A,BUS with P20 low): bit 0 ON LINE, bit 1 paper
     end sensor (1 = paper), bit 2 LINE FEED, bit 3 FORM FEED; ON LINE is
-    active high, the feed keys are active low.  Holding LINE FEED while the printer is switched on runs the
-    self test; select it under "Keys held at power on" and use the printer's
-    power switch input, which restarts only the printer.
+    active high, the feed keys are active low.  Holding LINE FEED while
+    the printer is switched on runs the self test; select it under "Keys
+    held at power on" and use the printer's power switch input, which
+    restarts only the printer.
+
+    Paper formats of bitmap_printer; the layout shows the paper next to
+    the control panel after a photo of the printer.
+
+    Graftrax-80 firmware: emphasized (ESC E/F) and double strike (ESC G/H)
+    are kept for the line, not per character; the mode in effect when the
+    line is printed applies to the whole line.  Its ESC command table has
+    no ESC 4/5 (italics).  Dots Perfect switches these modes within a
+    line and has ESC 4/5.
 
     TODO:
     - serial interface board
     - the 8049 mask ROM (MX-80 F/T III socket 3B) with the 2332 takes data
       but does not print with this 8041; its own 8041 is not dumped
-    - ESC 4 does not select italics with the Graftrax ROMs
     - DIP switch functions come from the MX-80 manuals and the firmware
 
 ***************************************************************************/
