@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Golden Child
+// copyright-holders:Golden Child, rfka01
 /**********************************************************************
 
     Epson RX-80 dot matrix printer emulation (skeleton)

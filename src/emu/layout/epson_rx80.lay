@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+Epson RX-80: paper and control panel, after a photo of an RX-80 F/T+
+(cream case, dark panel at the right: POWER, READY and PAPER OUT lamps right of
+ their labels, yellow ON LINE key with its lamp at its upper right, yellow FF and
+ LF keys, labels below the keys; ribbed paper knob at the right side)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.91" green="0.88" blue="0.74" /></rect></element>
+	<element name="case_dark"><rect><color red="0.82" green="0.79" blue="0.65" /></rect></element>
+	<element name="panel_rim"><rect><color red="0.72" green="0.69" blue="0.57" /></rect></element>
+	<element name="panel"><rect><color red="0.20" green="0.19" blue="0.18" /></rect></element>
+	<element name="knob">
+		<rect><color red="0.12" green="0.12" blue="0.12" /></rect>
+		<rect><bounds x="0.00" y="0.10" width="1.0" height="0.04" /><color red="0.30" green="0.30" blue="0.30" /></rect>
+		<rect><bounds x="0.00" y="0.30" width="1.0" height="0.04" /><color red="0.30" green="0.30" blue="0.30" /></rect>
+		<rect><bounds x="0.00" y="0.50" width="1.0" height="0.04" /><color red="0.30" green="0.30" blue="0.30" /></rect>
+		<rect><bounds x="0.00" y="0.70" width="1.0" height="0.04" /><color red="0.30" green="0.30" blue="0.30" /></rect>
+		<rect><bounds x="0.00" y="0.90" width="1.0" height="0.04" /><color red="0.30" green="0.30" blue="0.30" /></rect>
+	</element>
+
+	<element name="led_power"><rect><color red="0.40" green="0.90" blue="0.30" /></rect></element>
+	<element name="led_green" defstate="0">
+		<rect state="0"><color red="0.14" green="0.24" blue="0.12" /></rect>
+		<rect state="1"><color red="0.40" green="0.90" blue="0.30" /></rect>
+	</element>
+	<element name="led_red" defstate="0">
+		<rect state="0"><color red="0.32" green="0.10" blue="0.10" /></rect>
+		<rect state="1"><color red="1.00" green="0.20" blue="0.16" /></rect>
+	</element>
+	<element name="key" defstate="0">
+		<rect state="0"><color red="0.98" green="0.85" blue="0.36" /></rect>
+		<rect state="1"><color red="0.80" green="0.68" blue="0.26" /></rect>
+	</element>
+
+	<element name="t_power"><text string="POWER" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_ready"><text string="READY" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_paper"><text string="PAPER" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_out"><text string="OUT" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_online"><text string="ON LINE" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_ff"><text string="FF" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_lf"><text string="LF" align="2"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+
+	<group name="controls">
+		<element ref="panel_rim"><bounds x="0" y="0" width="200" height="560" /></element>
+		<element ref="panel"><bounds x="6" y="6" width="188" height="548" /></element>
+
+		<element ref="t_power"><bounds x="16" y="24" width="140" height="24" /></element>
+		<element ref="led_power"><bounds x="166" y="26" width="10" height="20" /></element>
+		<element ref="t_ready"><bounds x="16" y="58" width="140" height="24" /></element>
+		<element name="rx80_ready_led" ref="led_green"><bounds x="166" y="60" width="10" height="20" /></element>
+		<element ref="t_paper"><bounds x="16" y="92" width="140" height="24" /></element>
+		<element ref="t_out"><bounds x="16" y="114" width="140" height="24" /></element>
+		<element name="rx80_paper_led" ref="led_red"><bounds x="166" y="96" width="10" height="20" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x01"><bounds x="76" y="156" width="86" height="76" /></element>
+		<element name="rx80_online_led" ref="led_green"><bounds x="172" y="156" width="10" height="20" /></element>
+		<element ref="t_online"><bounds x="16" y="238" width="166" height="24" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x02"><bounds x="76" y="284" width="86" height="76" /></element>
+		<element ref="t_ff"><bounds x="76" y="366" width="86" height="24" /></element>
+
+		<element ref="key" inputtag="PANEL" inputmask="0x04"><bounds x="76" y="412" width="86" height="76" /></element>
+		<element ref="t_lf"><bounds x="76" y="494" width="86" height="24" /></element>
+	</group>
+
+	<view name="Paper and Control Panel">
+		<screen tag="bitmap_printer:screen">
+			<bounds x="0" y="0" width="1140" height="360" />
+		</screen>
+		<element ref="case"><bounds x="0" y="360" width="1140" height="260" /></element>
+		<element ref="case_dark"><bounds x="0" y="360" width="1140" height="6" /></element>
+		<element ref="case"><bounds x="1140" y="0" width="280" height="620" /></element>
+		<group ref="controls"><bounds x="1170" y="30" width="200" height="560" /></group>
+		<element ref="knob"><bounds x="1384" y="120" width="36" height="150" /></element>
+	</view>
+
+	<view name="Control panel">
+		<element ref="case"><bounds x="0" y="0" width="260" height="620" /></element>
+		<group ref="controls"><bounds x="30" y="30" width="200" height="560" /></group>
+	</view>
+</mamelayout>
