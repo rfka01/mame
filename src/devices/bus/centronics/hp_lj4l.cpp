@@ -33,9 +33,10 @@ Additional notes
     - the parallel port is a Bi-Tronics port
 
     The formatter logic in the 1TY4 works like the separate gate arrays of the
-    LaserJet IIIP (hp_lj3p.cpp): the same merger, the same serial link to the
-    engine's DC controller and the same band output.  The register meanings
-    come from the firmware; timings of the engine are not measured.
+    LaserJet IIIP (machine/hp_lj3p.cpp): the same merger, the same serial
+    link to the engine's DC controller and the same band output.  The
+    register meanings come from the firmware; timings of the engine are not
+    measured.
 
     Host interface (user's manual, appendix A): the Bi-Tronics parallel port,
     a Centronics port with the IEEE 1284 reverse channel in nibble mode.  The

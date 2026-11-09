@@ -176,7 +176,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("ap2000", EPSON_AP2000);
 	device.option_add("rx80", EPSON_RX80);
 	device.option_add("p72", NEC_P72);
-	device.option_add("hplj3p", HP_LJ3P);
+	device.option_add("hplj3p", CENTRONICS_HP_LJ3P);
 	device.option_add("hplj4l", HP_LJ4L);
 	device.option_add("mcs820", MCS820);
 	device.option_add("printer", CENTRONICS_PRINTER);
