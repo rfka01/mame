@@ -57,6 +57,9 @@ private:
 	int m_srx_cnt = 0;
 	bool m_xoff = false;
 	bool use_serial() { return getenv("LJSERIAL") != nullptr; }
+	int baud() { const char *e = getenv("LJBAUD"); return e ? atoi(e) : 9600; }
+	double brks() { const char *e = getenv("LJBREAKSTART"); return e ? atof(e) : 0.0; }
+	double brk() { const char *e = getenv("LJBREAK"); return e ? atof(e) : 0.0; }
 	int ext() { const char *e = getenv("LJEXT"); return e ? strtoul(e, nullptr, 16) : -1; }
 	void data(u8 d) { m_cent->write_data0(BIT(d,0)); m_cent->write_data1(BIT(d,1)); m_cent->write_data2(BIT(d,2)); m_cent->write_data3(BIT(d,3)); m_cent->write_data4(BIT(d,4)); m_cent->write_data5(BIT(d,5)); m_cent->write_data6(BIT(d,6)); m_cent->write_data7(BIT(d,7)); }
 };
@@ -68,7 +71,7 @@ void ljhost_state::machine_start()
 	m_stx_timer = timer_alloc(FUNC(ljhost_state::stx), this);
 	m_srx_timer = timer_alloc(FUNC(ljhost_state::srx), this);
 	if (use_serial())
-		m_stx_timer->adjust(attotime::from_hz(9600), 0, attotime::from_hz(9600));
+		m_stx_timer->adjust(attotime::from_hz(baud()), 0, attotime::from_hz(baud()));
 	m_cent->write_strobe(1);
 	m_cent->write_autofd(1);
 	m_cent->write_select_in(0);
@@ -197,9 +200,15 @@ TIMER_CALLBACK_MEMBER(ljhost_state::srx)
 
 TIMER_CALLBACK_MEMBER(ljhost_state::stx)
 {
+	if (machine().time().as_double() < brk() && machine().time().as_double() >= brks())
+	{
+		m_serial->write_txd(0);
+		return;
+	}
 	if (m_bit < 0)
 	{
-		if (m_xoff || machine().time().as_double() < 35.0)
+		m_serial->write_txd(1);
+		if (m_xoff || machine().time().as_double() < (getenv("LJSTART") ? atof(getenv("LJSTART")) : 35.0))
 			return;
 		u8 b;
 		if (m_host->input(&b, 1) != 1)
@@ -220,9 +229,9 @@ void ljhost_state::ljhost(machine_config &config)
 	CENTRONICS(config, m_cent, centronics_devices, nullptr);
 	m_cent->busy_handler().set([this] (int s) { if (getenv("LJDBG") && s != m_busy) printf("BUSY %d at %.4f\n", s, machine().time().as_double()); m_busy = s; });
 	m_cent->ack_handler().set([this] (int s) { m_ack = s; });
-	m_cent->perror_handler().set([this] (int s) { m_perror = s; });
-	m_cent->select_handler().set([this] (int s) { m_select = s; });
-	m_cent->fault_handler().set([this] (int s) { m_fault = s; });
+	m_cent->perror_handler().set([this] (int s) { if (getenv("LJDBG") && s != m_perror) printf("PERROR %d at %.4f\n", s, machine().time().as_double()); m_perror = s; });
+	m_cent->select_handler().set([this] (int s) { if (getenv("LJDBG") && s != m_select) printf("SELECT %d at %.4f\n", s, machine().time().as_double()); m_select = s; });
+	m_cent->fault_handler().set([this] (int s) { if (getenv("LJDBG") && s != m_fault) printf("FAULT %d at %.4f\n", s, machine().time().as_double()); m_fault = s; });
 	RS232_PORT(config, m_serial, default_rs232_devices, nullptr);
 	m_serial->rxd_handler().set(FUNC(ljhost_state::rxd_w));
 	BITBANGER(config, m_host, 0);

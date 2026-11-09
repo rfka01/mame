@@ -1,0 +1,15 @@
+diff --git a/src/devices/machine/6850acia.cpp b/src/devices/machine/6850acia.cpp
+index 9670bb8b218..32cba7a95a9 100644
+--- a/src/devices/machine/6850acia.cpp
++++ b/src/devices/machine/6850acia.cpp
+@@ -226,7 +226,9 @@ void acia6850_device::control_w(uint8_t data)
+ 
+ 		m_rx_state = STATE_START;
+ 		m_rx_counter = 0;
+-		m_rx_wait_mark = false;
++		// a start bit is a 1-to-0 transition: a line that is already low
++		// (break) when the receiver leaves reset does not start a character
++		m_rx_wait_mark = !m_rxd;
+ 
+ 		m_tx_state = STATE_START;
+ 		output_txd(1);

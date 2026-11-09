@@ -24,7 +24,10 @@ Environment variables:
               bytes during their power-on initialisation, e.g. FX-880)
 - LJSERIAL=1  use the RS-232 port instead of Centronics (e.g. -serial iwriter2)
 - LJEXT=hh    after 200 ms idle negotiate IEEE 1284 with extensibility byte hh
-- LJDBG=1     print BUSY changes
+- LJDBG=1     print BUSY, PERROR, SELECT and FAULT changes
+- LJBAUD=n    serial baud rate of the test host (default 9600)
+- LJSTART=s   start sending on the serial port at s seconds (default 35)
+- LJBREAKSTART=a, LJBREAK=b  hold the serial line low (break) from a to b seconds
 
 Printed pages land as PNG files in the snapshot directory.
 
@@ -55,3 +58,15 @@ archive/printers-units-2026-11).
 hplj3p, hd44780, epson_mx80 (+ copy as epson_mx80dp), epson_fx80, epson_jx80,
 epson_rx80, epson_fx85, lx86, lx800, lx810l, ap2000, ex800, fx880, ap3250,
 gem10x, c200gx, bx80, iwriter2.
+
+## LaserJet IIIP scripts
+
+- menu3.lua: SEQ=OMMMMMMMMMMMEMPEO presses LaserJet keys in turn (O on line,
+  M menu, E enter, P plus) and takes a snapshot after each; this sequence
+  selects I/O SERIAL
+- test2.lua: self test (off line, Alt held, Enter)
+- led.lua: prints the On Line indicator output
+- macprint.lua: maclc475 with the printer on the printer port: keys for
+  SimpleText, Cmd-O, Cmd-P, Return; logs the bytes the printer reads (RXLOG)
+- acia6850-break-reset.patch: MC6850 receiver waits for mark after master
+  reset (fixes 79 SERVICE with a break during power on)
