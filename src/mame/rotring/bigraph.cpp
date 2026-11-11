@@ -75,8 +75,12 @@
     - 1R90: insert a font cassette (-cart), without one every key press only
       beeps (error F00B). The scriber font CS L1.2 works as a cassette;
       press LOCK once, then type. Each character is drawn immediately.
-    - 1B90: press START/CHECK after power on, type a line (it appears after
-      "T/" on the LCD), then ENTER and START to draw it.
+    - 1B90: press START/CHECK after power on; it homes and shows the
+      parameter line. Typed characters are drawn at once (and echoed after
+      "T/" on the LCD). The yellow return key (host Enter) starts a new
+      line, the yellow key top left (host Home) returns the carriage
+      without line feed. The red ENTER key (keypad Enter) confirms
+      parameter input; in text mode it gives "ERROR KEY".
     - F5 puts a new sheet of paper in. 0.01 mm per micro step is assumed,
       the grid has 5 mm squares.
 
@@ -988,7 +992,7 @@ INPUT_CHANGED_MEMBER(bgscribe_state::key_changed)
 
 static INPUT_PORTS_START( bgscribe )
 	PORT_START("KEY0")
-	SCKEY( 0, "Return Carriage", KEYCODE_HOME)
+	SCKEY( 0, "Carriage Return (yellow)", KEYCODE_HOME)
 	SCKEY( 1, "1 !", KEYCODE_1)
 	SCKEY( 2, "2 \"", KEYCODE_2)
 	SCKEY( 3, "3 ,", KEYCODE_3)
@@ -1040,8 +1044,8 @@ static INPUT_PORTS_START( bgscribe )
 	PORT_START("KEY5")
 	SCKEY(40, "\xc3\x84", KEYCODE_QUOTE)
 	SCKEY(41, "Up", KEYCODE_UP)
-	SCKEY(42, "Return (yellow)", KEYCODE_INSERT)
-	SCKEY(43, "Enter", KEYCODE_ENTER)
+	SCKEY(42, "New Line (yellow)", KEYCODE_ENTER)
+	SCKEY(43, "Enter (red)", KEYCODE_ENTER_PAD)
 	SCKEY(44, "Funct 2 (left)", KEYCODE_LSHIFT)
 	SCKEY(45, "Funct 2", KEYCODE_LCONTROL)
 	SCKEY(46, "Y", KEYCODE_Z)
