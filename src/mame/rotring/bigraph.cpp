@@ -133,6 +133,7 @@ public:
 protected:
 	// one electrical cycle of the stepper = 4 full steps = 40 micro steps
 	static constexpr double MICROSTEPS_PER_CYCLE = 40.0;
+	static constexpr double PI = 3.14159265358979323846; // M_PI is missing on MinGW
 
 	struct axis_t
 	{
@@ -260,11 +261,11 @@ void bigraph_base_state::set_coils(int axis, int a, int b)
 	if (ax.valid)
 	{
 		double d = angle - ax.angle;
-		while (d > M_PI) d -= 2.0 * M_PI;
-		while (d < -M_PI) d += 2.0 * M_PI;
+		while (d > PI) d -= 2.0 * PI;
+		while (d < -PI) d += 2.0 * PI;
 
 		const double oldx = m_axis[0].pos, oldy = m_axis[1].pos;
-		ax.pos = std::clamp(ax.pos + d * MICROSTEPS_PER_CYCLE / (2.0 * M_PI), ax.min, ax.max);
+		ax.pos = std::clamp(ax.pos + d * MICROSTEPS_PER_CYCLE / (2.0 * PI), ax.min, ax.max);
 		if (m_pen_down)
 			draw_line(oldx, oldy, m_axis[0].pos, m_axis[1].pos);
 	}
