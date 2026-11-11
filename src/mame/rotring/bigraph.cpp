@@ -89,7 +89,7 @@
     - 1R90: no 1R90 cassette dumped yet; the scriber font has an identity
       keyboard table, so typed characters don't match the key caps
     - 1B90: verify keyboard/interrupt wiring, beeper, memory cassette
-      (RAM), font preview (P7), position of the keys in row 5
+      (RAM), font preview (P7)
     - both: real mechanical travel and step size, timer clock of the 1R90
 
 ***************************************************************************/
@@ -984,7 +984,8 @@ INPUT_CHANGED_MEMBER(bgscribe_state::key_changed)
     72 keys. The code numbers are the gate array key codes as used by the
     firmware tables at 0DBA/121C; the assignment to positions follows the
     order of those tables and the key caps of the machine (rows top to
-    bottom). Row 5 is partly guessed.
+    bottom, left to right). Row 5 was checked against the firmware's
+    reactions (space, backspace, M?/RM prompts, PARAM page, underline).
 */
 #define SCKEY(code, name, key) \
 	PORT_BIT(1U << ((code) & 7), IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME(name) PORT_CODE(key) \
@@ -1072,14 +1073,14 @@ static INPUT_PORTS_START( bgscribe )
 	SCKEY(63, "Del", KEYCODE_DEL)
 
 	PORT_START("KEY8")
-	SCKEY(64, "Param / IP", KEYCODE_F9)
-	SCKEY(65, "UL", KEYCODE_F10)
-	SCKEY(66, "Space", KEYCODE_SPACE)
-	SCKEY(67, "BS", KEYCODE_BACKSPACE)
-	SCKEY(68, "M?", KEYCODE_F6)
-	SCKEY(69, "RM / M", KEYCODE_F7)
-	SCKEY(70, "Run", KEYCODE_F8)
-	SCKEY(71, "Down", KEYCODE_DOWN)
+	SCKEY(64, "Space", KEYCODE_SPACE)
+	SCKEY(65, "BS", KEYCODE_BACKSPACE)
+	SCKEY(66, "M?", KEYCODE_F6)
+	SCKEY(67, "RM / M", KEYCODE_F7)
+	SCKEY(68, "Run", KEYCODE_F8)
+	SCKEY(69, "Down", KEYCODE_DOWN)
+	SCKEY(70, "Param / IP", KEYCODE_F9)
+	SCKEY(71, "UL", KEYCODE_F10)
 
 	PORT_START("PAPER")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("New Sheet") PORT_CODE(KEYCODE_F5) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(bigraph_base_state::new_sheet), 0)
