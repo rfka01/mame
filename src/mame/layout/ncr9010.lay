@@ -34,7 +34,9 @@ Elements are white or grey and get their colour from the instance.
 	</element>
 
 	<!-- lettering, white -->
-	<element name="t_ncr"><text string="NCR" /></element>
+	<element name="t_n"><text string="N" /></element>
+	<element name="t_c"><text string="C" /></element>
+	<element name="t_r"><text string="R" /></element>
 	<element name="t_status"><text string="FLEX DRIVE STATUS" /></element>
 	<element name="t_ready"><text string="READY" align="1" /></element>
 	<element name="t_busy"><text string="BUSY" align="1" /></element>
@@ -57,7 +59,10 @@ Elements are white or grey and get their colour from the instance.
 		<bounds x="0" y="0" width="150" height="300" />
 		<element ref="rect"><bounds x="0" y="0" width="150" height="300" /><color red="0.09" green="0.09" blue="0.09" /></element>
 		<element ref="rect"><bounds x="98" y="12" width="40" height="14" /><color red="0.55" green="0.55" blue="0.55" /></element>
-		<element ref="t_ncr"><bounds x="98" y="12" width="40" height="14" /><color red="0.15" green="0.15" blue="0.15" /></element>
+		<!-- one element per letter, evenly spaced -->
+		<element ref="t_n"><bounds x="103" y="13" width="10" height="12" /><color red="0.15" green="0.15" blue="0.15" /></element>
+		<element ref="t_c"><bounds x="113" y="13" width="10" height="12" /><color red="0.15" green="0.15" blue="0.15" /></element>
+		<element ref="t_r"><bounds x="123" y="13" width="10" height="12" /><color red="0.15" green="0.15" blue="0.15" /></element>
 
 		<!-- flex drive status -->
 		<element ref="rect"><bounds x="10" y="96" width="130" height="70" /><color red="0.14" green="0.14" blue="0.14" /></element>

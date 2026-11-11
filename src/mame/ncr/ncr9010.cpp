@@ -26,7 +26,7 @@
     model 1201-4301; the drive cabinet is class 7646, model 0201-2390):
     FLEX DRIVE STATUS with a green READY and a red BUSY lamp per drive 0-3,
     a MONIT key, COMM and POWER lamps, power switch and brightness wheel.
-    READY follows a mounted disk, BUSY lights while the flex controller
+    READY follows the ready line of the drive, BUSY lights while the flex controller
     works on the drive and for a short head unload delay afterwards.  The
     COMM lamp stays dark (no communication hardware is emulated); RUN on
     the CCM indicator is lit while the machine is on.
@@ -566,7 +566,7 @@ private:
 	void flex_transfer(floppy_image_device &floppy, attotime &done);
 	void flex_read_ids(floppy_image_device &floppy, attotime &done);
 	void flex_format(floppy_image_device &floppy, attotime &done);
-	void floppy_changed(floppy_image_device *floppy);
+	void floppy_ready(floppy_image_device *floppy, int state);
 	TIMER_CALLBACK_MEMBER(flex_done);
 	TIMER_CALLBACK_MEMBER(head_unload);
 	TIMER_CALLBACK_MEMBER(bell_off) { m_bell->set_state(0); }
@@ -1331,13 +1331,13 @@ TIMER_CALLBACK_MEMBER(ncr9010_state::head_unload)
     FRONT PANEL
 ***************************************************************************/
 
-// READY lamps follow the mounted disks
-void ncr9010_state::floppy_changed(floppy_image_device *floppy)
+// READY lamps follow the drives' ready lines (also for disks created at run time)
+void ncr9010_state::floppy_ready(floppy_image_device *floppy, int state)
 {
 	for (unsigned int i = 0; i < 4; i++)
 	{
 		floppy_image_device *const f = m_floppy[i]->get_device();
-		m_ready_leds[i] = f && f->exists();
+		m_ready_leds[i] = f && !f->ready_r();
 	}
 }
 
@@ -1530,8 +1530,7 @@ void ncr9010_state::machine_start()
 	{
 		if (f->get_device())
 		{
-			f->get_device()->setup_load_cb(floppy_image_device::load_cb(&ncr9010_state::floppy_changed, this));
-			f->get_device()->setup_unload_cb(floppy_image_device::unload_cb(&ncr9010_state::floppy_changed, this));
+			f->get_device()->setup_ready_cb(floppy_image_device::ready_cb(&ncr9010_state::floppy_ready, this));
 		}
 	}
 
@@ -1619,7 +1618,7 @@ void ncr9010_state::machine_reset()
 	m_fx_timer->adjust(attotime::never);
 	std::fill(std::begin(m_fx_dmareg), std::end(m_fx_dmareg), 0);
 
-	floppy_changed(nullptr);
+	floppy_ready(nullptr, 0);
 }
 
 void ncr9010_state::floppy_formats(format_registration &fr)
