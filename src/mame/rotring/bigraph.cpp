@@ -104,6 +104,9 @@
 #include "softlist_dev.h"
 #include "speaker.h"
 
+#include "bgscribe.lh"
+#include "bgscript.lh"
+
 #include <cmath>
 
 #define LOG_HW      (1U << 1)
@@ -606,6 +609,8 @@ void bgscript_state::bgscript(machine_config &config)
 
 	SPEAKER(config, "mono").front_center();
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
+
+	config.set_default_layout(layout_bgscript);
 }
 
 
@@ -1115,6 +1120,8 @@ void bgscribe_state::bgscribe(machine_config &config)
 	screen_device &lcd(SCREEN(config, "lcd"));
 	lcd.set_raw((LCD_CHARS * 6 + 1) * 18 * 50, LCD_CHARS * 6 + 1, 0, LCD_CHARS * 6 + 1, 18, 0, 18);
 	lcd.set_screen_update(FUNC(bgscribe_state::lcd_update));
+
+	config.set_default_layout(layout_bgscribe);
 }
 
 

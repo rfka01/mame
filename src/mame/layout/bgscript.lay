@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+authors:rfka01
+-->
+<mamelayout version="2">
+	<view name="Paper">
+		<screen index="0"><bounds x="0" y="0" width="2090" height="618" /></screen>
+	</view>
+</mamelayout>
