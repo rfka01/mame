@@ -912,6 +912,10 @@ ROM_START( ncrpc4i )
 	ROMX_LOAD("ncr_pc4i_43928.bin",0xc000, 0x4000, CRC(e66a46b9) SHA1(f74f8f9226325d2a8b927de3847449db4c907b1d), ROM_BIOS(0))
 	ROM_SYSTEM_BIOS(1, "v23", "2.3") // NCR2.3, 06/27/85, this machine came with a NCR K511 graphics card (chargen ROM U5 and CRTC translation PROM U42, no card BIOS)
 	ROMX_LOAD("ncr_pc4i_biosrom_1985.bin",0xc000, 0x4000, CRC(b9732648) SHA1(0d5d96fbc36089ca4d893b0db84faffa8043a5e4), ROM_BIOS(1))
+	// homebrew: v2.3 patched to also set the keyboard buffer limits 40:80h=001Eh and 40:82h=003Eh (MS-Kermit 2.32 and other programs with
+	// their own INT 9 handler), call to a routine at D780h in the unused area from the buffer initialisation at E630h, checksum byte at D7FEh
+	ROM_SYSTEM_BIOS(2, "v23kbd", "2.3 keyboard buffer fix (homebrew)")
+	ROMX_LOAD("ncr_pc4i_bios23_kbdfix.bin",0xc000, 0x4000, CRC(f58771a6) SHA1(0bd3a0fded7c31be896de1707104408da8b2c6a5), ROM_BIOS(2))
 ROM_END
 
 

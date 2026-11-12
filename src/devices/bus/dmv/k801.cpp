@@ -42,9 +42,39 @@
 #include "emu.h"
 #include "k801.h"
 
+#include "bus/rs232/hlemouse.h"
+
 /***************************************************************************
     IMPLEMENTATION
 ***************************************************************************/
+
+// K801 cable converters
+//
+// The K801 takes its connector wiring from a small plug-in board, the
+// cable converter, that sits in a housing at the back of the card
+// (Doc 017-0033070).  NCR shipped converters for a printer, a plotter
+// and a modem ("CC01 COMMUNIC. MODEM"); the blank side of the modem
+// converter is meant for a wiring of the user's own choice.  In MAME
+// the three NCR converters pass every line straight through.
+//
+// The "user-wired" converter wires the blank side for a Microsoft or
+// Logitech serial mouse: DTR is bridged to DCD and DSR.  Without that
+// bridge a mouse cannot be read at all, because DCD/ of the 2661 comes
+// from the cable through an MC1489 (A5 on 017-0032712), an open input
+// reads as inactive, and the 2661 keeps its receiver off while DCD is
+// inactive.  The mice drive neither line.  With the bridge, setting
+// DTR (and RTS, which together power the mouse) in the command
+// register also enables the receiver; the mouse then answers with "M"
+// (Microsoft) or "M3" (Logitech), 7N1 at 1,200 baud.
+//
+// The mice are offered on the K801 only.  With an NCR converter a
+// selected mouse stays silent, as it would on the real card.
+static void dmv_k801_rs232_devices(device_slot_interface &device)
+{
+	default_rs232_devices(device);
+	device.option_add("microsoft_mouse", MSFT_HLE_SERIAL_MOUSE);
+	device.option_add("logitech_mouse",  LOGITECH_HLE_SERIAL_MOUSE);
+}
 
 
 static INPUT_PORTS_START( dmv_k801 )
@@ -67,6 +97,13 @@ static INPUT_PORTS_START( dmv_k801 )
 	PORT_DIPSETTING( 0x07, "3B" )
 	PORT_DIPSETTING( 0x08, "4A" )
 	PORT_DIPSETTING( 0x09, "4B" )
+
+	PORT_START("CABLE")
+	PORT_CONFNAME( 0x03, 0x00, "K801 Cable Converter" )  PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(dmv_k801_device::cable_changed), 0)
+	PORT_CONFSETTING( 0x00, "Printer" )
+	PORT_CONFSETTING( 0x01, "Plotter" )
+	PORT_CONFSETTING( 0x02, "Modem (CC01)" )
+	PORT_CONFSETTING( 0x03, "User-wired (serial mouse)" )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( dmv_k211 )
@@ -118,7 +155,11 @@ dmv_k801_device::dmv_k801_device(const machine_config &mconfig, device_type type
 	device_dmvslot_interface( mconfig, *this ),
 	m_pci(*this, "pci"),
 	m_rs232(*this, "rs232"),
-	m_dsw(*this, "DSW")
+	m_dsw(*this, "DSW"),
+	m_cable(*this, "CABLE"),
+	m_pci_dtr(1),
+	m_rs232_dcd(1),
+	m_rs232_dsr(1)
 {
 }
 
@@ -161,6 +202,9 @@ dmv_k213_device::dmv_k213_device(const machine_config &mconfig, const char *tag,
 
 void dmv_k801_device::device_start()
 {
+	save_item(NAME(m_pci_dtr));
+	save_item(NAME(m_rs232_dcd));
+	save_item(NAME(m_rs232_dsr));
 }
 
 //-------------------------------------------------
@@ -169,13 +213,14 @@ void dmv_k801_device::device_start()
 
 void dmv_k801_device::device_reset()
 {
+	update_modem_inputs();
 }
 
 //-------------------------------------------------
 //  device_add_mconfig - add device configuration
 //-------------------------------------------------
 
-void dmv_k801_device::pci_mconfig(machine_config &config, bool epci, const char *default_option)
+void dmv_k801_device::pci_mconfig(machine_config &config, bool epci, const char *default_option, void (*slot_options)(device_slot_interface &))
 {
 	if (epci)
 		SCN2661C(config, m_pci, XTAL(5'068'800));
@@ -183,21 +228,21 @@ void dmv_k801_device::pci_mconfig(machine_config &config, bool epci, const char 
 		SCN2651(config, m_pci, XTAL(5'068'800));
 	m_pci->txd_handler().set("rs232", FUNC(rs232_port_device::write_txd));
 	m_pci->rts_handler().set("rs232", FUNC(rs232_port_device::write_rts));
-	m_pci->dtr_handler().set("rs232", FUNC(rs232_port_device::write_dtr));
+	m_pci->dtr_handler().set(FUNC(dmv_k801_device::pci_dtr_w));
 	m_pci->rxrdy_handler().set(FUNC(dmv_k801_device::pci_irq_w));
 	if (epci)
 		m_pci->txrdy_handler().set(FUNC(dmv_k801_device::pci_irq_w));
 
-	RS232_PORT(config, m_rs232, default_rs232_devices, default_option);
+	RS232_PORT(config, m_rs232, slot_options, default_option);
 	m_rs232->rxd_handler().set(m_pci, FUNC(scn_pci_device::rxd_w));
-	m_rs232->dcd_handler().set(m_pci, FUNC(scn_pci_device::dcd_w));
-	m_rs232->dsr_handler().set(m_pci, FUNC(scn_pci_device::dsr_w));
+	m_rs232->dcd_handler().set(FUNC(dmv_k801_device::rs232_dcd_w));
+	m_rs232->dsr_handler().set(FUNC(dmv_k801_device::rs232_dsr_w));
 	m_rs232->cts_handler().set(m_pci, FUNC(scn_pci_device::cts_w));
 }
 
 void dmv_k801_device::device_add_mconfig(machine_config &config)
 {
-	pci_mconfig(config, true, "printer");
+	pci_mconfig(config, true, "printer", dmv_k801_rs232_devices);
 }
 
 // Measured on two machines with DMVFRAGE: the K211 interrupt follows
@@ -206,17 +251,17 @@ void dmv_k801_device::device_add_mconfig(machine_config &config)
 // 2651 setup and are assumed to be wired the same way.
 void dmv_k211_device::device_add_mconfig(machine_config &config)
 {
-	pci_mconfig(config, false, "null_modem");
+	pci_mconfig(config, false, "null_modem", default_rs232_devices);
 }
 
 void dmv_k212_device::device_add_mconfig(machine_config &config)
 {
-	pci_mconfig(config, false, "printer");
+	pci_mconfig(config, false, "printer", default_rs232_devices);
 }
 
 void dmv_k213_device::device_add_mconfig(machine_config &config)
 {
-	pci_mconfig(config, false, nullptr);
+	pci_mconfig(config, false, nullptr, default_rs232_devices);
 }
 
 //-------------------------------------------------
@@ -246,6 +291,54 @@ ioport_constructor dmv_k213_device::device_input_ports() const
 void dmv_k801_device::pci_irq_w(int state)
 {
 	out_irq(state);
+}
+
+// Only the K801 has a CABLE port; the K211 family always passes the
+// modem lines straight through.
+bool dmv_k801_device::user_wired_cable() const
+{
+	return m_cable && (m_cable->read() & 0x03) == 0x03;
+}
+
+void dmv_k801_device::update_modem_inputs()
+{
+	if (user_wired_cable())
+	{
+		m_pci->dcd_w(m_pci_dtr);
+		m_pci->dsr_w(m_pci_dtr);
+	}
+	else
+	{
+		m_pci->dcd_w(m_rs232_dcd);
+		m_pci->dsr_w(m_rs232_dsr);
+	}
+}
+
+void dmv_k801_device::pci_dtr_w(int state)
+{
+	m_pci_dtr = state;
+	m_rs232->write_dtr(state);
+	if (user_wired_cable())
+		update_modem_inputs();
+}
+
+void dmv_k801_device::rs232_dcd_w(int state)
+{
+	m_rs232_dcd = state;
+	if (!user_wired_cable())
+		m_pci->dcd_w(state);
+}
+
+void dmv_k801_device::rs232_dsr_w(int state)
+{
+	m_rs232_dsr = state;
+	if (!user_wired_cable())
+		m_pci->dsr_w(state);
+}
+
+INPUT_CHANGED_MEMBER(dmv_k801_device::cable_changed)
+{
+	update_modem_inputs();
 }
 
 void dmv_k801_device::io_read(int ifsel, offs_t offset, uint8_t &data)
