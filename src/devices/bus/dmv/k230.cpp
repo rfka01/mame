@@ -60,6 +60,22 @@
     banks with a K0815 and 7 with 512 KB; 0:FE06 cannot express the 4 KB
     hole, so software has to stop at FF000h itself.
 
+    ---- Firmware 2.0 (homebrew, K235 and K235+) ----------------------
+
+    New memory test and monitor on top of 33473; kept from 33473 are the
+    entries FF00:0000 (far display) and FF00:0003, the command table at
+    0010h, the return to the Z80 at 0018h, the 8259 test and the keyboard
+    and CRT drivers.  FF00:0632 still enters the monitor.
+    - memory test in 4 KB blocks (address, 55AAh, AA55h), ends at the first
+      block that is no RAM or mirrors the block 512 KB below; works with
+      64 KB to 512 KB on both modules and 1020 KB on the K235+ with a
+      K0815.  0:FE06 counts a partial last bank (15 for 1020 KB).
+    - errors show address, written/read word and bit mask, then wait for
+      CR or about 10 s.  "M" during the test enters the monitor afterwards.
+    - monitor without password: D E F M C S I O R G T L(Intel HEX) X Q ?
+    - console on screen/keyboard and, if a 2651 answers at 70h (K211 on
+      IFSEL 1A), also on the serial port at 9600 8N1.
+
 ***************************************************************************/
 
 #include "emu.h"
@@ -82,7 +98,13 @@ ROM_END
 
 ROM_START( dmv_k235 )
 	ROM_REGION(0x1000, "rom", 0)
-	ROM_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad))
+	ROM_DEFAULT_BIOS("33473")
+	ROM_SYSTEM_BIOS(0, "33473", "33473, NCR original")
+	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(0) )
+	ROM_SYSTEM_BIOS(1, "fw20", "firmware 2.0 (homebrew)")
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(2956362e) SHA1(2b9770ad8baeac7fb4383544b7f391ab4985e137), ROM_BIOS(1) )
+	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
+	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
 ROM_END
 
 ROM_START( dmv_k235p )
@@ -98,6 +120,8 @@ ROM_START( dmv_k235p )
 	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
 	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
 	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
+	ROM_SYSTEM_BIOS(3, "fw20", "firmware 2.0 (homebrew)")
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(2956362e) SHA1(2b9770ad8baeac7fb4383544b7f391ab4985e137), ROM_BIOS(3) )
 ROM_END
 
 void dmv_k230_device::k230_mem(address_map &map)
