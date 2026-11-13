@@ -48,7 +48,8 @@
     - HOLDA16 is brought out on P107-b13; the K0815 needs it (wired to its
       AUTO/ pin a13).
 
-    The VzEkC firmware is the K235 ROM 33473 with the memory test extended
+    The VzEkC firmware (not included, it fails on this module) is the K235
+    ROM 33473 with the memory test extended
     from 7 to 15 banks and a new bank name table at 0C00h.  That test also
     covers bank F000h in full and so writes into the EPROM window at
     FF000h; the readback fails there and the test stops with "FAILED (CR)"
@@ -114,19 +115,16 @@ ROM_END
 
 ROM_START( dmv_k235p )
 	ROM_REGION(0x10000, "rom", ROMREGION_ERASEFF)
-	ROM_DEFAULT_BIOS("33473p")
-	// VzEkC patch: banks 1-15 instead of 1-7, bank names at 0C00h; tests bank F000h in full, including the EPROM window
-	ROM_SYSTEM_BIOS(0, "33473p", "33473, VzEkC 1 MB patch")
-	ROMX_LOAD( "k235p_33473p.bin", 0x0000, 0x1000, CRC(14f15386) SHA1(c61aaa41197d9493db47b2996f1c0f433edb3e98), ROM_BIOS(0) )
-	// original NCR K235 firmware, tests 7 banks (512 KB)
-	ROM_SYSTEM_BIOS(1, "33473", "33473, NCR original")
-	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(1) )
+	ROM_DEFAULT_BIOS("fw20")
+	ROM_SYSTEM_BIOS(0, "fw20", "firmware 2.0 (homebrew)")
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(e2d99a3d) SHA1(b6c210eee4b5b8ce73ed79a8f1ff4ddc7ad4ac2e), ROM_BIOS(0) )
 	// VzEkC patch amended: bank F000h tested only up to FEFFDh (4 KB window), presence test
 	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
-	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
-	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
-	ROM_SYSTEM_BIOS(3, "fw20", "firmware 2.0 (homebrew)")
-	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(e2d99a3d) SHA1(b6c210eee4b5b8ce73ed79a8f1ff4ddc7ad4ac2e), ROM_BIOS(3) )
+	ROM_SYSTEM_BIOS(1, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
+	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(1) )
+	// original NCR K235 firmware, tests 7 banks (512 KB)
+	ROM_SYSTEM_BIOS(2, "33473", "33473, NCR original")
+	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(2) )
 ROM_END
 
 void dmv_k230_device::k230_mem(address_map &map)
