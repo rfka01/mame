@@ -238,10 +238,10 @@ bool dmvcart_slot_device::drives_irq() const
 	return cart && cart->drives_irq();
 }
 
-bool dmvcart_slot_device::read(offs_t offset, uint8_t &data)
+bool dmvcart_slot_device::read(offs_t offset, offs_t ba, uint8_t &data)
 {
 	if (m_cart)
-		return m_cart->read(offset, data);
+		return m_cart->mem_read(offset, ba, data);
 	return false;
 }
 
@@ -249,10 +249,10 @@ bool dmvcart_slot_device::read(offs_t offset, uint8_t &data)
     write
 -------------------------------------------------*/
 
-bool dmvcart_slot_device::write(offs_t offset, uint8_t data)
+bool dmvcart_slot_device::write(offs_t offset, offs_t ba, uint8_t data)
 {
 	if (m_cart)
-		return m_cart->write(offset, data);
+		return m_cart->mem_write(offset, ba, data);
 	return false;
 }
 

@@ -26,6 +26,7 @@
 // expansion slots
 #include "bus/dmv/dmvbus.h"
 #include "bus/dmv/k012.h"
+#include "bus/dmv/k0815.h"
 #include "bus/dmv/k210.h"
 #include "bus/dmv/k215.h"
 #include "bus/dmv/k220.h"
@@ -694,12 +695,21 @@ void dmv_state::send_irq(int slot)
 	}
 }
 
+// Full bus address BA0-BA19 for cards that decode it (K0815): the 16-bit
+// processors drive BA16-BA19 themselves, Z80 and DMA cycles carry the bank
+// latch (E0-E7) on BA16-BA18 and BA19 = 0.
+static constexpr offs_t bus_address(int cas, offs_t offset)
+{
+	return (offset & 0xfffff) | (offs_t(cas & 7) << 16);
+}
+
 void dmv_state::program_write(int cas, offs_t offset, uint8_t data)
 {
 	bool tramd = false;
+	offs_t const ba = bus_address(cas, offset);
 	dmvcart_slot_device *slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a };
 	for(int i=0; i<8 && !tramd; i++)
-		tramd = slots[i]->write(offset, data);
+		tramd = slots[i]->write(offset, ba, data);
 
 	if (!tramd)
 	{
@@ -720,9 +730,10 @@ uint8_t dmv_state::program_read(int cas, offs_t offset)
 	else
 	{
 		bool tramd = false;
+		offs_t const ba = bus_address(cas, offset);
 		dmvcart_slot_device *slots[] = { m_slot2, m_slot2a, m_slot3, m_slot4, m_slot5, m_slot6, m_slot7, m_slot7a };
 		for(int i=0; i<8 && !tramd; i++)
-			tramd = slots[i]->read(offset, data);
+			tramd = slots[i]->read(offset, ba, data);
 
 		if (!tramd)
 		{
@@ -1093,6 +1104,7 @@ static void dmv_slot2_6(device_slot_interface &device)
 	device.option_add("k803", DMV_K803);        // K803 RTC module
 	device.option_add("k806", DMV_K806);        // K806 Mouse module
 	device.option_add("c3282", DMV_C3282);      // C3282 External HD Interface
+	device.option_add("k0815", DMV_K0815);      // K0815 1MB SRAM (homebrew, VzEkC)
 	// not emulated yet, see notes above:
 	// K216 SCC 2 x RS-232C, K219 Integrated modem (USA),
 	// K223 DLC inhouse interface, K600 Omninet transporter (Decision Net), K804 IEEE-488
@@ -1116,6 +1128,7 @@ static void dmv_slot7a(device_slot_interface &device)
 {
 	device.option_add("k230", DMV_K230);        // K230 Internal 8088 module without interrupt controller
 	device.option_add("k235", DMV_K235);        // K235 Internal 8088 module with interrupt controller
+	device.option_add("k235p", DMV_K235P);      // K235+ Internal 8088 module with interrupt controller and 1MB (homebrew, VzEkC)
 }
 
 void dmv_state::dmv(machine_config &config)
