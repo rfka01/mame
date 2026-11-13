@@ -540,7 +540,7 @@ uint32_t crtc_ega_device::screen_update(screen_device &screen, bitmap_ind16 &bit
 	if (m_has_valid_parameters)
 	{
 		uint16_t y;
-		uint16_t disp_addr = m_disp_start_addr + (m_offset << 1) * cliprect.min_y;
+		uint16_t disp_addr = m_disp_start_addr;
 		uint8_t row_preset = m_preset_row_scan;
 
 		assert(!m_row_update_cb.isnull());
@@ -549,11 +549,25 @@ uint32_t crtc_ega_device::screen_update(screen_device &screen, bitmap_ind16 &bit
 		if (!m_begin_update_cb.isnull())
 			m_begin_update_cb(bitmap, cliprect);
 
-		/* for each row in the visible region */
-		for (y = cliprect.min_y; y <= cliprect.max_y; y++)
+		/* for each row in the visible region; start at the top so that the
+		   address, preset row scan and line compare state are also correct
+		   for partial updates that begin further down the screen */
+		for (y = 0; y <= cliprect.max_y; y++)
 		{
 			/* compute the current raster line */
 			uint8_t ra = (y + row_preset) % (m_max_ras_addr + 1);
+
+			if (y < cliprect.min_y)
+			{
+				if (ra == m_max_ras_addr)
+					disp_addr += (m_offset << 1);
+				if (y == m_line_compare)
+				{
+					row_preset = 0;
+					disp_addr = 0;
+				}
+				continue;
+			}
 
 			/* check if the cursor is visible and is on this scanline */
 			int cursor_visible = m_cursor_state &&

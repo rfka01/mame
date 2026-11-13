@@ -1253,7 +1253,12 @@ uint8_t isa8_ega_device::pc_ega8_3X0_r(offs_t offset)
 		{
 			/* Diagnostic bits 4-5 feed back 2 of the attribute controller's 6
 			   P0-P5 color outputs, selected by the Video Status Mux Field in
-			   AR12 bits 5-4, from whichever pixel was drawn last. */
+			   AR12 bits 5-4, from whichever pixel was drawn last. Render up to
+			   the current beam position first, so the value follows the raster
+			   (the IBM EGA BIOS power-on test polls these bits while the beam
+			   crosses a line of white blocks). */
+			if ( !machine().side_effects_disabled() )
+				m_screen->update_partial( m_screen->vpos() );
 			uint8_t pins = m_last_pixel_value;
 			switch ( ( m_attribute.data[0x12] >> 4 ) & 0x03 )
 			{
@@ -1401,7 +1406,11 @@ void isa8_ega_device::pc_ega8_3c0_w(offs_t offset, uint8_t data)
 	switch ( offset )
 	{
 	/* Attributes Controller */
+	/* The attribute chip has no address input; 3C1 is an alias of 3C0 and
+	   the internal flip-flop alone selects index or data. The IBM EGA BIOS
+	   power-on test writes the palette and colour plane enable via 3C0/3C1. */
 	case 0:
+	case 1:
 		if ( m_attribute.index_write )
 		{
 			m_attribute.index = data;
