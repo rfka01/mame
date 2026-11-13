@@ -71,9 +71,10 @@
       block that is no RAM or mirrors the block 512 KB below; works with
       64 KB to 512 KB on both modules and 1020 KB on the K235+ with a
       K0815.  0:FE06 counts a partial last bank (15 for 1020 KB).
-    - screen: three centred lines ("NCR", "Decision Mate V RAM test",
-      bar and KB counter), colours from the mainboard ROM id at 0FF8h
-      (C: white on red/white, M: inverse/normal); boot text green again,
+    - screen, centred: "NCR" as white block letters in a red box
+      (7 rows), "Decision Mate V", "RAM test (press M ...)", bar and KB
+      counter; colours from the mainboard ROM id at 0FF8h (M: lit box,
+      dark letters, normal text); boot text green again,
       the screen is cleared when the monitor starts.
     - errors show address, written/read word and bit mask, then wait for
       CR or about 10 s.  "M" during the test enters the monitor afterwards.
@@ -108,7 +109,7 @@ ROM_START( dmv_k235 )
 	ROM_SYSTEM_BIOS(0, "33473", "33473, NCR original")
 	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(0) )
 	ROM_SYSTEM_BIOS(1, "fw20", "firmware 2.0 (homebrew)")
-	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(508eafee) SHA1(f73e35f8a2c9ea9e22144ca005650583bbf462d1), ROM_BIOS(1) )
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(66a7f7cf) SHA1(cec4274a5c28aacf228c55bb4daadd3fba8de52e), ROM_BIOS(1) )
 	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
 	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
 ROM_END
@@ -117,7 +118,7 @@ ROM_START( dmv_k235p )
 	ROM_REGION(0x10000, "rom", ROMREGION_ERASEFF)
 	ROM_DEFAULT_BIOS("fw20")
 	ROM_SYSTEM_BIOS(0, "fw20", "firmware 2.0 (homebrew)")
-	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(508eafee) SHA1(f73e35f8a2c9ea9e22144ca005650583bbf462d1), ROM_BIOS(0) )
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(66a7f7cf) SHA1(cec4274a5c28aacf228c55bb4daadd3fba8de52e), ROM_BIOS(0) )
 	// VzEkC patch amended: bank F000h tested only up to FEFFDh (4 KB window), presence test
 	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
 	ROM_SYSTEM_BIOS(1, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
