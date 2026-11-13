@@ -78,7 +78,7 @@
     - errors show address, written/read word and bit mask, then wait for
       CR or about 10 s.  "M" during the test enters the monitor afterwards.
     - monitor without password: D E F M C S I O R G T Z(RAM test) L(Intel
-      HEX) X Q ?
+      HEX) X ?, Q runs the self test again and then boots
     - console on screen/keyboard and, if a 2651 answers at 70h (K211 on
       IFSEL 1A), also on the serial port at 9600 8N1.
 
@@ -108,7 +108,7 @@ ROM_START( dmv_k235 )
 	ROM_SYSTEM_BIOS(0, "33473", "33473, NCR original")
 	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(0) )
 	ROM_SYSTEM_BIOS(1, "fw20", "firmware 2.0 (homebrew)")
-	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(e2d99a3d) SHA1(b6c210eee4b5b8ce73ed79a8f1ff4ddc7ad4ac2e), ROM_BIOS(1) )
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(508eafee) SHA1(f73e35f8a2c9ea9e22144ca005650583bbf462d1), ROM_BIOS(1) )
 	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
 	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
 ROM_END
@@ -117,7 +117,7 @@ ROM_START( dmv_k235p )
 	ROM_REGION(0x10000, "rom", ROMREGION_ERASEFF)
 	ROM_DEFAULT_BIOS("fw20")
 	ROM_SYSTEM_BIOS(0, "fw20", "firmware 2.0 (homebrew)")
-	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(e2d99a3d) SHA1(b6c210eee4b5b8ce73ed79a8f1ff4ddc7ad4ac2e), ROM_BIOS(0) )
+	ROMX_LOAD( "k235_fw20.bin", 0x0000, 0x1000, CRC(508eafee) SHA1(f73e35f8a2c9ea9e22144ca005650583bbf462d1), ROM_BIOS(0) )
 	// VzEkC patch amended: bank F000h tested only up to FEFFDh (4 KB window), presence test
 	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
 	ROM_SYSTEM_BIOS(1, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
