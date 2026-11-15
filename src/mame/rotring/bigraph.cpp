@@ -73,8 +73,10 @@
 
     Usage
     - 1R90: insert a font cassette (-cart), without one every key press only
-      beeps (error F00B). The scriber font CS L1.2 works as a cassette;
-      press LOCK once, then type. Each character is drawn immediately.
+      beeps (error F00B). Each character is drawn immediately; plain keys
+      give lower case, SHIFT/LOCK upper case, CODE special characters.
+      The unmodified scriber font CS L1.2 also works as a cassette, but its
+      keyboard table doesn't fit the 1R90.
     - 1B90: press START/CHECK after power on; it homes and shows the
       parameter line. Typed characters are drawn at once (and echoed after
       "T/" on the LCD). The yellow return key (host Enter) starts a new
@@ -86,8 +88,8 @@
 
     TODO
     - 1R90: real key layout, function of 7C004/7C007, IRQ6/7 source
-    - 1R90: no 1R90 cassette dumped yet; the scriber font has an identity
-      keyboard table, so typed characters don't match the key caps
+    - 1R90: no 1R90 cassette dumped yet; key layout and names follow a
+      cassette image made from the scriber font
     - 1B90: verify keyboard/interrupt wiring, beeper, memory cassette
       (RAM), font preview (P7)
     - both: real mechanical travel and step size, timer clock of the 1R90
@@ -486,14 +488,17 @@ void bgscript_state::mem_map(address_map &map)
 
 /*
     Key matrix: code = column * 8 + row (column bit 7 = column 0, row bit 7 = row 0).
-    The firmware translates the code through a table and then through the
-    keyboard table (IK) of the cassette, so the printed character depends on
-    the cassette. The labels below follow the firmware's own index order
-    (which is ASCII-like) and are not verified against a real keyboard.
-    Codes 60-62 are the modifiers: 60 LOCK (toggle, table +0x40), 61 SHIFT
-    (held, table +0x40), 62 CODE (toggle, table +0x80). With the scriber
-    font (identity IK table) only the +0x40 layer gives valid glyphs, so
-    press LOCK once before typing.
+    The firmware turns the code into a key number (table at 123C, one
+    64-byte layer each for plain, shift/lock and code) and then looks the
+    character up in the keyboard table (IK) of the cassette, so the
+    cassette decides what each key prints. The physical key layout of the
+    1R90 is not known yet. The names below follow a German QWERTZ layout
+    and match the "1R90 DIN17/T" cassette image built from CS L1.2, whose
+    IK table was rewritten for it (see the bigraph notes). Code 57 has the
+    same key number in the plain and shift layer, so it can only print one
+    character there.
+    Codes 60-62 are the modifiers: 60 LOCK (toggle), 61 SHIFT (held),
+    62 CODE (toggle).
 */
 #define BGKEY(bit, name, key) \
 	PORT_BIT(1U << (7 - (bit)), IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME(name) PORT_CODE(key)
@@ -519,7 +524,7 @@ static INPUT_PORTS_START( bgscript )
 	BGKEY(4, "R", KEYCODE_R)
 	BGKEY(5, "C", KEYCODE_C)
 	BGKEY(6, "A", KEYCODE_A)
-	BGKEY(7, "?", KEYCODE_SLASH)
+	BGKEY(7, "\xc3\x9f \xe2\x96\xbd", KEYCODE_MINUS)
 
 	PORT_START("COL2") // codes 16-23
 	BGKEY_NONE(0)
@@ -528,52 +533,52 @@ static INPUT_PORTS_START( bgscript )
 	BGKEY(3, "H", KEYCODE_H)
 	BGKEY(4, "S", KEYCODE_S)
 	BGKEY(5, "B", KEYCODE_B)
-	BGKEY(6, "@", KEYCODE_OPENBRACE)
-	BGKEY(7, ">", KEYCODE_CLOSEBRACE)
+	BGKEY(6, "U", KEYCODE_U)
+	BGKEY(7, "I", KEYCODE_I)
 
 	PORT_START("COL3") // codes 24-31
 	BGKEY_NONE(0)
-	BGKEY(1, "7", KEYCODE_7)
-	BGKEY(2, "9", KEYCODE_9)
-	BGKEY(3, ";", KEYCODE_COLON)
+	BGKEY(1, "7 /", KEYCODE_7)
+	BGKEY(2, "9 )", KEYCODE_9)
+	BGKEY(3, "J", KEYCODE_J)
 	BGKEY(4, "P", KEYCODE_P)
-	BGKEY(5, "5", KEYCODE_5)
-	BGKEY(6, "3", KEYCODE_3)
-	BGKEY(7, "1", KEYCODE_1)
+	BGKEY(5, "5 %", KEYCODE_5)
+	BGKEY(6, "3 '", KEYCODE_3)
+	BGKEY(7, "1 !", KEYCODE_1)
 
 	PORT_START("COL4") // codes 32-39
 	BGKEY_NONE(0)
-	BGKEY(1, "6", KEYCODE_6)
-	BGKEY(2, "8", KEYCODE_8)
-	BGKEY(3, ":", KEYCODE_QUOTE)
+	BGKEY(1, "6 &", KEYCODE_6)
+	BGKEY(2, "8 (", KEYCODE_8)
+	BGKEY(3, "\xc3\x96", KEYCODE_COLON)
 	BGKEY(4, "O", KEYCODE_O)
-	BGKEY(5, "4", KEYCODE_4)
-	BGKEY(6, "2", KEYCODE_2)
-	BGKEY(7, "0", KEYCODE_0)
+	BGKEY(5, "4 \xc2\xb0", KEYCODE_4)
+	BGKEY(6, "2 \"", KEYCODE_2)
+	BGKEY(7, "0 =", KEYCODE_0)
 
 	PORT_START("COL5") // codes 40-47
-	BGKEY(0, "-", KEYCODE_MINUS)
-	BGKEY(1, "'", KEYCODE_BACKSLASH)
-	BGKEY(2, ")", KEYCODE_I)
-	BGKEY(3, "+", KEYCODE_EQUALS)
+	BGKEY(0, "-", KEYCODE_SLASH)
+	BGKEY(1, "\xc3\x84", KEYCODE_QUOTE)
+	BGKEY(2, "\xc3\x9c", KEYCODE_OPENBRACE)
+	BGKEY(3, "+", KEYCODE_CLOSEBRACE)
 	BGKEY_NONE(4)
-	BGKEY(5, "%", KEYCODE_U)
-	BGKEY(6, "#", KEYCODE_Y)
-	BGKEY(7, "!", KEYCODE_Z)
+	BGKEY(5, "Z", KEYCODE_Y)
+	BGKEY(6, "Y", KEYCODE_Z)
+	BGKEY(7, "X", KEYCODE_X)
 
 	PORT_START("COL6") // codes 48-55
-	BGKEY(0, ",", KEYCODE_COMMA)
-	BGKEY(1, "&", KEYCODE_V)
-	BGKEY(2, "(", KEYCODE_J)
-	BGKEY(3, "*", KEYCODE_X)
+	BGKEY(0, ", ;", KEYCODE_COMMA)
+	BGKEY(1, "V", KEYCODE_V)
+	BGKEY(2, "\xc2\xb1", KEYCODE_EQUALS)
+	BGKEY(3, "Left Small", KEYCODE_PGUP)
 	BGKEY_NONE(4)
-	BGKEY(5, "$", KEYCODE_TILDE)
-	BGKEY(6, "\"", KEYCODE_W)
+	BGKEY(5, "Right Small", KEYCODE_PGDN)
+	BGKEY(6, "[", KEYCODE_BACKSLASH)
 	BGKEY(7, "Space", KEYCODE_SPACE)
 
 	PORT_START("COL7") // codes 56-63
-	BGKEY(0, ".", KEYCODE_STOP)
-	BGKEY(1, "Code 57", KEYCODE_BACKSLASH2)
+	BGKEY(0, ". :", KEYCODE_STOP)
+	BGKEY(1, "W", KEYCODE_W)
 	BGKEY(2, "Enter", KEYCODE_ENTER)
 	BGKEY(3, "Backspace", KEYCODE_BACKSPACE)
 	BGKEY(4, "Lock", KEYCODE_CAPSLOCK)
