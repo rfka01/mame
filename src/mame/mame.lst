@@ -18517,7 +18517,10 @@ mjmywrldt
 mjnigiri
 mjreach1
 mjreach1a
+mjrking
+mjrkingl
 mjschuka
+mjstama
 mjswacad
 mjswacads
 mjtenho
@@ -18814,6 +18817,7 @@ vintkeys
 
 @source:ensoniq/enmirage.cpp
 enmirage
+enmirdms
 
 @source:ensoniq/esq1.cpp
 esq1
@@ -20090,6 +20094,7 @@ spctrek
 spctbird
 spdcoin
 sstarcrs
+staratk
 starfght
 starfgmc
 stera
@@ -21520,6 +21525,9 @@ tpad600x
 tpad760xd
 tpad770z
 
+@source:ibm/thinkpad750.cpp
+tpad750cs
+
 @source:ibm/thinkpad8xx.cpp
 tpad850
 
@@ -22046,6 +22054,7 @@ chessc2
 cjddz
 cjddz213cn
 cjddz215cn
+cjddz216cn
 cjddz217cn
 cjddzlf
 cjddzp
@@ -22139,6 +22148,8 @@ wldfruit
 cjbq
 cjddzsp
 cjddzsp122cn
+cjddzsp126cn
+cjddzsp127cn
 cjdh2
 cjdh2a
 cjdh2b
@@ -23630,12 +23641,14 @@ hotmemry11
 pairs
 pairsa
 pairsred
+pubball
 sftm
 sftm110
 sftm111
 sftmj114
 sftmj112
 sftmk112
+shoottv
 shufshot
 shufshot135
 shufshot137
@@ -23662,8 +23675,7 @@ wcbowl16
 wcbowl161
 wcbowl165
 wcbowldx
-shoottv
-pubball
+wcbowldx200
 
 @source:jaleco/acommand.cpp
 acommand
@@ -29622,6 +29634,7 @@ rs3230
 
 @source:misc/39in1.cpp
 19in1
+19in1u
 39in1
 48in1
 48in1a
@@ -29630,6 +29643,7 @@ rs3230
 4in1
 4in1a
 60in1
+60in1u
 fruitwld
 fruitwlda
 jumanji
@@ -35638,6 +35652,7 @@ mjlstory
 ntopstar
 pstadium
 qmhayaku
+sttakkyu
 tokimbsj
 tokyogal
 triplew1
@@ -48084,7 +48099,12 @@ trs80l2
 trs80dt1
 
 @source:trs/trs80m2.cpp
+tandy6k
+tandy6khd
+trs80m12
 trs80m16
+trs80m16b
+trs80m16bhd
 trs80m2
 
 @source:trs/trs80m3.cpp
