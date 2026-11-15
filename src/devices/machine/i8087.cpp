@@ -2113,7 +2113,8 @@ void i8087_device::fprem(u8 modrm)
 
 		m_sw &= ~X87_SW_C2;
 
-		if (!extFloat80_remainder(ST(0), ST(1), result, q))
+		int const rc = extFloat80_remainder(ST(0), ST(1), result, q);
+		if (!rc)
 		{
 			m_sw &= ~(X87_SW_C0 | X87_SW_C3 | X87_SW_C1);
 			if (q & 1)
@@ -2123,8 +2124,10 @@ void i8087_device::fprem(u8 modrm)
 			if (q & 4)
 				m_sw |= X87_SW_C0;
 		}
-		else
+		else if (rc > 0)
 			m_sw |= X87_SW_C2;
+		// rc < 0: NaN or invalid operand, the result is a NaN and the
+		// reduction is complete (C2 = 0), so FPREM loops terminate
 	}
 
 	if (check_exceptions())
@@ -2148,7 +2151,8 @@ void i8087_device::fprem1(u8 modrm)
 
 		m_sw &= ~X87_SW_C2;
 
-		if (!extFloat80_ieee754_remainder(ST(0), ST(1), result, q))
+		int const rc = extFloat80_ieee754_remainder(ST(0), ST(1), result, q);
+		if (!rc)
 		{
 			m_sw &= ~(X87_SW_C0|X87_SW_C3|X87_SW_C1);
 			if (q & 1)
@@ -2158,8 +2162,10 @@ void i8087_device::fprem1(u8 modrm)
 			if (q & 4)
 				m_sw |= X87_SW_C0;
 		}
-		else
+		else if (rc > 0)
 			m_sw |= X87_SW_C2;
+		// rc < 0: NaN or invalid operand, the result is a NaN and the
+		// reduction is complete (C2 = 0), so FPREM loops terminate
 	}
 
 	if (check_exceptions())
