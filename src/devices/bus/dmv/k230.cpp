@@ -61,7 +61,7 @@
     banks with a K0815 and 7 with 512 KB; 0:FE06 cannot express the 4 KB
     hole, so software has to stop at FF000h itself.
 
-    ---- Firmware 2.2 (homebrew, K235 and K235+) ----------------------
+    ---- Firmware 2.3 (homebrew, K235 and K235+) ----------------------
 
     New memory test and monitor on top of 33473; kept from 33473 are the
     entries FF00:0000 (far display) and FF00:0003, the command table at
@@ -84,7 +84,15 @@
     - the tested RAM is left zeroed like 33473 does, and the 2651 is
       switched off again before the Z80 boots (only the monitor keeps it).
     - monitor without password: D E F M C S I O R G T Z(RAM test) L(Intel
-      HEX) X ?, Q runs the self test again and then boots
+      HEX) X ?.  Q after "M" runs the self test again and then boots;
+      after an entry from outside (DMVMON, FF00:0632) Q puts OUT (11h),A /
+      RST 0 at 0:F110h, where every mainboard ROM parks the Z80 behind its
+      16-bit hand-over stub, so the Z80 starts cold and asks for the test.
+    - the monitor keeps its RAM in the vectors C2h-DFh and E1h-FFh (only
+      dummy vectors under MS-DOS 2.11/3.3, CP/M-86 and the p-System) and
+      probes the RAM size again on entry, so it leaves a running system's
+      memory alone.  The self test checks bank 0 from 0400h on.
+    - no Ctrl-N and no 0.5 s pause at the end of the self test any more.
     - console on screen/keyboard and, if a 2651 answers at 70h (K211 on
       IFSEL 1A), also on the serial port at 9600 8N1.
 
@@ -113,17 +121,17 @@ ROM_START( dmv_k235 )
 	ROM_DEFAULT_BIOS("33473")
 	ROM_SYSTEM_BIOS(0, "33473", "33473, NCR original")
 	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(0) )
-	ROM_SYSTEM_BIOS(1, "fw22", "firmware 2.2 (homebrew)")
-	ROMX_LOAD( "k235_fw22.bin", 0x0000, 0x1000, CRC(d8aeeace) SHA1(594394ed0d00a5d229a76dfe4a70f982e6d87124), ROM_BIOS(1) )
+	ROM_SYSTEM_BIOS(1, "fw23", "firmware 2.3 (homebrew)")
+	ROMX_LOAD( "k235_fw23.bin", 0x0000, 0x1000, CRC(24a9e8ad) SHA1(802db6d29b9816e214dfbb4240e55eeb82a2e066), ROM_BIOS(1) )
 	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
 	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
 ROM_END
 
 ROM_START( dmv_k235p )
 	ROM_REGION(0x10000, "rom", ROMREGION_ERASEFF)
-	ROM_DEFAULT_BIOS("fw22")
-	ROM_SYSTEM_BIOS(0, "fw22", "firmware 2.2 (homebrew)")
-	ROMX_LOAD( "k235_fw22.bin", 0x0000, 0x1000, CRC(d8aeeace) SHA1(594394ed0d00a5d229a76dfe4a70f982e6d87124), ROM_BIOS(0) )
+	ROM_DEFAULT_BIOS("fw23")
+	ROM_SYSTEM_BIOS(0, "fw23", "firmware 2.3 (homebrew)")
+	ROMX_LOAD( "k235_fw23.bin", 0x0000, 0x1000, CRC(24a9e8ad) SHA1(802db6d29b9816e214dfbb4240e55eeb82a2e066), ROM_BIOS(0) )
 	// VzEkC patch amended: bank F000h tested only up to FEFFDh (4 KB window), presence test
 	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
 	ROM_SYSTEM_BIOS(1, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
