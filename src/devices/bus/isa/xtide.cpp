@@ -173,7 +173,7 @@ INPUT_PORTS_END
 ROM_START( xtide )
 	ROM_REGION(0x02000,"eeprom", 0)
 
-	ROM_DEFAULT_BIOS("xub200b3xt")
+	ROM_DEFAULT_BIOS("xubr638xt")
 
 	ROM_SYSTEM_BIOS( 0, "xtide_010", "Hargle's BIOS v0.10" )
 	ROMX_LOAD( "oprom.bin,v0.10", 0x000000, 0x002000, CRC(56075ac2) SHA1(f55285a1ed8414c8ddf2364421552e0548cf548f), ROM_BIOS(0) )
@@ -249,6 +249,11 @@ ROM_START( xtide )
 
 	ROM_SYSTEM_BIOS( 24, "xub200b3at", "XTIDE_Universal_BIOS_v2.0.0_beta3 (AT)" )
 	ROMX_LOAD( "ide_at.bin,v2.0.0_beta3", 0x000000, 0x002000, CRC(fc228f41) SHA1(c0053710ebac15284e740889967d73a6657734c7), ROM_BIOS(24) )
+
+	// r638 (2026-06-09) from xtideuniversalbios.org, default configuration,
+	// padded to 8 KB with the checksum byte as XTIDECFG saves it
+	ROM_SYSTEM_BIOS( 25, "xubr638xt", "XTIDE_Universal_BIOS_r638 (XT)" )
+	ROMX_LOAD( "ide_xt.bin,r638", 0x000000, 0x002000, CRC(947f6df5) SHA1(2deb174100977e3300320acd4ed9baf0f8681107), ROM_BIOS(25) )
 ROM_END
 
 //**************************************************************************
