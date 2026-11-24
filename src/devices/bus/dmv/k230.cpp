@@ -7,6 +7,99 @@
     K231 External 8088 module without interrupt controller
     K234 External 68008 module
     K235 Internal 8088 module with interrupt controller
+    K235+ Internal 8088/V20 module with interrupt controller and 1 MB
+          address space (homebrew, VzEkC e.V., F. Stassen 2025)
+
+    ---- K235+ ---------------------------------------------------------
+
+    Not an NCR product: a re-design of the K235 ("16-bit Processor with
+    PIC Plus", schematic rev 0.01 of 28.12.2024, manual v1.0.1 of
+    2025-03-05).  Same 8259A, interrupt routing (DIP-FIX S1/S2) and 8087
+    socket as the K235, but:
+
+    - the 74LS373 latch C2 puts SA16-SA19 on BA16-BA19, so all of the
+      1 MB address space goes to the bus (the K235 maps the upper 512 KB
+      to its EPROM).  Without a card that decodes BA19 (K0815), the
+      mainboard RAM ignores BA19 and the upper 512 KB mirror the lower.
+    - the EPROM only answers in a window at the top of the address space.
+      RCSEL = BA19 & BA18 & BA17 & BA16 & the address lines A15-A12 whose
+      switch in S3 is ON (74LS30, pull-ups RN):
+
+         S3  1 2 3 4   window
+             1 1 1 1    4 KB  FF000-FFFFF  (2732)
+             1 1 1 0    8 KB  FE000-FFFFF  (2764)
+             1 1 0 0   16 KB  FC000-FFFFF  (27128)
+             1 0 0 0   32 KB  F8000-FFFFF  (27256)
+             0 0 0 0   64 KB  F0000-FFFFF  (27512)
+             (1 = ON, switch 1 = A15 ... switch 4 = A12)
+
+      EPROM reads stay on the module (FW16CS = HOLDA16 & RCSEL), writes
+      still run a bus cycle.  RDY16 is forced for EPROM cycles.
+    - EPROM sockets E2 (2732, 24 pin) and a 28 pin socket for
+      2764-27512; J1-J3 route pins 26, 27 and 1 to A13-A15 or +5 V:
+
+             J1    J2    J3    EPROM
+             2-3   open  open  2732
+             open  2-3   2-3   2764
+             1-2   2-3   2-3   27128
+             1-2   1-2   2-3   27256
+             1-2   1-2   1-2   27512
+
+    - HOLDA16 is brought out on P107-b13; the K0815 needs it (wired to its
+      AUTO/ pin a13).
+
+    The VzEkC firmware (not included, it fails on this module) is the K235
+    ROM 33473 with the memory test extended
+    from 7 to 15 banks and a new bank name table at 0C00h.  That test also
+    covers bank F000h in full and so writes into the EPROM window at
+    FF000h; the readback fails there and the test stops with "FAILED (CR)"
+    at "960K-999K", leaving 14 banks in 0:FE06.  Without a K0815 its
+    presence test (AA55h at offset 0) also passes for banks 8-15, which
+    mirror banks 0-7, and the pattern test then overwrites bank 0 (stack
+    and Z80 mailbox).  The amended firmware "33473f" limits the test of
+    bank F000h to F0000-FEFFD, rejects mirrored banks and reports 15
+    banks with a K0815 and 7 with 512 KB; 0:FE06 cannot express the 4 KB
+    hole, so software has to stop at FF000h itself.
+
+    ---- Firmware 2.4 (homebrew, K235 and K235+) ----------------------
+
+    New memory test and monitor on top of 33473; kept from 33473 are the
+    entries FF00:0000 (far display) and FF00:0003, the command table at
+    0010h, the return to the Z80 at 0018h, the 8259 test and the keyboard
+    and CRT drivers.  FF00:0632 still enters the monitor.
+    - memory test in 4 KB blocks (address, 55AAh, AA55h), ends at the first
+      block that is no RAM or mirrors the block 512 KB below; works with
+      64 KB to 512 KB on both modules and 1020 KB on the K235+ with a
+      K0815.  0:FE06 counts a partial last bank (15 for 1020 KB).
+    - screen, centred: "NCR" as white block letters in a red box
+      (7 rows), "Decision Mate V", "[L] ... [S] ... [M] ...", bar and KB
+      counter; colours from the mainboard ROM id at 0FF8h (M: lit box,
+      dark letters, normal text); boot text green again,
+      the screen is cleared when the monitor starts.
+    - errors show address, written/read word and bit mask, then wait for
+      CR or about 10 s.  "M" during the test enters the monitor afterwards,
+      "S" skips the patterns; both still size and clear the remaining RAM.
+      "L" stops at 512 KB (0:FE06 = 7) until the next reset, for systems
+      that cannot handle more (MS-DOS 2.11, CP/M-86 with GSX).
+    - the tested RAM is left zeroed like 33473 does, and the 2651 is
+      switched off again before the Z80 boots (only the monitor keeps it).
+    - monitor without password: D E F M C S I O R G T Z(RAM test) L(Intel
+      HEX) X ?.  Q after "M" runs the self test again and then boots;
+      after an entry from outside (DMVMON, FF00:0632) Q puts OUT (11h),A /
+      RST 0 at 0:F110h, where every mainboard ROM parks the Z80 behind its
+      16-bit hand-over stub, so the Z80 starts cold and asks for the test.
+    - the monitor keeps its RAM in the vectors C2h-DFh and E1h-FFh (only
+      dummy vectors under MS-DOS 2.11/3.3, CP/M-86 and the p-System) and
+      probes the RAM size again on entry, so it leaves a running system's
+      memory alone.  The self test checks bank 0 from 0400h on.
+    - no Ctrl-N and no 0.5 s pause at the end of the self test any more.
+    - at the end of the self test unit 0 is selected on the WD1001 (OUT
+      C6h,A0h): the Z80 ROM asks for READY (07FBh) before it selects a
+      unit itself, and DOS leaves unit 3 selected; only a power-on reset
+      clears that, so a reboot from the monitor ended at "WAITING FOR
+      FIX-DISK".
+    - console on screen/keyboard and, if a 2651 answers at 70h (K211 on
+      IFSEL 1A), also on the serial port at 9600 8N1.
 
 ***************************************************************************/
 
@@ -30,7 +123,27 @@ ROM_END
 
 ROM_START( dmv_k235 )
 	ROM_REGION(0x1000, "rom", 0)
-	ROM_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad))
+	ROM_DEFAULT_BIOS("33473")
+	ROM_SYSTEM_BIOS(0, "33473", "33473, NCR original")
+	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(0) )
+	ROM_SYSTEM_BIOS(1, "fw24", "firmware 2.4 (homebrew)")
+	ROMX_LOAD( "k235_fw24.bin", 0x0000, 0x1000, CRC(2e07bc87) SHA1(8f95c09a43b150b482058588e09553f426a7fece), ROM_BIOS(1) )
+	ROM_SYSTEM_BIOS(2, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
+	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(2) )
+ROM_END
+
+ROM_START( dmv_k235p )
+	ROM_REGION(0x10000, "rom", ROMREGION_ERASEFF)
+	ROM_DEFAULT_BIOS("fw24")
+	ROM_SYSTEM_BIOS(0, "fw24", "firmware 2.4 (homebrew)")
+	ROMX_LOAD( "k235_fw24.bin", 0x0000, 0x1000, CRC(2e07bc87) SHA1(8f95c09a43b150b482058588e09553f426a7fece), ROM_BIOS(0) )
+	// VzEkC patch amended: bank F000h tested only up to FEFFDh (4 KB window), presence test
+	// rejects banks that mirror the bank 512 KB below (no BA19 decode), 10 character bank names
+	ROM_SYSTEM_BIOS(1, "33473f", "33473, 1 MB patch, EPROM window and mirror safe")
+	ROMX_LOAD( "k235p_33473f.bin", 0x0000, 0x1000, CRC(eade560f) SHA1(1b56ad4a205bda83e1c95b8dd21c8ae6c9d0b0c4), ROM_BIOS(1) )
+	// original NCR K235 firmware, tests 7 banks (512 KB)
+	ROM_SYSTEM_BIOS(2, "33473", "33473, NCR original")
+	ROMX_LOAD( "dmv_int_8088_pic_33473.bin", 0x0000, 0x1000, CRC(104195dc) SHA1(08d48ca3b84ab26c1a764792e04ec4def7dad2ad), ROM_BIOS(2) )
 ROM_END
 
 void dmv_k230_device::k230_mem(address_map &map)
@@ -62,6 +175,12 @@ void dmv_k235_device::k235_io(address_map &map)
 	map(0x90, 0x91).rw(m_pic, FUNC(pic8259_device::read), FUNC(pic8259_device::write));
 }
 
+void dmv_k235p_device::k235p_mem(address_map &map)
+{
+	map.unmap_value_high();
+	map(0x00000, 0xfffff).rw(FUNC(dmv_k235p_device::k235p_mem_r), FUNC(dmv_k235p_device::k235p_mem_w));
+}
+
 static INPUT_PORTS_START( dmv_k230 )
 	PORT_START("DSW")
 	PORT_CONFNAME( 0x80, 0x00, "8087 Coprocessor" )
@@ -83,6 +202,40 @@ static INPUT_PORTS_START( dmv_k235 )
 INPUT_PORTS_END
 
 
+static INPUT_PORTS_START( dmv_k235p )
+	PORT_START("DSW")
+	PORT_DIPNAME( 0x01, 0x00, "INT7 (DIP-FIX S1)" )  PORT_DIPLOCATION("S1:1")
+	PORT_DIPSETTING( 0x00, "Slot 5 (IRQ5)" )
+	PORT_DIPSETTING( 0x01, "Slot 6 (IRQ6)" )
+	PORT_DIPNAME( 0x02, 0x00, "INT5 (DIP-FIX S2)" )  PORT_DIPLOCATION("S2:1")
+	PORT_DIPSETTING( 0x00, "Slot 2a (IRQ2A)" )
+	PORT_DIPSETTING( 0x02, "Slot 2 (IRQ2)" )
+	PORT_CONFNAME( 0x80, 0x00, "8087 Coprocessor" )
+	PORT_CONFSETTING( 0x00, "Not installed" )
+	PORT_CONFSETTING( 0x80, "Installed" )
+
+	PORT_START("EPROM")
+	PORT_DIPNAME( 0x01, 0x00, "EPROM window A15" )  PORT_DIPLOCATION("S3:1")
+	PORT_DIPSETTING( 0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x02, 0x00, "EPROM window A14" )  PORT_DIPLOCATION("S3:2")
+	PORT_DIPSETTING( 0x02, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x04, 0x00, "EPROM window A13" )  PORT_DIPLOCATION("S3:3")
+	PORT_DIPSETTING( 0x04, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00, DEF_STR( On ) )
+	PORT_DIPNAME( 0x08, 0x00, "EPROM window A12" )  PORT_DIPLOCATION("S3:4")
+	PORT_DIPSETTING( 0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING( 0x00, DEF_STR( On ) )
+	PORT_CONFNAME( 0x70, 0x00, "EPROM type (J1-J3)" )
+	PORT_CONFSETTING( 0x00, "2732" )
+	PORT_CONFSETTING( 0x10, "2764" )
+	PORT_CONFSETTING( 0x20, "27128" )
+	PORT_CONFSETTING( 0x30, "27256" )
+	PORT_CONFSETTING( 0x40, "27512" )
+INPUT_PORTS_END
+
+
 //**************************************************************************
 //  GLOBAL VARIABLES
 //**************************************************************************
@@ -91,6 +244,7 @@ DEFINE_DEVICE_TYPE(DMV_K230, dmv_k230_device, "dmv_k230", "K230 8088 without int
 DEFINE_DEVICE_TYPE(DMV_K231, dmv_k231_device, "dmv_k231", "K231 8088 without interrupt controller")
 DEFINE_DEVICE_TYPE(DMV_K234, dmv_k234_device, "dmv_k234", "K234 68008")
 DEFINE_DEVICE_TYPE(DMV_K235, dmv_k235_device, "dmv_k235", "K235 8088 with interrupt controller")
+DEFINE_DEVICE_TYPE(DMV_K235P, dmv_k235p_device, "dmv_k235p", "K235+ 8088 with interrupt controller and 1MB (homebrew)")
 
 //**************************************************************************
 //  LIVE DEVICE
@@ -140,7 +294,21 @@ dmv_k234_device::dmv_k234_device(const machine_config &mconfig, const char *tag,
 //-------------------------------------------------
 
 dmv_k235_device::dmv_k235_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: dmv_k230_device(mconfig, DMV_K235, tag, owner, clock), m_pic(*this, "pic8259")
+	: dmv_k235_device(mconfig, DMV_K235, tag, owner, clock)
+{
+}
+
+dmv_k235_device::dmv_k235_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
+	: dmv_k230_device(mconfig, type, tag, owner, clock), m_pic(*this, "pic8259")
+{
+}
+
+//-------------------------------------------------
+//  dmv_k235p_device - constructor
+//-------------------------------------------------
+
+dmv_k235p_device::dmv_k235p_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: dmv_k235_device(mconfig, DMV_K235P, tag, owner, clock), m_eprom(*this, "EPROM")
 {
 }
 
@@ -236,6 +404,14 @@ void dmv_k235_device::device_add_mconfig(machine_config &config)
 	fpu_config(config);
 }
 
+void dmv_k235p_device::device_add_mconfig(machine_config &config)
+{
+	dmv_k235_device::device_add_mconfig(config);
+
+	// D1 is an 8088 on the schematic, the boards are built with a V20 as on the K235
+	m_maincpu->set_addrmap(AS_PROGRAM, &dmv_k235p_device::k235p_mem);
+}
+
 //-------------------------------------------------
 //  device_rom_region
 //-------------------------------------------------
@@ -260,6 +436,11 @@ const tiny_rom_entry *dmv_k235_device::device_rom_region() const
 	return ROM_NAME( dmv_k235 );
 }
 
+const tiny_rom_entry *dmv_k235p_device::device_rom_region() const
+{
+	return ROM_NAME( dmv_k235p );
+}
+
 //-------------------------------------------------
 //  input_ports - device-specific input ports
 //-------------------------------------------------
@@ -272,6 +453,11 @@ ioport_constructor dmv_k230_device::device_input_ports() const
 ioport_constructor dmv_k235_device::device_input_ports() const
 {
 	return INPUT_PORTS_NAME( dmv_k235 );
+}
+
+ioport_constructor dmv_k235p_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME( dmv_k235p );
 }
 
 bool dmv_k230_device::av16bit()
@@ -376,4 +562,33 @@ uint8_t dmv_k234_device::snr_r()
 void dmv_k234_device::snr_w(uint8_t data)
 {
 	snr_toggle();
+}
+
+// RCSEL: BA19-BA16 high and every address line A15-A12 whose S3 switch is ON
+bool dmv_k235p_device::rcsel(offs_t offset)
+{
+	if ((offset & 0xf0000) != 0xf0000)
+		return false;
+
+	offs_t const decoded = (~m_eprom->read() & 0x0f) << 12;   // S3:1 = A15 ... S3:4 = A12
+	return (offset & decoded) == decoded;
+}
+
+uint8_t dmv_k235p_device::k235p_mem_r(offs_t offset)
+{
+	if (rcsel(offset))
+	{
+		// A0-A11 always, A12-A15 as far as the EPROM has them (the rest are VPP/PGM at +5 V)
+		static const offs_t eprom_mask[8] = { 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff, 0xffff, 0xffff, 0xffff };
+		offs_t const mask = eprom_mask[(m_eprom->read() >> 4) & 7];
+		return m_rom->base()[offset & mask];
+	}
+
+	return program_r(offset);
+}
+
+void dmv_k235p_device::k235p_mem_w(offs_t offset, uint8_t data)
+{
+	// the 8288 runs a bus write cycle for the EPROM window too
+	program_w(offset, data);
 }

@@ -152,10 +152,36 @@ protected:
 	void irq5_w(int state) override    { if (!(m_config->read() & 0x01))  m_pic->ir7_w(state); }
 	void irq6_w(int state) override    { if ( (m_config->read() & 0x01))  m_pic->ir7_w(state); }
 
-private:
 	required_device<pic8259_device> m_pic;
 
+	dmv_k235_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+
 	void k235_io(address_map &map) ATTR_COLD;
+};
+
+
+// ======================> dmv_k235p_device
+
+class dmv_k235p_device :
+		public dmv_k235_device
+{
+public:
+	// construction/destruction
+	dmv_k235p_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	// optional information overrides
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
+
+private:
+	required_ioport             m_eprom;
+
+	bool rcsel(offs_t offset);
+	uint8_t k235p_mem_r(offs_t offset);
+	void k235p_mem_w(offs_t offset, uint8_t data);
+	void k235p_mem(address_map &map) ATTR_COLD;
 };
 
 // device type definition
@@ -163,5 +189,6 @@ DECLARE_DEVICE_TYPE(DMV_K230, dmv_k230_device)
 DECLARE_DEVICE_TYPE(DMV_K231, dmv_k231_device)
 DECLARE_DEVICE_TYPE(DMV_K234, dmv_k234_device)
 DECLARE_DEVICE_TYPE(DMV_K235, dmv_k235_device)
+DECLARE_DEVICE_TYPE(DMV_K235P, dmv_k235p_device)
 
 #endif // MAME_BUS_DMV_K230_H

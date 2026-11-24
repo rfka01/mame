@@ -184,6 +184,14 @@ static int do_fprem(extFloat80_t a, extFloat80_t b, extFloat80_t &r, uint64_t &q
 		}
 	}
 
+	// an exact remainder is zero with the sign of the dividend; SoftFloat 3's
+	// normRoundPack does not handle a zero significand (SoftFloat 2 did) and
+	// would return a pseudo-zero (exponent left over, significand 0)
+	if (! aSig0 && ! aSig1) {
+		r = packToExtF80(aSign, 0, 0);
+		return overflow;
+	}
+
 	r = softfloat_normRoundPackToExtF80(aSign, zExp, aSig0, aSig1, 80);
 	return overflow;
 }

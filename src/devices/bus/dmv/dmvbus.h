@@ -44,9 +44,11 @@ public:
 	template <typename T> void set_iospace(T &&tag, int spacenum) { m_iospace.set_tag(std::forward<T>(tag), spacenum); }
 
 	// reading and writing
-	bool read(offs_t offset, uint8_t &data);
+	// offset: address as seen by the cards so far (Z80: A0-A15 only)
+	// ba:     full bus address BA0-BA19 (Z80 and DMA: bank latch on BA16-BA18)
+	bool read(offs_t offset, offs_t ba, uint8_t &data);
 	bool drives_irq() const;
-	bool write(offs_t offset, uint8_t data);
+	bool write(offs_t offset, offs_t ba, uint8_t data);
 	void ram_read(uint8_t cas, offs_t offset, uint8_t &data);
 	void ram_write(uint8_t cas, offs_t offset, uint8_t data);
 	void io_read(int ifsel, offs_t offset, uint8_t &data);
@@ -95,6 +97,9 @@ public:
 
 	virtual bool read(offs_t offset, uint8_t &data) { return false; }
 	virtual bool write(offs_t offset, uint8_t data) { return false; }
+	// cards that decode the full bus address BA0-BA19 override these
+	virtual bool mem_read(offs_t offset, offs_t ba, uint8_t &data) { return read(offset, data); }
+	virtual bool mem_write(offs_t offset, offs_t ba, uint8_t data) { return write(offset, data); }
 	virtual void io_read(int ifsel, offs_t offset, uint8_t &data) { }
 	virtual void io_write(int ifsel, offs_t offset, uint8_t data) { }
 
