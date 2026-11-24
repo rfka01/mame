@@ -9,8 +9,12 @@ license:CC0-1.0
 	<!--
 	The firmware finds the fonts in each 64 KiB block of the cartridge window.  It takes the
 	glyphs of the italic and landscape Courier (directory in the dump's third block) from the
-	window's second block, so the dump's blocks load in the order 0, 3, 2, 1.  How the cartridge
-	wires A16 and A17 of the ROM is not verified.
+	window's second block, so the dump's blocks load in the order 0, 3, 2, 1.  The board selects
+	the ROM's upper address lines with a 74LS139 from lines of the edge connector (Guru); how
+	exactly is not traced.
+
+	PCB "DJ100 MK5-AFU REV B (C) 1992": U1 74LS139, U2 AM27C020 (256 KiB), U3 (second 32-pin
+	ROM) not fitted, jumpers J2-J5 all 2-3.
 	-->
 	<software name="odscyr">
 		<description>ODS Business Cartridge (Cyrillic)</description>
@@ -28,5 +32,302 @@ license:CC0-1.0
 			</dataarea>
 		</part>
 	</software>
+
+	<!--
+	Not dumped; for reference (cartridge list from https://www.nefec.org/upm/printers/chpdj.htm and the
+	DeskJet 550C user's guide).  The ROM sizes are guesses.  The 22708C Times Roman/Helvetica soft fonts
+	came on disk and need a RAM cartridge (22707A 128K or 22707B 256K).
+
+	<software name="22706a">
+		<description>Line Draw, Courier Italic</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706A"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706a.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706b">
+		<description>Prestige Elite</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706B"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706b.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706c">
+		<description>Letter Gothic</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706C"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706c.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706d">
+		<description>Times Roman 10, 8, 5 and 4 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706D"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706d.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706e">
+		<description>Times Roman 12 and 6 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706E"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706e.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706f">
+		<description>Times Roman 14 and 7 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706F"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706f.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706g">
+		<description>Helvetica 10, 8, 5 and 4 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706G"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706g.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706h">
+		<description>Helvetica 12 and 6 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706H"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706h.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706j">
+		<description>Helvetica 14 and 7 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706J"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706j.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22707k">
+		<description>Courier Landscape</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22707K"/>
+		<info name="usage" value="built into the DeskJet Plus and 500"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22707k.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22707l">
+		<description>Letter Gothic/Courier Landscape</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22707L"/>
+		<info name="usage" value="128 KiB MB831000; only the first 64 KiB is dumped (M. Hepperle)"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22707l.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706m">
+		<description>Presentations</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706M"/>
+		<info name="usage" value="ASCII only"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706m.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706p">
+		<description>Times Roman 14, 12, 10, 8, 7, 6, 5 and 4 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706P"/>
+		<info name="usage" value="ASCII only"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706p.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706q">
+		<description>Helvetica 14, 12, 10, 8, 7, 6, 5 and 4 point</description>
+		<year>198?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706Q"/>
+		<info name="usage" value="ASCII only"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706q.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706r">
+		<description>Times Roman Collection 8, 10, 12 and 14 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706R"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706r.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706t">
+		<description>Helvetica Collection 8, 10, 12 and 14 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706T"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706t.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706u">
+		<description>Times Roman Headlines 15 and 30 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706U"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706u.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706v">
+		<description>Helvetica Headlines 15 and 30 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706V"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706v.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="22706w">
+		<description>WordPerfect Cartridge (CG Times 6, 8, 10, 12, 14, 18 and 24 point, Univers 14, 18 and 24 point)</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22706W"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="22706w.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="c2109b">
+		<description>Global Text (CG Century Schoolbook 8 and 10 point, CG Triumvirate 10 and 14 point)</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP C2109B"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="c2109b.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="c2109c">
+		<description>Garamond Collection 8, 10, 12 and 14 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP C2109C"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="c2109c.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="c2109d">
+		<description>Dom Casual 12, 14, 18 and 24 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP C2109D"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="c2109d.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="c2109e">
+		<description>Brush 12, 18 and 24 point</description>
+		<year>199?</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP C2109E"/>
+		<info name="usage" value="DeskJet Plus and later"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="c2109e.bin" size="0x20000" status="nodump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	-->
 
 </softwarelist>

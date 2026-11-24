@@ -152,7 +152,8 @@
       the firmware takes the glyphs of the italic Courier (directory in
       block 2) from the second block of the window and those of the
       italic CG Times from its own directory block; the software list
-      loads it that way
+      loads it that way.  The board drives the ROM's upper address lines
+      from a 74LS139 (Guru); the wiring is not traced
 
     TODO:
     - paper sizes other than Letter and A4 (Legal, Executive, envelopes)
