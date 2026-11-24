@@ -54,6 +54,7 @@ struct printer_dot_style
 	float texture = 0.10f;          // ribbon fabric / paper fibre texture strength
 	double position_jitter = 0.0;   // random displacement, in inches (ink drops)
 	float spread = 0.0f;            // irregular outline (ink feathering), 0..1
+	double view_diameter = 0.0;     // > 0: dot size for the screen view and PNG pages, if their pixels can't show it
 	u32 color = 0x000000;           // ink color (RGB)
 
 	static printer_dot_style impact_9pin();

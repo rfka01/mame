@@ -732,8 +732,9 @@ void bitmap_printer_device::expand_dots(const bitmap_rgb32 &src, bitmap_rgb32 &d
 	rectangle const &clip = dst.cliprect();
 
 	bool const rect = m_dot_style_set && (m_dot_style.height > 0.0);
-	int rx = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_hdpi / 2.0)), 0) : 0;
-	int ry = m_dot_style_set ? std::max(int(std::lround(m_dot_style.diameter * m_vdpi / 2.0)), 0) : 0;
+	double const diameter = (m_dot_style.view_diameter > 0.0) ? m_dot_style.view_diameter : m_dot_style.diameter;
+	int rx = m_dot_style_set ? std::max(int(std::lround(diameter * m_hdpi / 2.0)), 0) : 0;
+	int ry = m_dot_style_set ? std::max(int(std::lround(diameter * m_vdpi / 2.0)), 0) : 0;
 	if (rect)
 	{
 		// a rectangle covers its own pixel and as many more on each side as fit

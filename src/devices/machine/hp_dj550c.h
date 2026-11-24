@@ -66,7 +66,11 @@ protected:
 	virtual void rcv_complete() override;
 
 private:
-	static constexpr XTAL COUNTER_CLOCK = 15.9744_MHz_XTAL / 16;   // free running counter (assumed)
+	// free running 16 bit counter, which times the steppers; its overflow is the system
+	// tick (37.5 Hz, the firmware counts 38 to a second).  The rate is fitted to a video
+	// of a real printer: the service station motor sings at 600 and 300 Hz and the paper
+	// motor at 500 Hz, the half step rates the firmware sets at 2.4576 MHz
+	static constexpr XTAL COUNTER_CLOCK = 15.9744_MHz_XTAL * 2 / 13;
 	static constexpr int DPI = 300;
 	static constexpr double PAPER_WIDTH = 9.0;      // Letter sheet 0.5 inch in from the left of the paper view
 	static constexpr double PAPER_HEIGHT = 297.0 / 25.4;
@@ -84,6 +88,9 @@ private:
 	static constexpr int PICK_DISTANCE = 1500;      // pick roller to paper sensor (guess)
 	static constexpr int SENSOR_TO_HEAD = 240;      // paper sensor to the top nozzle (from the top of page)
 	static constexpr int HEAD_ROWS = 56;            // rows below the top nozzle a pass can print on
+	static constexpr int SENSOR_TRAIL = 30;         // the sensor still sees a sheet this far past its trailing edge (fitted:
+	                                                // with less, the firmware takes the paper end for the end of the page
+	                                                // before the 60th line, and puts that line on a new sheet)
 
 	required_device<z80_device> m_maincpu;
 	required_device<eeprom_serial_93cxx_device> m_eeprom;

@@ -121,7 +121,10 @@ Centronics 36 pin Parallel Port
     on select the self test and other functions.  LEDs: port 55 bits 0-2
     portrait, landscape, condensed font, bit 3 alignment test, bit 4
     Ready, bit 5 black and bit 6 colour print cartridge (lit for a missing
-    cartridge), bit 7 Draft; port 57 bit 0 Busy (active low).
+    or wrong cartridge), bit 7 Draft; port 57 bit 0 Busy (active low).
+    As in the user's guide: a page without a form feed stays in the
+    printer with Busy blinking until Load/Eject Paper prints it; Clean
+    prints the colour cleaning pattern.
 
     Host interface: the firmware sends XOFF and drops DTR when its buffer
     has room for 100 characters, XON and DTR when there is room for 150
@@ -130,18 +133,24 @@ Centronics 36 pin Parallel Port
 
     Paper path: with the carriage pressed against its right stop the
     paper motor picks a sheet from the IN tray.  The paper sensor sees a
-    sheet from its leading edge to its trailing edge; the firmware feeds
+    sheet from its leading edge until 0.1 inch past its trailing edge
+    (assumed; the firmware ends the page when the sensor no longer sees
+    paper, so with less the last line of a full page moves onto the next
+    sheet); the firmware feeds
     a new sheet until the sensor sees it (at most 2850 half steps), then
     to the top of the page.  At power on and to eject it feeds until the
     sensor no longer sees paper.  One half step of the paper motor moves
     the paper by 1/300 inch.
 
     Not known, and set to values that work with the firmware:
-    - the rates of the system tick (38 Hz) and the servo NMI (250 Hz)
+    - the rates of the servo NMI (400 Hz, from the print speeds in the
+      user's guide) and of the counter that times the steppers and the
+      system tick (2.4576 MHz, from the motor sounds in a video)
     - the carriage: a DC motor model with the encoder, the stops at 0 and
       7690 counts
     - the distance from the pick roller to the paper sensor, and from the
-      sensor to the nozzles (from the top of page the firmware feeds to)
+      sensor to the nozzles (from the top of page the firmware feeds to),
+      and how far past the trailing edge the sensor still sees paper
     - the left edge of the paper in carriage counts, and the offsets of
       leftward passes (fitted to the printout)
     - the timing of the Centronics handshake: BUSY from /STROBE until the
@@ -343,7 +352,11 @@ void hp_dj550c_device::device_add_mconfig(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * DPI), int(PAPER_HEIGHT * DPI), DPI, DPI);
-	m_bitmap_printer->set_dot_style(printer_dot_style::inkjet(0.0033));
+	// the drops spread to about 1.5 times the dot pitch, so solid areas close up; the
+	// screen view and PNG pages, at the dot pitch, show each dot as one pixel
+	printer_dot_style dots = printer_dot_style::inkjet(0.0050);
+	dots.view_diameter = 0.9 / DPI;
+	m_bitmap_printer->set_dot_style(dots);
 	m_bitmap_printer->set_paper_view(3.0);
 	m_bitmap_printer->set_paper_formats(0x0c, bitmap_printer_device::PAPER_LETTER);   // A4 and Letter sheets
 	m_bitmap_printer->set_sheet_top(0.0);
@@ -465,8 +478,11 @@ void hp_dj550c_device::device_reset()
 	m_phase[0] = m_phase[1] = -1;
 	m_motor_pos[0] = m_motor_pos[1] = 0;
 
-	m_tick_timer->adjust(attotime::from_hz(38), 0, attotime::from_hz(38));
-	m_servo_timer->adjust(attotime::from_hz(250), 0, attotime::from_hz(250));
+	m_tick_timer->adjust(attotime::from_ticks(0x10000, COUNTER_CLOCK), 0, attotime::from_ticks(0x10000, COUNTER_CLOCK));   // counter overflow
+	// servo rate: the firmware drives the carriage at 25 counts per sample for letter
+	// quality and 36 for draft; at 400 Hz that gives the user's guide's 167 and 240
+	// characters per second at 10 cpi
+	m_servo_timer->adjust(attotime::from_hz(400), 0, attotime::from_hz(400));
 	arm_cmp();
 
 	// host interface: the input latches are cleared, the serial port runs at the
@@ -782,7 +798,7 @@ void hp_dj550c_device::paper_step(int dir)
 		m_bitmap_printer->m_ypos = std::max(sheet_row() + HEAD_ROWS, 0);
 	}
 
-	u8 const sensor = (m_sheet && (m_sheet_pos >= 0) && (m_sheet_pos < m_sheet_rows)) ? 1 : 0;
+	u8 const sensor = (m_sheet && (m_sheet_pos >= 0) && (m_sheet_pos < (m_sheet_rows + SENSOR_TRAIL))) ? 1 : 0;
 	if (sensor != m_paper_sensor)
 		LOGMASKED(LOG_PAPER, "paper: sensor %d at %d\n", sensor, m_sheet_pos);
 	m_paper_sensor = sensor;
