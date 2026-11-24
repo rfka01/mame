@@ -16998,6 +16998,9 @@ sz1
 dg10
 dg20
 
+@source:casio/dh100.cpp
+dh100
+
 @source:casio/fp200.cpp
 fp200
 
@@ -17635,6 +17638,7 @@ brkthruj
 brkthrut
 brkthruu
 darwin
+evolution
 forcebrk
 
 @source:dataeast/btime.cpp
@@ -18587,6 +18591,7 @@ mjfriday
 mjreach
 mjreacha
 mjreachbl
+mjreachbl2
 mjreachp2
 mjtkp2
 mjwitomo
@@ -21005,6 +21010,9 @@ et3400a
 @source:heathzenith/h8.cpp
 h8
 
+@source:heathzenith/h9.cpp
+h9
+
 @source:heathzenith/h19.cpp
 h19
 
@@ -21023,6 +21031,12 @@ z22
 
 @source:heathzenith/z29.cpp
 z29
+
+@source:heathzenith/z39.cpp
+z39
+
+@source:heathzenith/z49.cpp
+z49
 
 @source:heathzenith/z100.cpp
 z100
@@ -21728,6 +21742,7 @@ fb2010a
 feverch
 fevercha
 feverchb
+feverchc
 feverchtw
 feverchw4
 fl7_3121
@@ -21772,6 +21787,21 @@ fl7_50_gs37
 fl7_50_gs38
 fl7_50_gs39
 fl7_500
+fl7_500_gs01
+fl7_500_gs02
+fl7_500_gs03
+fl7_500_gs04
+fl7_500_gs05
+fl7_500_gs06
+fl7_500_gs07
+fl7_500_gs08
+fl7_500_gs09
+fl7_500_gs10
+fl7_500_gs11
+fl7_500_gs12
+fl7_500_gs13
+fl7_500_gs14
+fl7_500_gs15
 fl7_1000
 fl7_2000
 fl7_2k16
@@ -21809,6 +21839,7 @@ lonestar
 lonestara
 lucky8
 lucky8a
+lucky8aa
 lucky8b
 lucky8c
 lucky8d
@@ -21845,6 +21876,7 @@ magoddsd
 match98
 mbs2euro
 megaline
+mirjoker
 missbingo
 missbingoc
 moonlght
@@ -21901,6 +21933,7 @@ ns8linewd
 packsystem
 pkrmast
 pkrmasta
+pkrmastc
 pokonl97
 reelmagic
 reelmagica
@@ -22169,6 +22202,7 @@ lhfy
 lhtb
 lhzb3in1
 lhzbgqb
+lhzbgqb104cn
 mghammer
 mjzhizun
 qhzb
@@ -30278,6 +30312,8 @@ am_mg4sk
 am_mg4v
 am_mg5hu
 fpoker
+starline
+starlinea
 suprstar
 
 @source:misc/amerihok.cpp
@@ -32079,6 +32115,7 @@ goldnpkg
 goldnpkh
 goldnpki
 goldnpkr
+goldpnew
 goodluck
 gp_jpn22
 gp_ped42_70
@@ -32767,6 +32804,7 @@ fruitstbn
 fruitstbo
 goldnjkr
 goldnjkra
+goldnjkrb
 
 @source:misc/mpu2000.cpp
 gw606
@@ -33731,6 +33769,7 @@ baibians
 btlfront
 cjmx
 crzclass
+ddzzcs
 hzniqiu
 kxddz
 xbnz
@@ -35975,6 +36014,7 @@ mousekid
 pp6578
 soulbird
 ts_handy11
+tvdriv17
 vsmaxx15
 vsmaxx25
 
@@ -36149,6 +36189,7 @@ hkb502
 hkb502a
 jl1810gr
 jl2050
+jl2350
 jl2377
 jl2950
 lexi30
@@ -40204,7 +40245,6 @@ tropfrt
 powerbals
 sslam
 sslama
-sslamb
 
 @source:plexus/p20.cpp
 p20
@@ -40914,7 +40954,11 @@ st1714
 jinsanse
 
 @source:sealy/sealy_eagle.cpp
+abaozang
+laiziddz
 qczl
+qqddz
+zduoxing
 
 @source:sealy/sealy_fr.cpp
 snowbwar
@@ -40929,6 +40973,7 @@ sandaha
 @source:sealy/sealy_z80.cpp
 bbddz
 bbddza
+clonek2
 ddz1
 ddz2
 ddz2a
@@ -41215,6 +41260,8 @@ mypacgld
 mysf2
 mysinv
 mysinva
+pxp3
+pxp3a
 reactmd
 sarc110
 sarc110a
@@ -44247,6 +44294,9 @@ fs3216
 @source:skeleton/ft68m.cpp
 ft68m
 
+@source:skeleton/futsala.cpp
+futsala
+
 @source:skeleton/galpro.cpp
 galpro
 
@@ -44284,6 +44334,7 @@ hazl1552
 hazl1420
 
 @source:skeleton/highway_m68k.cpp
+dlzc
 tzfx
 
 @source:skeleton/hkcastle.cpp
@@ -45395,6 +45446,7 @@ ikari3
 ikari3j
 ikari3k
 ikari3u
+ikari3ua
 ikari3w
 pow
 powa
