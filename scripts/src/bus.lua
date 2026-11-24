@@ -1817,6 +1817,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/epson_ap3250.h",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.h",
+		MAME_DIR .. "src/devices/bus/centronics/hp_dj550c.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/hp_dj550c.h",
 		MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.h",
 		MAME_DIR .. "src/devices/bus/centronics/hp_lj4l.cpp",
@@ -2948,6 +2950,20 @@ if BUSES["HP_DIO"] then
 		MAME_DIR .. "src/devices/bus/hp_dio/hp98644.h",
 		MAME_DIR .. "src/devices/bus/hp_dio/human_interface.cpp",
 		MAME_DIR .. "src/devices/bus/hp_dio/human_interface.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/bus/hp_dj_cart/slot.h,BUSES["HP_DJ_CART"] = true
+---------------------------------------------------
+
+if BUSES["HP_DJ_CART"] then
+	files {
+		MAME_DIR .. "src/devices/bus/hp_dj_cart/slot.cpp",
+		MAME_DIR .. "src/devices/bus/hp_dj_cart/slot.h",
+		MAME_DIR .. "src/devices/bus/hp_dj_cart/cards.cpp",
+		MAME_DIR .. "src/devices/bus/hp_dj_cart/cards.h",
 	}
 end
 
@@ -5380,6 +5396,8 @@ if BUSES["RS232"] then
 		MAME_DIR .. "src/devices/bus/rs232/heath_h19.h",
 		MAME_DIR .. "src/devices/bus/rs232/hlemouse.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/hlemouse.h",
+		MAME_DIR .. "src/devices/bus/rs232/hp_dj550c.cpp",
+		MAME_DIR .. "src/devices/bus/rs232/hp_dj550c.h",
 		MAME_DIR .. "src/devices/bus/rs232/hp_lj3p.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/hp_lj3p.h",
 		MAME_DIR .. "src/devices/bus/rs232/ie15.cpp",

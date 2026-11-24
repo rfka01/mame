@@ -161,6 +161,7 @@ device_rs232_port_interface::~device_rs232_port_interface()
 #include "ie15.h"
 #include "heath_h19.h"
 #include "hlemouse.h"
+#include "hp_dj550c.h"
 #include "hp_lj3p.h"
 #include "iwriter2.h"
 #include "keyboard.h"
@@ -190,6 +191,7 @@ void default_rs232_devices(device_slot_interface &device)
 	device.option_add("dec_loopback",  DEC_RS232_LOOPBACK);
 	device.option_add("ex800",         EPSON_EX800);
 	device.option_add("h19",           SERIAL_TERMINAL_H19);
+	device.option_add("hpdj550c",      RS232_HP_DJ550C);
 	device.option_add("hplj3p",        RS232_HP_LJ3P);
 	device.option_add("ie15",          SERIAL_TERMINAL_IE15);
 	device.option_add("iwriter2",      APPLE_IMAGEWRITER2);

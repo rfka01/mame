@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE softwarelist SYSTEM "softwarelist.dtd">
+<!--
+license:CC0-1.0
+-->
+
+<softwarelist name="hpdj_cart" description="HP DeskJet 500/550C font cartridges">
+
+	<!--
+	The firmware finds the fonts in each 64 KiB block of the cartridge window.  It takes the
+	glyphs of the italic and landscape Courier (directory in the dump's third block) from the
+	window's second block, so the dump's blocks load in the order 0, 3, 2, 1.  How the cartridge
+	wires A16 and A17 of the ROM is not verified.
+	-->
+	<software name="odscyr">
+		<description>ODS Business Cartridge (Cyrillic)</description>
+		<year>1992</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="B2543A Opt. ACB"/>
+		<info name="pcb" value="C2114-60064"/>
+		<info name="usage" value="Courier, Courier Italic, Courier Landscape, CG Times, CG Times Italic, 12 point, symbol sets 3R (CP866), 10N (ISO 8859-5), 9R (Windows 1251)"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x40000">
+				<rom name="3233cyr.u2" size="0x10000" crc="3ba7023c" sha1="b268b1c17b525a478d56ede90fdfca6a89634219" offset="0x00000"/>
+				<rom size="0x10000" offset="0x30000" loadflag="continue"/>
+				<rom size="0x10000" offset="0x20000" loadflag="continue"/>
+				<rom size="0x10000" offset="0x10000" loadflag="continue"/>
+			</dataarea>
+		</part>
+	</software>
+
+</softwarelist>

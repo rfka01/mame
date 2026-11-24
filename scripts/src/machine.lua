@@ -1661,6 +1661,26 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/machine/hp_dj550c.h,MACHINES["HP_DJ550C"] = true
+---------------------------------------------------
+
+if MACHINES["HP_DJ550C"] then
+	files {
+		MAME_DIR .. "src/devices/machine/hp_dj550c.cpp",
+		MAME_DIR .. "src/devices/machine/hp_dj550c.h",
+	}
+
+	dependency {
+		{ MAME_DIR .. "src/devices/machine/hp_dj550c.cpp", GEN_DIR .. "emu/layout/hpdj550c.lh" },
+	}
+
+	custombuildtask {
+		layoutbuildtask("emu/layout", "hpdj550c"),
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/machine/hp_lj3p.h,MACHINES["HP_LJ3P"] = true
 ---------------------------------------------------
 
