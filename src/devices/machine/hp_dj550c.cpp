@@ -2,12 +2,40 @@
 // copyright-holders:rfka01
 /**********************************************************************
 
+HP Deskjet 550C Inkjet Printer
+Hardware info by Guru
+---------------------
+
+PCB#: C2127-80005-B
+Sticker: C2121-60124   3346
+         B-3339   SINGAPORE
+
+Main components:
+
+Zilog Z84C0008VEC Z80 CPU [clock 15.975/2]
+15.975MHz Oscillator
+HP custom 1XK3-0301 93382 KOREA 9329006 (QFP160)
+MAX232 Dual EIA-232 Drivers and Receivers (SOIC16)
+2x ST L6221A Quad Darlington Switch (DIP16)
+ST L6202 1.5A Full Bridge Motor Driver (DIP18)
+2x 40 pin expansion slots for font cartridges.
+  - Carts usually contain 1x MB831000 128kx8-bit DIP28 mask ROM.
+  - Carts are compatible with the original Deskjet 500 series.
+2x 4Mbit SOP32 mask ROMs at U11 and U12
+Atmel 93C46 EEPROM at U7
+ST M7705 Master Reset IC
+2x Oki M548128L-10 128kx8-bit PSRAM (C2127A only has 1 RAM IC)
+LM339 Quad Comparators
+2x 8-position DIP Switches
+6x board connectors for cables
+RS232 25 pin DSUB Serial Port
+Centronics 36 pin Parallel Port
+
+---------------------
+
     HP DeskJet 550C colour inkjet printer (C2121A), 1993
 
-    Main board: Z80 (15.975 MHz crystal, the CPU runs at half of it),
-    HP ASIC 1XK3-0301, 256 KiB DRAM, two 512 KiB mask ROMs (U12 program
-    and fonts, U11 data), 93C46 EEPROM, two font cartridge slots, a
-    Centronics port and an RS-232C port.
+    U12 holds the program and the fonts, U11 data.
 
     The ASIC as far as the firmware shows (port numbers, Z80 I/O space):
 
@@ -49,7 +77,7 @@
              matrix rows (low = switch up)
       5C-5F  host DMA end and write pointer (13 bits)
 
-    Physical memory (16 KiB banks): 00-1F U12, 20-2F DRAM, 40-5F font
+    Physical memory (16 KiB banks): 00-1F U12, 20-2F PSRAM, 40-5F font
     cartridges, 60-7F U11.
 
     Interrupts (IM 1): bit 1 system tick, bit 2 serial transmitter empty,
@@ -142,10 +170,12 @@
               up) or for downloaded soft fonts such as 22708C Times
               Roman/Helvetica, which needs at least one
     Dumps seen so far:
-    - 22707L (MB831000, 128 KiB): only the first 64 KiB is dumped
-      (landscape Letter Gothic 12 point and italic); it works.  The
-      MB831000 has A16 on pin 22, where a 27C512 has /OE - read as a
-      27C512, the upper half is not reached
+    - 22707L (MB831000, 128 KiB, M. Hepperle): landscape Letter Gothic
+      12 pitch upright and italic, 16.67 pitch, and Courier 10 pitch; it
+      works with the dump in linear order (the italic landscape Letter
+      Gothic, which the printer lacks, prints from it).  A first read
+      gave only the lower half: the MB831000 has A16 on pin 22, where a
+      27C512 has /OE.
     - ODS Business Cartridge, B2543A Opt. ACB (ROM ID 3233 CYR, 256 KiB,
       Cyrillic CG Times and Courier with the symbol sets 3R, 10N and 9R):
       works with its 64 KiB blocks in the order 0, 3, 2, 1 of the dump -
@@ -600,7 +630,7 @@ void hp_dj550c_device::init_w(int state)
 
 void hp_dj550c_device::dma_store(u8 data)
 {
-	// the input buffer is in the DRAM, or in a RAM cartridge
+	// the input buffer is in the PSRAM, or in a RAM cartridge
 	u32 const addr = (u32(m_io[0x41]) << 13) | m_dma_cur;
 	int const bank = (addr >> 14) & 0x7f;
 	if (m_page[bank] && m_page_writable[bank])

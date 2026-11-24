@@ -33,6 +33,19 @@ license:CC0-1.0
 		</part>
 	</software>
 
+	<software name="22707l">
+		<description>Letter Gothic Landscape Fonts</description>
+		<year>1987</year>
+		<publisher>Hewlett-Packard</publisher>
+		<info name="serial" value="HP 22707L"/>
+		<info name="usage" value="landscape: Letter Gothic 12 pitch upright and italic, Letter Gothic 16.67 pitch, Courier 10 pitch"/>
+		<part name="cart" interface="hpdj_cart">
+			<dataarea name="rom" size="0x20000">
+				<rom name="hp22707l.bin" size="0x20000" crc="a6526fbe" sha1="3cadca569e6e1f4be117f385706a0a5ffc7c42f1"/>
+			</dataarea>
+		</part>
+	</software>
+
 	<!--
 	Not dumped; for reference (cartridge list from https://www.nefec.org/upm/printers/chpdj.htm and the
 	DeskJet 550C user's guide).  The ROM sizes are guesses.  The 22708C Times Roman/Helvetica soft fonts
@@ -155,19 +168,6 @@ license:CC0-1.0
 		<part name="cart" interface="hpdj_cart">
 			<dataarea name="rom" size="0x20000">
 				<rom name="22707k.bin" size="0x20000" status="nodump"/>
-			</dataarea>
-		</part>
-	</software>
-
-	<software name="22707l">
-		<description>Letter Gothic/Courier Landscape</description>
-		<year>198?</year>
-		<publisher>Hewlett-Packard</publisher>
-		<info name="serial" value="HP 22707L"/>
-		<info name="usage" value="128 KiB MB831000; only the first 64 KiB is dumped (M. Hepperle)"/>
-		<part name="cart" interface="hpdj_cart">
-			<dataarea name="rom" size="0x20000">
-				<rom name="22707l.bin" size="0x20000" status="nodump"/>
 			</dataarea>
 		</part>
 	</software>
