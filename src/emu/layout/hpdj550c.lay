@@ -138,14 +138,17 @@ keys, a small key above and a large key below each legend, the LEDs in the legen
 	</group>
 
 	<view name="Paper and Control Panel">
+		<!-- the paper view is 9 inches wide; a sheet runs from 0.5 inch to its right edge.  The
+		     printer front reaches about 20 mm (100 units) past the sheet on both sides; the panel
+		     keeps its proportions at 60 % size -->
 		<screen tag="bitmap_printer:screen">
 			<bounds x="0" y="0" width="1140" height="380" />
 		</screen>
-		<element ref="case"><bounds x="0" y="380" width="1140" height="380" /></element>
-		<element ref="case_dark"><bounds x="0" y="380" width="1140" height="6" /></element>
-		<element ref="t_hp"><bounds x="40" y="410" width="260" height="30" /></element>
-		<element ref="t_model"><bounds x="40" y="442" width="260" height="40" /></element>
-		<group ref="panel"><bounds x="560" y="400" width="560" height="340" /></group>
+		<element ref="case"><bounds x="-37" y="380" width="1277" height="224" /></element>
+		<element ref="case_dark"><bounds x="-37" y="380" width="1277" height="4" /></element>
+		<element ref="t_hp"><bounds x="0" y="410" width="260" height="30" /></element>
+		<element ref="t_model"><bounds x="0" y="442" width="260" height="40" /></element>
+		<group ref="panel"><bounds x="884" y="390" width="336" height="204" /></group>
 	</view>
 
 	<view name="Control Panel">

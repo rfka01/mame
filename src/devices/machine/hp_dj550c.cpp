@@ -19,7 +19,8 @@ MAX232 Dual EIA-232 Drivers and Receivers (SOIC16)
 2x ST L6221A Quad Darlington Switch (DIP16)
 ST L6202 1.5A Full Bridge Motor Driver (DIP18)
 2x 40 pin expansion slots for font cartridges.
-  - Carts usually contain 1x MB831000 128kx8-bit DIP28 mask ROM.
+  - Early carts usually contain 1x MB831000 128kx8-bit DIP28 mask ROM but some later carts
+    have 1x 27C020 and there is space for another. The board is wired for up to 2x 8Mbit 32 pin ROMs.
   - Carts are compatible with the original Deskjet 500 series.
 2x 4Mbit SOP32 mask ROMs at U11 and U12
 Atmel 93C46 EEPROM at U7
@@ -937,7 +938,7 @@ void hp_dj550c_device::run_list()
 			// character width: 80/81 every other column (20 characters per inch, one entry
 			// for each half), 82 the columns with bit 7 of their mask (16.67 cpi);
 			// A0+n for landscape characters: bit 0 every other row (20 cpi), bit 1 bold
-			// (each column printed again two units on; guess)
+			// (each column printed again two units on; not verified)
 			if (op & 0x20)
 			{
 				squeeze = SQUEEZE_NONE;

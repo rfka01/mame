@@ -2,15 +2,79 @@
 // copyright-holders:rfka01
 /**********************************************************************
 
+HP Deskjet 500-Series Font Cart Pinout
+Hardware Info by Guru
+---------------------
+
+Parts Side                      Solder Side
+--------------------------------------------------------
+Pin  Function                   Pin  Function
+1    NC                         2    A17 + J4 pin 1 + J5 pin 2
+3    GND                        4    VCC
+5    A15                        6    A14
+7    NC                         8    NC
+9    A12                        10   A13
+11   A7                         12   A8
+13   A6                         14   A9
+15   A5                         16   A11
+17   A4                         18   A3
+19   A10                        20   A2
+21   A1                         22   A0
+23   D7                         24   D6
+25   D0                         26   D5
+27   D1                         28   D4
+29   D2                         30   D3
+31   NC                         32   /OE + J2 pin 2 + J3 pin 2
+33   LS139 pin 2 (A input)      34   A16 + J2 pin 1 + J3 pin 3 + LS139 pin 3 (input B)
+35   LED DS1 pin 1              36   LED DS2 pin 1
+37   LED DS3 pin 1              38   LED DS4 pin 1
+39   A19                        40   A18
+
+
+NOTES
+-----
+
+ROM pinout matches DIP32 27C080. ROM U2 can be 27C010 up to 27C080
+All ROM pins of U2 and U3 are tied together except pins 22 and 30
+ROM U2 pin 22 is selected with 74LS139 pin 10
+ROM U3 pin 22 is selected with 74LS139 pin 9
+ROM U2 pin 30 tied to J5 pin 2
+ROM U3 pin 30 tied to VCC so this ROM position is limited to either 28 pin MB831000 (non-JEDEC) or 27C010 (JEDEC)
+ROM U3 is usually not populated
+
+J2 and J3 configure the ROMs for JEDEC/non-JEDEC pinout
+This board is set to use JEDEC EPROMs. JP3, JP4, JP5, JP6 are 3-pin jumpers all tied 2-3
+J4 pin 3 tied to GND
+J5 pin 1 tied to VCC
+J5 pin 3 tied to R1 10K resistor
+J2 pin 1 and J3 pin 1 tied together
+ROM A17 (pin 3) tied to J4 pin 1 and J5 pin 2 which is tied to R1 (10K resistor) through jumper wire 2-3, other end of R1 tied to VCC so ROM A17
+is high except when pulled low by edge connector pin 2
+
+74LS139 is only used to toggle CE on the ROMs
+74LS139 pin 1 (1G enable) tied to GND so 1G enable always enabled
+74LS139 pins 4, 5, 6, 11, 12 = NC
+74LS139 pin 7 (1Y3 output) tied to 74LS139 pin 13 (input 2B)
+74LS139 pin 9 (2Y3 output) tied to ROM U3 pin 22 CE
+74LS139 pin 10 (2Y2 output) tied to ROM U2 pin 22 CE
+74LS139 pin 14 (2A input) tied to J4 pin 2
+74LS139 pin 15 (2G enable) tied to J2 pin 3 and J3 pin 3
+
+LEDs DS1, DS2, DS3 and DS4 not populated but could be. They are just blinkenlights i.e. useless. Cart has no holes for LEDs so
+they were probably only used on very early carts.
+R2, R3, R4 and R5 are current limiting resistors for the LEDs and also not populated. Can use 470 ohm resistors.
+
+---------------------
+
     HP DeskJet 500/550C cartridges
 
     Font cartridge: a ROM, from the start of the slot's window.  Each
     64 KiB block of a font ROM starts with a header (62 00 20 ..., the
     cartridge number and name); the printer's firmware finds the fonts by
-    itself.  The edge connector carries A0-A15, the data lines, four LED
-    lines and three lines that a 74LS00 decodes to the ROM's chip enable
-    (M. Hepperle's notes on the 22707L); how A16 and A17 of a larger ROM
-    are wired is not known.
+    itself.  The edge connector carries A0-A19, the data lines and four LED
+    lines (pinout above); a 74LS139 on the cartridge selects one of its two
+    ROM sockets (on the 22707L a 74LS00 decodes the chip enable, after M.
+    Hepperle's notes).
 
     Slot options for the dumped font cartridges:
 
@@ -20,9 +84,7 @@
             sets 3R (CP866), 10N (ISO 8859-5), 9R (Windows 1251).  The
             firmware finds the italic Courier only in the window's second
             block, so the ROM's 64 KiB blocks are loaded in the order
-            0, 3, 2, 1; the board selects the ROM's upper address lines
-            with a 74LS139 (Guru), the wiring is not traced.  Board from
-            Artiom, ROM dumped by Guru.
+            0, 3, 2, 1.  Board from Artiom, ROM dumped by Guru.
     22707l  Letter Gothic landscape fonts, HP 22707L (MB831000): Letter
             Gothic 12 pitch upright and italic, 16.67 pitch, and Courier
             10 pitch, all landscape.  ROM files by M. Hepperle.

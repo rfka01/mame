@@ -85,7 +85,7 @@ private:
 	static constexpr int LEFTWARD_RASTER = -8;      // and raster blocks in them, in addition (fitted)
 
 	// paper path, in paper motor half steps (1/300 inch)
-	static constexpr int PICK_DISTANCE = 1500;      // pick roller to paper sensor (guess)
+	static constexpr int PICK_DISTANCE = 1500;      // pick roller to paper sensor (placeholder)
 	static constexpr int SENSOR_TO_HEAD = 240;      // paper sensor to the top nozzle (from the top of page)
 	static constexpr int HEAD_ROWS = 56;            // rows below the top nozzle a pass can print on
 	static constexpr int SENSOR_TRAIL = 30;         // the sensor still sees a sheet this far past its trailing edge (fitted:
