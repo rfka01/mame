@@ -36,7 +36,6 @@ void hp_dj_cart_slot_device::device_start()
 
 void hp_dj_cartridges(device_slot_interface &device)
 {
-	device.option_add("rom", HP_DJ_CART_ROM);
 	device.option_add("odscyr", HP_DJ_CART_ODSCYR);
 	device.option_add("22707l", HP_DJ_CART_22707L);
 	device.option_add("ram128", HP_DJ_CART_RAM128);

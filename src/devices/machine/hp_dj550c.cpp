@@ -158,41 +158,14 @@ Centronics 36 pin Parallel Port
     - the bits of the serial receive status
 
     Cartridges: two slots (bus/hp_dj_cart), each a 256 KiB window at
-    banks 40-4F and 50-5F, for font ROMs (mounted as cartridge1 and
-    cartridge2) or the RAM cartridges 22707A and 22707B; the firmware
-    finds the fonts and the RAM by itself.
-    HP offered these cartridges for the printer (user's guide, accessories):
-      22706B  Prestige Elite
-      22706C  Letter Gothic
-      22707L  Letter Gothic Landscape Fonts
-      22706M  Presentations (ASCII characters only)
-      22706R  Times Roman Collection
-      22706T  Helvetica Collection
-      22706U  Times Roman Headlines (15 and 30 pt)
-      22706V  Helvetica Headlines (15 and 30 pt)
-      22706W  WordPerfect Fonts
-      C2109C  Garamond Collection
-      C2109B  Global Text
-      C2109D  Dom Casual
-      C2109E  Brush
-      22707B  256K RAM Cartridge: up to two, as input buffer (switch B2
-              up) or for downloaded soft fonts such as 22708C Times
-              Roman/Helvetica, which needs at least one
-    Dumps seen so far:
-    - 22707L (MB831000, 128 KiB, M. Hepperle): landscape Letter Gothic
-      12 pitch upright and italic, 16.67 pitch, and Courier 10 pitch; it
-      works with the dump in linear order (the italic landscape Letter
-      Gothic, which the printer lacks, prints from it).  A first read
-      gave only the lower half: the MB831000 has A16 on pin 22, where a
-      27C512 has /OE.
-    - ODS Business Cartridge, B2543A Opt. ACB (ROM ID 3233 CYR, 256 KiB,
-      Cyrillic CG Times and Courier with the symbol sets 3R, 10N and 9R):
-      works with its 64 KiB blocks in the order 0, 3, 2, 1 of the dump -
-      the firmware takes the glyphs of the italic Courier (directory in
-      block 2) from the second block of the window and those of the
-      italic CG Times from its own directory block; the software list
-      loads it that way.  The board drives the ROM's upper address lines
-      from a 74LS139 (Guru); the wiring is not traced
+    banks 40-4F and 50-5F, for the font cartridges odscyr (ODS Business
+    Cartridge, Cyrillic) and 22707l (Letter Gothic landscape fonts) or the
+    RAM cartridges 22707A and 22707B (ram128, ram256); the firmware finds
+    the fonts and the RAM by itself.  Up to two 22707B serve as input
+    buffer (switch B2 up) or for downloaded soft fonts such as 22708C
+    Times Roman/Helvetica, which needs at least one.  The dumps, and the
+    cartridges HP offered that are not dumped, are described in
+    bus/hp_dj_cart/cards.cpp.
 
     TODO:
     - paper sizes other than Letter and A4 (Legal, Executive, envelopes)
@@ -203,7 +176,6 @@ Centronics 36 pin Parallel Port
 #include "emu.h"
 #include "hp_dj550c.h"
 
-#include "softlist_dev.h"
 
 #include "hpdj550c.lh"
 
@@ -361,10 +333,9 @@ void hp_dj550c_device::device_add_mconfig(machine_config &config)
 	m_bitmap_printer->set_paper_formats(0x0c, bitmap_printer_device::PAPER_LETTER);   // A4 and Letter sheets
 	m_bitmap_printer->set_sheet_top(0.0);
 
-	// cartridge slots: font ROMs (cartridge1/cartridge2 media) or RAM
-	HP_DJ_CART_SLOT(config, m_slot[0], hp_dj_cartridges, "rom");
-	HP_DJ_CART_SLOT(config, m_slot[1], hp_dj_cartridges, "rom");
-	SOFTWARE_LIST(config, "cart_list").set_original("hpdj_cart");
+	// cartridge slots: font ROMs or RAM
+	HP_DJ_CART_SLOT(config, m_slot[0], hp_dj_cartridges, nullptr);
+	HP_DJ_CART_SLOT(config, m_slot[1], hp_dj_cartridges, nullptr);
 
 	config.set_default_layout(layout_hpdj550c);
 }

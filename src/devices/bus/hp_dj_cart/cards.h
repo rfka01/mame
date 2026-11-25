@@ -13,7 +13,6 @@
 
 #include "slot.h"
 
-DECLARE_DEVICE_TYPE(HP_DJ_CART_ROM, device_hp_dj_cart_interface)
 DECLARE_DEVICE_TYPE(HP_DJ_CART_ODSCYR, device_hp_dj_cart_interface)
 DECLARE_DEVICE_TYPE(HP_DJ_CART_22707L, device_hp_dj_cart_interface)
 DECLARE_DEVICE_TYPE(HP_DJ_CART_RAM128, device_hp_dj_cart_interface)
