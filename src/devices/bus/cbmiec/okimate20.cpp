@@ -61,6 +61,7 @@ protected:
 	{
 	}
 
+	virtual void device_config_complete() override ATTR_COLD;
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
@@ -143,6 +144,14 @@ ioport_constructor okimate20_device::device_input_ports() const
 	return INPUT_PORTS_NAME( okimat20 );
 }
 
+
+void okimate20_device::device_config_complete()
+{
+	// default the device number switch to the slot address
+	int const address = configured_address();
+	if ((address == 4) || (address == 5))
+		set_switch_default("SW", 0x20, (address == 5) ? 0x20 : 0x00);
+}
 
 void okimate20_device::device_start()
 {
