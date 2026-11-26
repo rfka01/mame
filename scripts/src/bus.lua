@@ -1823,6 +1823,8 @@ if BUSES["CENTRONICS"] then
 		MAME_DIR .. "src/devices/bus/centronics/epson_ap3250.h",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/epson_ex800.h",
+		MAME_DIR .. "src/devices/bus/centronics/hp_dj540.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/hp_dj540.h",
 		MAME_DIR .. "src/devices/bus/centronics/hp_dj550c.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/hp_dj550c.h",
 		MAME_DIR .. "src/devices/bus/centronics/hp_lj3p.cpp",

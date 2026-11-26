@@ -141,6 +141,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 #include "neomania_adapter.h"
 #include "mz1p16.h"
 #include "mcs820.h"
+#include "hp_dj540.h"
 #include "hp_dj550c.h"
 #include "hp_lj3p.h"
 #include "hp_lj4l.h"
@@ -179,6 +180,7 @@ void centronics_devices(device_slot_interface &device)
 	device.option_add("ap2000", EPSON_AP2000);
 	device.option_add("rx80", EPSON_RX80);
 	device.option_add("p72", NEC_P72);
+	device.option_add("hpdj540", CENTRONICS_HP_DJ540);
 	device.option_add("hpdj550c", CENTRONICS_HP_DJ550C);
 	device.option_add("hplj3p", CENTRONICS_HP_LJ3P);
 	device.option_add("hplj4l", HP_LJ4L);
