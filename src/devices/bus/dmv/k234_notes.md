@@ -2,7 +2,7 @@
 
 This note records *why* the K234 emulation was changed, and which primary
 sources each change is derived from, so the changes can be reviewed as
-evidence-based rather than guesswork. It covers `k230.cpp` / `k230.h`
+evidence-based rather than speculative. It covers `k230.cpp` / `k230.h`
 (the K234 device) and the two K234-relevant lines in `ncr/dmv.cpp`.
 
 All register, port and address references below are taken from NCR's own

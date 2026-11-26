@@ -67,11 +67,11 @@ constexpr int VDPI = 216;
 constexpr double PAPER_WIDTH = 9.5;
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr double CR_STEPS_PER_INCH = 640.0 / 7.5;   // manual: 640 dots in a 7.5 inch line
-constexpr double LEFT_OFFSET = 0.75;         // paper edge to the home sensor edge (guess)
-constexpr double CR_MOVE = 0.00104;     // time the carriage takes for a step (guess, as FX-80)
+constexpr double LEFT_OFFSET = 0.75;         // paper edge to the home sensor edge (placeholder)
+constexpr double CR_MOVE = 0.00104;     // time the carriage takes for a step (placeholder, as FX-80)
 constexpr double DOT_LAG = 0.06;        // steps the dot lands behind the step position while moving:
                                         // stepper load angle less needle flight, fitted so both directions line up
-constexpr int NEEDLE_MIN = 150;        // shorter drive pulses do not reach the paper (guess)
+constexpr int NEEDLE_MIN = 150;        // shorter drive pulses do not reach the paper (placeholder)
 constexpr int CR_LEFT = -40;            // left stop, steps from the home sensor edge
 constexpr int CR_RIGHT = 720;           // right stop
 
@@ -265,7 +265,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 		m_led[2] = BIT(data, 7);     // READY
 	});
 	m_maincpu->t0_in_cb().set([this] () { return 1; });
-	m_maincpu->t1_in_cb().set([this] () { return m_pts; });   // guess: PTS also to the main CPU
+	m_maincpu->t1_in_cb().set([this] () { return m_pts; });   // assumed: PTS also to the main CPU
 	m_maincpu->bus_in_cb().set(FUNC(bmc_bx80_device::bus_r));
 
 	I8041A(config, m_slavecpu, 6_MHz_XTAL);
@@ -274,7 +274,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 	m_slavecpu->p2_in_cb().set([this] () { return (m_s2 & 0x0f) | 0xe0 | (BIT(m_sw2->read(), 3) << 4); });   // P24 = SW2-4
 	m_slavecpu->p2_out_cb().set(FUNC(bmc_bx80_device::slave_p2_w));
 	m_slavecpu->t0_in_cb().set([this] () { return m_pts; });                       // PTS sensor
-	m_slavecpu->t1_in_cb().set([this] () { return (m_cr_pos < 0) ? 0 : 1; });   // home sensor (polarity guessed)
+	m_slavecpu->t1_in_cb().set([this] () { return (m_cr_pos < 0) ? 0 : 1; });   // home sensor (polarity not verified)
 
 	I8155(config, m_8155, 8_MHz_XTAL / 3);
 	m_8155->in_pa_callback().set([this] () { return m_data; });
@@ -287,7 +287,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 		LOGMASKED(LOG_PORT, "%s PC w %02x\n", machine().describe_context(), data);
 		m_pc = data;
 		needles_w((u16(~m_pb & 0xff) << 1) | BIT(~m_pc, 4));
-		m_maincpu->set_input_line(MCS48_INPUT_IRQ, BIT(data, 0) ? ASSERT_LINE : CLEAR_LINE);   // INTR A (guess: straight to /INT)
+		m_maincpu->set_input_line(MCS48_INPUT_IRQ, BIT(data, 0) ? ASSERT_LINE : CLEAR_LINE);   // INTR A (assumed: straight to /INT)
 		output_busy(BIT(m_p1, 6) || BIT(data, 1));
 	});
 	BITMAP_PRINTER(config, m_bitmap_printer, int(PAPER_WIDTH * HDPI), int(PAPER_HEIGHT * VDPI), HDPI, VDPI);
@@ -297,7 +297,7 @@ void bmc_bx80_device::device_add_mconfig(machine_config &config)
 
 
 	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beep, 2000).add_route(ALL_OUTPUTS, "mono", 0.25);   // frequency guessed
+	BEEP(config, m_beep, 2000).add_route(ALL_OUTPUTS, "mono", 0.25);   // frequency is a placeholder
 
 	config.set_default_layout(layout_bmc_bx80);
 }

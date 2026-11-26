@@ -74,10 +74,10 @@ constexpr int HDPI = 240;               // horizontal resolution of the paper bi
 constexpr int VDPI = 216;               // vertical resolution (four paper feed half steps)
 constexpr double PAPER_WIDTH = 9.5;     // 240 mm fanfold with tractor strips
 constexpr double PAPER_HEIGHT = 11.0;
-constexpr int LEFT_STEPS = 60;          // paper edge to the carriage home position, in half steps (guess)
+constexpr int LEFT_STEPS = 60;          // paper edge to the carriage home position, in half steps (placeholder)
 constexpr double NEEDLE_FLIGHT = 135e-6; // fire to impact (s): the firmware fires early by as much; found from
 										// bidirectional draft after graphics (aligned from 70 to 190 us)
-constexpr int REAR_PE = 400;            // rear PE detector below the print line, in paper half steps (guess)
+constexpr int REAR_PE = 400;            // rear PE detector below the print line, in paper half steps (placeholder)
 
 // AT93C46 contents after the factory reset (Tear Off/Bin and Load/Eject held at power on),
 // with the 80 column carriage set in the factory area as the adjustment program does
@@ -378,7 +378,7 @@ u8 epson_fx880_device::ga_r(offs_t offset)
 		break;
 
 	case 0x2b:
-		// host control lines (bit assignment guessed)
+		// host control lines (bit assignment not verified)
 		data = (m_strobe << 0) | (m_init << 1) | (m_slctin << 2) | (m_autofd << 3);
 		break;
 
@@ -543,7 +543,7 @@ void epson_fx880_device::p8_w(u8 data)
 	// P82/TO4: needle drive timing to the gate array, which pulses the needles selected in
 	// 0x50/0x51 for the time in 0x56/0x57 while 0x53 bit 0 is set. The buzzer is the head
 	// itself: all needles driven at 1.5 kHz with pulses too short to strike the ribbon
-	// (strike threshold guessed between the beep's 5Dh and the shortest printing pulse)
+	// (strike threshold placed between the beep's 5Dh and the shortest printing pulse)
 	int const to4 = BIT(data, 2);
 	bool const enabled = BIT(m_ga[0x53], 0);
 	bool const buzz = enabled && ((m_ga[0x56] | (m_ga[0x57] << 8)) < 0x80);

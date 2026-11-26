@@ -61,11 +61,11 @@
 
 namespace {
 
-// carriage step clock (guess: crystal / 192 = 57.6 kHz): the speed tables then give 40 cps in
+// carriage step clock (placeholder: crystal / 192 = 57.6 kHz): the speed tables then give 40 cps in
 // correspondence and 80 cps in data processing quality as specified, and the end of the
 // acceleration ramp matches the cruise speed
 constexpr XTAL STEP_CLOCK = 11.0592_MHz_XTAL / 192;
-// M60306 interval timer clock (guess: ALE / 16, about 22 ms for the firmware's count of 2500)
+// M60306 interval timer clock (placeholder: ALE / 16, about 22 ms for the firmware's count of 2500)
 constexpr XTAL Q4_CLOCK = 11.0592_MHz_XTAL / 96;
 
 // paper and resolution
@@ -74,19 +74,19 @@ constexpr double PAPER_HEIGHT = 11.0;
 constexpr int HDPI = 240;
 constexpr int VDPI = 144;
 constexpr int DOT_WIDTH = 2;            // pixels at HDPI: a heat pulse covers one carriage step
-constexpr double STEP_INCH = 1.0 / 120; // carriage step (guess)
-constexpr double LEFT_OFFSET = 0.3;     // paper edge to the home position, inches (guess)
+constexpr double STEP_INCH = 1.0 / 120; // carriage step (placeholder)
+constexpr double LEFT_OFFSET = 0.3;     // paper edge to the home position, inches (placeholder)
 
 // colour ribbon, in carriage steps: a black marker, then yellow, magenta and cyan panels of one
 // line each and a clear strip.  The firmware finds the marker with the sensor, then expects the
-// panels at a fixed pitch of 1020 steps; the lengths of the marker and the clear strip are guesses
+// panels at a fixed pitch of 1020 steps; the lengths of the marker and the clear strip are placeholders
 // that let the next marker be found right after the cyan pass.
 constexpr int RIB_MARK = 60;
 constexpr int RIB_PANEL = 1020;
 constexpr int RIB_PERIOD = 3192;
 constexpr int RIB_HEAD = 138;           // ribbon between the head and the point seen by the sensor
 
-// the frame stops the carriage a few steps past the home sensor (guess); the colour line start
+// the frame stops the carriage a few steps past the home sensor (placeholder); the colour line start
 // is found either by counting from the ribbon marker or by creeping onto the home sensor, and
 // both end here
 constexpr int HOME_STOP = -4;

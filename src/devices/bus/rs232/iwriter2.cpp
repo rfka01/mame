@@ -74,7 +74,7 @@
 
 namespace {
 
-// carriage engine time base (guess: crystal / 64, gives about 250 cps in draft)
+// carriage engine time base (placeholder: crystal / 64, gives about 250 cps in draft)
 constexpr u32 CR_CLOCK = 14'745'600 / 64;
 
 // head positions are kept in 1/2880 inch, the unit of the firmware; a carriage step is 1/160 inch
@@ -88,7 +88,7 @@ constexpr double CR_LAG = 0.000153;     // seconds
 constexpr u32 ribbon_color[4] = { 0x000000, 0x2c74c8, 0xd8306c, 0xf0d028 };   // black, blue, red, yellow
 constexpr int RIBBON_BAND = 13;         // shift motor steps per band
 
-constexpr int HOME_EDGE = -20;          // home sensor edge, steps from the carriage zero position (guess)
+constexpr int HOME_EDGE = -20;          // home sensor edge, steps from the carriage zero position (placeholder)
 
 // paper
 constexpr double PAPER_WIDTH = 10.0;    // inches
@@ -197,7 +197,7 @@ INPUT_PORTS_START( iwriter2 )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("ImageWriter II On/Off") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(iwriter2_device::power_switch), 0)
 
 	PORT_START("SENSORS")   // port T bits 4-7
-	PORT_CONFNAME( 0x10, 0x10, "Front cover" )  // guess: printing stops when low
+	PORT_CONFNAME( 0x10, 0x10, "Front cover" )  // assumed: printing stops when low
 	PORT_CONFSETTING(    0x00, "Open" )
 	PORT_CONFSETTING(    0x10, "Closed" )
 	PORT_CONFNAME( 0x20, 0x00, "Paper" )

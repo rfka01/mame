@@ -365,7 +365,7 @@ private:
 };
 
 static constexpr XTAL BGSCRIPT_CLOCK = 8_MHz_XTAL;
-// clock of the step timer counter, a guess giving ~4 kHz idle tick rate
+// clock of the step timer counter, a placeholder giving ~4 kHz idle tick rate
 static constexpr u32 BGSCRIPT_TIMER_CLOCK = 8'000'000 / 64;
 
 void bgscript_state::machine_start()
@@ -970,7 +970,7 @@ void bgscribe_state::psi_p_w(int state)
 
 INPUT_CHANGED_MEMBER(bgscribe_state::key_changed)
 {
-	// Guess, consistent with the firmware: the gate array latches the code
+	// Assumed, consistent with the firmware: the gate array latches the code
 	// and pulls 9901 /INT4 (9901 INTREQ -> CPU INT4, task 0x308 reads FFF0).
 	// START/CHECK additionally goes to CPU INT1 (task 0x302 checks for code
 	// 0F to start or stop plotting). Reading FFF0 clears both.

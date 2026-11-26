@@ -70,15 +70,15 @@ constexpr int VDPI = 360;
 constexpr double PAPER_WIDTH = 9.5;     // widest paper (fanfold with the push tractor)
 constexpr double PAPER_HEIGHT = 11.0;
 constexpr double CR_PER_INCH = 120.0;   // carriage half steps per inch (from character widths)
-constexpr double LEFT_OFFSET = 0.2;     // home position to the left end of the mechanism, inches: centres 80 columns on a Letter sheet (guess)
+constexpr double LEFT_OFFSET = 0.2;     // home position to the left end of the mechanism, inches: centres 80 columns on a Letter sheet (placeholder)
 constexpr double EVEN_OFFSET = 4.0;     // even needle column, half steps right of the odd one (from the firmware timing)
 constexpr double DOT_LAG = 1.3;          // half steps the dots land behind the step position while moving,
                                         // fitted so that both directions line up
 constexpr int NEEDLE_MIN = 150;         // shortest drive pulse that prints, us (beeper pulses are about 50 us)
 constexpr double SHEET_TOP = 8.5 / 25.4;    // first print line of a sheet (manual: TOF 8.5 mm)
 constexpr double SHEET_SENSOR = 576.0 / 360 - SHEET_TOP;   // paper sensor to print line: with TOF +-0 the loading feed runs 576/360" from the sensor to the top line
-constexpr double SHEET_PICK = 0.2;         // cassette to paper sensor, guess
-constexpr double CR_MOVE = 0.0005;      // time for one half step of the carriage (guess)
+constexpr double SHEET_PICK = 0.2;         // cassette to paper sensor (placeholder)
+constexpr double CR_MOVE = 0.0005;      // time for one half step of the carriage (placeholder)
 
 class epson_ap3250_device : public device_t, public device_centronics_peripheral_interface
 {
@@ -254,7 +254,7 @@ void epson_ap3250_device::device_add_mconfig(machine_config &config)
 		m_led[0] = BIT(~data, 4);   // left font lamp (PB4, lit by switching the pin to output low)
 		m_led[1] = BIT(~data, 3);   // right font lamp (PB3)
 		m_led[2] = BIT(~data, 6);   // READY
-		output_fault(BIT(data, 7));   // /ERROR (guess: low after a fatal error)
+		output_fault(BIT(data, 7));   // /ERROR (assumed: low after a fatal error)
 		m_eeprom->write_sda(BIT(data, 0));   // PB0 = SDA, PB1 = SCL
 		m_eeprom->write_scl(BIT(data, 1));
 	});
@@ -481,7 +481,7 @@ void epson_ap3250_device::input_strobe(int state)
 
 void epson_ap3250_device::update_centronics()
 {
-	// FE03: bit 0 = data latched, bit 1 rising = BUSY off, bit 2 = ACK (guess);
+	// FE03: bit 0 = data latched, bit 1 rising = BUSY off, bit 2 = ACK (assumed);
 	// BUSY is set by the strobe
 	output_busy(m_busy);
 	output_ack(BIT(~m_ga[3], 2));

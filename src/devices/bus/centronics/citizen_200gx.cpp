@@ -56,7 +56,7 @@
       the printer is ready) are not known; PE and SLCT are modelled from the
       paper sensor and held high
     - keys held at power on (self test, hex dump)
-    - crystal and TI clock are guesses that give the specified 160 cps
+    - crystal and TI clock are placeholders that give the specified 160 cps
 
 **********************************************************************/
 
@@ -81,7 +81,7 @@ constexpr int HDPI = 240;
 constexpr int VDPI = 216;
 constexpr double PAPER_WIDTH = 9.5;
 constexpr double PAPER_HEIGHT = 11.0;
-constexpr double LEFT_OFFSET = 0.25;    // paper edge to the home position, inches (guess)
+constexpr double LEFT_OFFSET = 0.25;    // paper edge to the home position, inches (placeholder)
 
 // colour ribbon: lift in half steps from the lowest position (the firmware drives against the
 // top stop at power on); band boundaries halfway between the print positions
@@ -303,7 +303,7 @@ void citizen_200gx_device::device_add_mconfig(machine_config &config)
 {
 	UPD7810(config, m_maincpu, 11.0592_MHz_XTAL);   // crystal not known
 	m_maincpu->set_addrmap(AS_PROGRAM, &citizen_200gx_device::mem_map);
-	// timing clock for the head and the carriage at TI (guess: crystal / 192 gives the specified
+	// timing clock for the head and the carriage at TI (placeholder: crystal / 192 gives the specified
 	// 160 cps at 10 cpi with the firmware's cruise period of 60 counts per 1/60" step)
 	m_maincpu->set_ti_clock(11.0592_MHz_XTAL / 192);
 	m_maincpu->pa_in_cb().set(FUNC(citizen_200gx_device::pa_r));
@@ -360,7 +360,7 @@ void citizen_200gx_device::device_reset()
 	std::fill(std::begin(m_ga), std::end(m_ga), 0);
 
 	// the firmware drives neither PE nor SLCT (going off line changes only the
-	// lamps): PE follows the paper end sensor, SLCT is held active (guess)
+	// lamps): PE follows the paper end sensor, SLCT is held active (assumed)
 	output_perror(paper() ? 0 : 1);
 	output_select(1);
 }
@@ -453,7 +453,7 @@ void citizen_200gx_device::fire()
 {
 	u16 const head = m_ga[0] | (m_ga[10] << 8);
 	// e00b: needle pulse width as a negative count; printing uses 19, the warm-up of a cold
-	// head at power on 6, too short to strike the ribbon (threshold is a guess)
+	// head at power on 6, too short to strike the ribbon (threshold is a placeholder)
 	if ((0x100 - m_ga[11]) < 10)
 		return;
 	LOG("fire %04x cr %d y %d t %s\n", head, m_cr_half, m_bitmap_printer->m_ypos, machine().time().as_string(6));
