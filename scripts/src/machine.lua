@@ -1661,6 +1661,26 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/machine/hp_dj320.h,MACHINES["HP_DJ320"] = true
+---------------------------------------------------
+
+if MACHINES["HP_DJ320"] then
+	files {
+		MAME_DIR .. "src/devices/machine/hp_dj320.cpp",
+		MAME_DIR .. "src/devices/machine/hp_dj320.h",
+	}
+
+	dependency {
+		{ MAME_DIR .. "src/devices/machine/hp_dj320.cpp", GEN_DIR .. "emu/layout/hpdj320.lh" },
+	}
+
+	custombuildtask {
+		layoutbuildtask("emu/layout", "hpdj320"),
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/machine/hp_dj540.h,MACHINES["HP_DJ540"] = true
 ---------------------------------------------------
 

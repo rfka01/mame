@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<!--
+license:CC0-1.0
+copyright-holders:rfka01
+HP DeskJet 320: paper and control panel, after photos of the printer (a row of six round
+keys at the right of the dark grey top, with the lights above them; all lights are green,
+Online and Power are lit in their keys, Draft is assumed to be lit the same way)
+-->
+<mamelayout version="2">
+	<element name="case"><rect><color red="0.22" green="0.23" blue="0.25" /></rect></element>
+	<element name="case_edge"><rect><color red="0.14" green="0.15" blue="0.16" /></rect></element>
+	<element name="hp_logo">
+		<rect><color red="0.85" green="0.85" blue="0.85" /></rect>
+		<text string="hp"><bounds x="0.1" y="0.05" width="0.8" height="0.9" /><color red="0.22" green="0.23" blue="0.25" /></text>
+	</element>
+	<element name="t_hp1"><text string="HEWLETT" align="1"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_hp2"><text string="PACKARD" align="1"><color red="0.85" green="0.85" blue="0.85" /></text></element>
+	<element name="t_model"><text string="DeskJet 320" align="1"><color red="0.85" green="0.60" blue="0.70" /></text></element>
+
+	<element name="key" defstate="0">
+		<disk><color red="0.45" green="0.46" blue="0.48" /></disk>
+		<disk state="0"><bounds x="0.08" y="0.08" width="0.84" height="0.84" /><color red="0.78" green="0.78" blue="0.80" /></disk>
+		<disk state="1"><bounds x="0.08" y="0.08" width="0.84" height="0.84" /><color red="0.60" green="0.60" blue="0.62" /></disk>
+	</element>
+	<element name="lamp" defstate="0">
+		<disk><color red="0.12" green="0.12" blue="0.12" /></disk>
+		<disk state="1"><bounds x="0.1" y="0.1" width="0.8" height="0.8" /><color red="0.40" green="1.00" blue="0.30" /></disk>
+	</element>
+
+	<element name="t_online"><text string="Online"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_font"><text string="Font"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_draft"><text string="Draft"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_lfff"><text string="LF/FF"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_setup"><text string="Setup"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_power"><text string="Power"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_busy"><text string="Busy" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_landscape"><text string="Landscape" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_compressed"><text string="Compressed" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_change"><text string="Change Cartridge" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_menu"><text string="Menu" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+	<element name="t_charge"><text string="Charge" align="1"><color red="0.80" green="0.80" blue="0.80" /></text></element>
+
+	<!-- keys 42 units apart as on the printer; Online, Draft and Power show their lights in the key -->
+	<group name="panel">
+		<element ref="case"><bounds x="0" y="0" width="280" height="130" /></element>
+
+		<element ref="lamp" name="hpdj320_led3"><bounds x="16" y="14" width="8" height="8" /></element>
+		<element ref="t_busy"><bounds x="27" y="10" width="40" height="16" /></element>
+		<element ref="lamp" name="hpdj320_led4"><bounds x="58" y="20" width="8" height="8" /></element>
+		<element ref="t_landscape"><bounds x="69" y="16" width="64" height="16" /></element>
+		<element ref="lamp" name="hpdj320_led5"><bounds x="60" y="40" width="8" height="8" /></element>
+		<element ref="t_compressed"><bounds x="71" y="36" width="70" height="16" /></element>
+		<element ref="lamp" name="hpdj320_led1"><bounds x="182" y="34" width="8" height="8" /></element>
+		<element ref="t_change"><bounds x="193" y="30" width="86" height="16" /></element>
+		<element ref="lamp" name="hpdj320_led0"><bounds x="182" y="54" width="8" height="8" /></element>
+		<element ref="t_menu"><bounds x="193" y="50" width="40" height="16" /></element>
+		<element ref="lamp" name="hpdj320_led8"><bounds x="236" y="54" width="8" height="8" /></element>
+		<element ref="t_charge"><bounds x="247" y="50" width="33" height="16" /></element>
+
+		<element ref="key" inputtag="KEYS" inputmask="0x20"><bounds x="12" y="70" width="30" height="30" /></element>
+		<element ref="lamp" name="hpdj320_led6"><bounds x="23" y="81" width="8" height="8" /></element>
+		<element ref="t_online"><bounds x="2" y="102" width="50" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x10"><bounds x="54" y="70" width="30" height="30" /></element>
+		<element ref="t_font"><bounds x="44" y="102" width="50" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x08"><bounds x="96" y="70" width="30" height="30" /></element>
+		<element ref="lamp" name="hpdj320_led2"><bounds x="107" y="81" width="8" height="8" /></element>
+		<element ref="t_draft"><bounds x="86" y="102" width="50" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x04"><bounds x="138" y="70" width="30" height="30" /></element>
+		<element ref="t_lfff"><bounds x="128" y="102" width="50" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x02"><bounds x="180" y="70" width="30" height="30" /></element>
+		<element ref="t_setup"><bounds x="170" y="102" width="50" height="16" /></element>
+		<element ref="key" inputtag="KEYS" inputmask="0x01"><bounds x="222" y="70" width="30" height="30" /></element>
+		<element ref="lamp" name="hpdj320_led7"><bounds x="233" y="81" width="8" height="8" /></element>
+		<element ref="t_power"><bounds x="212" y="102" width="50" height="16" /></element>
+	</group>
+
+	<view name="Paper and Control Panel">
+		<!-- the paper view is 9 inches wide; a sheet runs from 0.25 inch to 8.75 inch -->
+		<screen tag="bitmap_printer:screen"><bounds x="0" y="0" width="1140" height="380" /></screen>
+		<element ref="case"><bounds x="-40" y="380" width="1220" height="170" /></element>
+		<element ref="case_edge"><bounds x="-40" y="380" width="1220" height="4" /></element>
+		<element ref="hp_logo"><bounds x="0" y="410" width="34" height="24" /></element>
+		<element ref="t_hp1"><bounds x="42" y="406" width="100" height="16" /></element>
+		<element ref="t_hp2"><bounds x="42" y="422" width="100" height="16" /></element>
+		<element ref="t_model"><bounds x="150" y="404" width="160" height="36" /></element>
+		<group ref="panel"><bounds x="860" y="400" width="280" height="130" /></group>
+	</view>
+
+	<view name="Control Panel">
+		<element ref="case"><bounds x="0" y="0" width="600" height="170" /></element>
+		<element ref="hp_logo"><bounds x="20" y="30" width="34" height="24" /></element>
+		<element ref="t_hp1"><bounds x="62" y="26" width="100" height="16" /></element>
+		<element ref="t_hp2"><bounds x="62" y="42" width="100" height="16" /></element>
+		<element ref="t_model"><bounds x="170" y="24" width="160" height="36" /></element>
+		<group ref="panel"><bounds x="310" y="20" width="280" height="130" /></group>
+	</view>
+</mamelayout>
