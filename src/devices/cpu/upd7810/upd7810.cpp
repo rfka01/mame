@@ -422,6 +422,7 @@ upd7810_device::upd7810_device(const machine_config &mconfig, device_type type, 
 	, m_co0_func(*this)
 	, m_co1_func(*this)
 	, m_txd_func(*this)
+	, m_sck_func(*this)
 	, m_rxd_func(*this, 1)
 	, m_an_func(*this, 0)
 	, m_pa_in_cb(*this, 0xff)
@@ -711,7 +712,13 @@ uint8_t upd7810_device::RP(offs_t port)
 			data |= 0x3f;   /* what would we see on the lower bits here? */
 			break;
 		case 0x06:
-			data = 0xff;    /* what would we see on the lower bits here? */
+			// MM = x110 is not in the uPD7810 table; the Siemens PT88 S
+			// mechanism firmware (uPD78C10, 8 KiB ROM) sets it and reads
+			// switches on PF6/PF7, so these two stay port pins (assumed)
+			if ((m_mm & 0x07) == 0x06)
+				data = (m_pf_in & m_mf & 0xc0) | (m_pf_out & ~m_mf & 0xc0) | 0x3f;
+			else
+				data = 0xff;    /* what would we see on the lower bits here? */
 			break;
 		}
 		break;
@@ -1118,6 +1125,10 @@ void upd7810_device::upd7810_write_EOM()
 void upd7810_device::upd7810_write_TXB()
 {
 	m_txbuf = 1;
+	// an idle transmitter takes the byte over at once, so that the buffer
+	// can hold the next one while this is shifted out
+	if (0 == m_txcnt && (SMH & 0x04))
+		upd7810_sio_load();
 }
 
 #define PAR7(n) ((((n)>>6)^((n)>>5)^((n)>>4)^((n)>>3)^((n)>>2)^((n)>>1)^((n)))&1)
@@ -1145,13 +1156,14 @@ void upd7810_device::upd7810_sio_output()
 		if (0 == m_txcnt)
 			IRR |= INTFST;      /* serial transfer completed */
 	}
-	else
-	if (SMH & 0x04) /* send enable ? */
+	else if ((SMH & 0x04) && m_txbuf) /* send enable and transmitter buffer written ? */
+		upd7810_sio_load();
+}
+
+void upd7810_device::upd7810_sio_load()
+{
+	m_txbuf = 0;
 	{
-		/* nothing written into the transmitter buffer ? */
-		if (0 == m_txbuf)
-			return;
-		m_txbuf = 0;
 
 		if (SML & 0x03)         /* asynchronous mode ? */
 		{
@@ -1217,8 +1229,8 @@ void upd7810_device::upd7810_sio_output()
 				m_txcnt = 11;
 				break;
 			case 0xfc:  /* 8bits, even parity, 2 stop bits */
-				/* insert start bit in bit0, parity in bit 9, stop bits int bits10+10 */
-				m_txs = (TXB << 1) | ((PAR8(TXB) ^ 1) << 9) | (1 << 10);
+				/* insert start bit in bit0, parity in bit 9, stop bits in bits10+11 */
+				m_txs = (TXB << 1) | ((PAR8(TXB) ^ 1) << 9) | (3 << 10);
 				m_txcnt = 12;
 				break;
 			}
@@ -1526,6 +1538,10 @@ void upd7810_device::update_sio(int cycles)
 		}
 		else
 			upd7810_sio_output(); // falling edge
+
+		// the internal serial clock appears on the SCK pin
+		if ((SMH & 0x03) != 0x03)
+			m_sck_func(EDGES ? 0 : 1);
 	}
 }
 
@@ -2351,6 +2367,9 @@ void upd7810_device::execute_set_input(int irqline, int state)
 				ECPT = ECNT;
 				ECNT = 0;
 			}
+			// INTEIN is requested at the falling edge of CI (the TO source
+			// of INTEIN is not emulated)
+			IRR |= INTFEIN;
 		}
 		CI = state ? 1 : 0;
 		break;

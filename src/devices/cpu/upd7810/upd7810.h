@@ -51,6 +51,7 @@ public:
 	auto co0_func() { return m_co0_func.bind(); }
 	auto co1_func() { return m_co1_func.bind(); }
 	auto txd_func() { return m_txd_func.bind(); }
+	auto sck_func() { return m_sck_func.bind(); }
 	auto rxd_func() { return m_rxd_func.bind(); }
 	auto an0_func() { return m_an_func[0].bind(); }
 	auto an1_func() { return m_an_func[1].bind(); }
@@ -182,6 +183,7 @@ protected:
 	devcb_write_line  m_co0_func;
 	devcb_write_line  m_co1_func;
 	devcb_write_line  m_txd_func;
+	devcb_write_line  m_sck_func;
 	devcb_read_line   m_rxd_func;
 	devcb_read8::array<8> m_an_func;
 
@@ -372,6 +374,7 @@ protected:
 	void upd7810_write_EOM();
 	void upd7810_write_TXB();
 	void upd7810_sio_output();
+	void upd7810_sio_load();
 	void upd7810_sio_input();
 	void upd7810_sio_rx_clock(int prescale);
 	void illegal();
